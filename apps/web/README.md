@@ -6,4 +6,4 @@
 - Labeler 标注员工作台
 - Reviewer 人工审核工作台
 
-建议技术栈：React、TypeScript、Vite、Ant Design 或 Semi Design、Formily、dnd-kit。
+技术栈：React 18、TypeScript、Ant Design、Formily + Schema 渲染、@dnd-kit/core、Zustand。

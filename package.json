@@ -5,11 +5,11 @@
   "description": "LabelHub 数据标注平台 monorepo。",
   "type": "module",
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
+    "dev:web": "pnpm --filter @labelhub/web dev",
+    "build:web": "pnpm --filter @labelhub/web build",
+    "test:web": "pnpm --filter @labelhub/web test",
+    "lint:web": "pnpm --filter @labelhub/web lint",
+    "typecheck:web": "pnpm --filter @labelhub/web typecheck",
     "format": "pnpm -r format"
   },
   "engines": {

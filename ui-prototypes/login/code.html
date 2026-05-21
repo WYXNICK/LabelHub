@@ -1,0 +1,247 @@
+<!DOCTYPE html><html lang="zh-CN" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>LabelHub - 精确标注，驱动 AI 未来</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#4de25a",
+                        "on-primary-fixed": "#00174b",
+                        "inverse-surface": "#2e3132",
+                        "inverse-primary": "#b4c5ff",
+                        "text-caption": "#8F959E",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#006b1b",
+                        "outline-variant": "#c3c6d8",
+                        "warning-orange": "#FF8800",
+                        "primary-fixed": "#dbe1ff",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#161c23",
+                        "on-surface": "#191c1d",
+                        "surface": "#f8f9fa",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary-fixed-dim": "#c1c7d1",
+                        "background": "#f8f9fa",
+                        "secondary": "#595f68",
+                        "on-background": "#191c1d",
+                        "on-secondary-fixed-variant": "#414750",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "error-red": "#F54A45",
+                        "surface-tint": "#0053db",
+                        "status-approved": "#00B634",
+                        "on-primary-container": "#fefcff",
+                        "error": "#ba1a1a",
+                        "secondary-fixed": "#dde3ed",
+                        "surface-dim": "#d9dadb",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "status-labeling": "#3370FF",
+                        "on-error": "#ffffff",
+                        "border-strong": "#DEE0E3",
+                        "outline": "#737687",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#424655",
+                        "success-green": "#00B634",
+                        "inverse-on-surface": "#f0f1f2",
+                        "tertiary-fixed": "#70ff76",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed-variant": "#005312",
+                        "on-secondary-container": "#5d636c",
+                        "surface-variant": "#e1e3e4",
+                        "secondary-container": "#dae0ea",
+                        "on-tertiary-fixed": "#002204",
+                        "surface-bright": "#f8f9fa",
+                        "on-tertiary-container": "#f7fff1",
+                        "status-ai-review": "#7B61FF",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "surface-container-high": "#e7e8e9",
+                        "primary-container": "#2a6af9",
+                        "text-main": "#1F2329",
+                        "surface-container": "#edeeef",
+                        "tertiary-container": "#008724",
+                        "status-rejected": "#F54A45",
+                        "border-light": "#EFF0F1",
+                        "primary": "#0050d6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "xl": "32px",
+                        "gutter": "16px",
+                        "margin-page": "24px",
+                        "base": "8px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Hanken Grotesk"],
+                        "code-sm": ["JetBrains Mono"],
+                        "body-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-bold": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "headline-sm": ["Hanken Grotesk"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "code-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+                        "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }],
+                        "label-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Custom Feishu style inputs */
+        .feishu-input {
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .feishu-input:focus {
+            border-color: #3370FF !important;
+            box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.2) !important;
+            outline: none;
+        }
+
+        /* Ambient subtle shadow for cards */
+        .feishu-card {
+            transition: all 0.2s ease-in-out;
+            border: 1px solid #EFF0F1;
+        }
+        .feishu-card:hover {
+            border-color: #3370FF;
+            box-shadow: 0 4px 12px rgba(31, 35, 41, 0.08);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-surface h-screen w-full flex overflow-hidden font-body-md text-on-surface">
+<!-- Left Side: Immersive Brand Area (60%) -->
+<div class="hidden lg:flex w-[60%] relative flex-col justify-between p-[40px] bg-secondary-fixed-dim" data-alt="A highly abstract, futuristic 3D visual representing digital connectivity, data processing, and artificial intelligence. The scene features glowing blue and bright white nodes connected by thin, precise geometric lines, floating in a clean, sophisticated deep gray and subtle blue atmosphere. The lighting is pristine and high-key, creating a modern, enterprise-level 'light mode' corporate aesthetic that feels reliable, precise, and systematic." style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuDDGjZJjN5JlwoQM6W30BVvMt4kdyLL4ttP-7Op8G0kZTMLPXaIRzq6x7fEwHIaN7552tnP6MAcumEBQa8hj5USVukSQLu-wYMD-3L42SZ8eJMwYBXUv5r7888e-4iKsNAnryDEk3wQIDHPqEl9Kr7NyCc-R2kmYhtLjHTDEg6G9oZBJCVYQQ--UDcBSVA8ES0IO2guBbqtp5qySdBsbnkLWFxhaYxkKRKokiM_CxO8WnkHO2sd_qo5z4TERh6AX_GqXYbMSUunlMk&quot;); background-size: cover; background-position: center center;">
+<!-- Overlay to ensure text readability -->
+<div class="absolute inset-0 bg-gradient-to-r from-on-secondary-fixed/90 to-on-secondary-fixed/40"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-[120px]">
+<span class="material-symbols-outlined text-primary text-[32px]" data-weight="fill">hexagon</span>
+<span class="font-display-lg text-display-lg text-surface-container-lowest">LabelHub</span>
+</div>
+</div>
+<div class="relative z-10 mb-[60px] max-w-xl">
+<h1 class="font-display-lg text-display-lg text-surface-container-lowest mb-sm leading-tight">
+                精确标注，驱动 AI 未来
+            </h1>
+<p class="font-body-lg text-body-lg text-secondary-fixed">
+                企业级数据生产流水线，提供高精度、高协作效率的智能数据标注体验，为大模型与自动化工作流构建坚实基石。
+            </p>
+</div>
+</div>
+<!-- Right Side: Login & Role Selection (40%) -->
+<div class="w-full lg:w-[40%] bg-surface-container-lowest flex flex-col relative h-full overflow-y-auto">
+<!-- Top Nav (Language Switcher) -->
+<div class="absolute top-0 right-0 p-lg w-full flex justify-end">
+<button class="flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[20px]">language</span>
+<span class="font-label-bold text-label-bold">ZH</span>
+</button>
+</div>
+<div class="flex-1 flex flex-col justify-center px-[40px] sm:px-[60px] py-[80px] max-w-[520px] mx-auto w-full">
+<!-- Mobile Brand Header (Visible only on smaller screens) -->
+<div class="lg:hidden flex items-center gap-2 mb-xl">
+<span class="material-symbols-outlined text-primary text-[28px]" data-weight="fill">hexagon</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">LabelHub</span>
+</div>
+<div class="mb-xl">
+<h2 class="font-display-lg text-display-lg text-text-main mb-xs">欢迎回来</h2>
+<p class="font-body-md text-body-md text-text-caption">请输入您的凭据以继续</p>
+</div>
+<!-- Login Form -->
+<form class="space-y-md mb-[40px]">
+<div class="space-y-xs">
+<label class="block font-label-bold text-label-bold text-text-main">邮箱地址</label>
+<input class="feishu-input w-full h-[40px] px-sm bg-surface-container-lowest border border-border-strong rounded-lg text-text-main placeholder-text-caption font-body-md text-body-md" placeholder="name@company.com" type="email">
+</div>
+<div class="space-y-xs">
+<label class="block font-label-bold text-label-bold text-text-main">密码</label>
+<input class="feishu-input w-full h-[40px] px-sm bg-surface-container-lowest border border-border-strong rounded-lg text-text-main placeholder-text-caption font-body-md text-body-md" placeholder="••••••••" type="password">
+</div>
+<div class="flex items-center justify-between py-xs">
+<label class="flex items-center gap-2 cursor-pointer">
+<input class="w-4 h-4 rounded border-border-strong text-primary focus:ring-primary/20 bg-surface-container-lowest" type="checkbox">
+<span class="font-body-sm text-body-sm text-text-main">记住我</span>
+</label>
+<a class="font-body-sm text-body-sm text-primary hover:text-primary-container transition-colors" href="#">忘记密码？</a>
+</div>
+<button class="w-full h-[40px] bg-[#3370FF] hover:bg-primary-container text-surface-container-lowest rounded-lg font-label-bold text-label-bold transition-colors" type="button">
+                    登录
+                </button>
+</form>
+<!-- Divider -->
+<div class="relative flex items-center py-sm mb-lg">
+<div class="flex-grow border-t border-border-light"></div>
+<span class="flex-shrink-0 mx-4 font-body-sm text-body-sm text-text-caption">角色快速入口</span>
+<div class="flex-grow border-t border-border-light"></div>
+</div>
+<!-- Role Selection Cards (Bento/Grid style) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+<!-- Owner -->
+<button class="feishu-card bg-surface-container-lowest rounded-lg p-md text-left flex flex-col gap-2 group cursor-pointer w-full">
+<div class="w-8 h-8 rounded bg-primary-fixed flex items-center justify-center text-primary mb-1">
+<span class="material-symbols-outlined text-[20px]" data-icon="shield_person">shield_person</span>
+</div>
+<div>
+<h3 class="font-label-bold text-label-bold text-text-main group-hover:text-primary transition-colors">任务负责人</h3>
+<p class="font-body-sm text-body-sm text-text-caption mt-1">管理任务与数据集</p>
+</div>
+</button>
+<!-- Labeler -->
+<button class="feishu-card bg-surface-container-lowest rounded-lg p-md text-left flex flex-col gap-2 group cursor-pointer w-full">
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-secondary mb-1">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_document">edit_document</span>
+</div>
+<div>
+<h3 class="font-label-bold text-label-bold text-text-main group-hover:text-primary transition-colors">标注员</h3>
+<p class="font-body-sm text-body-sm text-text-caption mt-1">执行精准数据标注</p>
+</div>
+</button>
+<!-- Reviewer -->
+<button class="feishu-card bg-surface-container-lowest rounded-lg p-md text-left flex flex-col gap-2 group cursor-pointer w-full">
+<div class="w-8 h-8 rounded bg-tertiary-container/10 flex items-center justify-center text-tertiary mb-1">
+<span class="material-symbols-outlined text-[20px]" data-icon="checklist">checklist</span>
+</div>
+<div>
+<h3 class="font-label-bold text-label-bold text-text-main group-hover:text-primary transition-colors">审核员</h3>
+<p class="font-body-sm text-body-sm text-text-caption mt-1">抽检与质检标注结果</p>
+</div>
+</button>
+<!-- AI System -->
+
+</div>
+</div>
+</div>
+</body></html>

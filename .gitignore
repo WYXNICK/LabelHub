@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+.venv/
+.uv-cache/
+uvcache/
 
 # Build outputs
 dist/
@@ -13,6 +16,14 @@ coverage/
 logs/
 *.log
 tmp/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Environment and secrets
 .env

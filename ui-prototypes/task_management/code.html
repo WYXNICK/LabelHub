@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LabelHub - 任务管理</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;900&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#dbe1ff",
+                        "surface-variant": "#e1e3e4",
+                        "surface-container-high": "#e7e8e9",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "border-strong": "#DEE0E3",
+                        "error-red": "#F54A45",
+                        "on-secondary-fixed-variant": "#414750",
+                        "primary-container": "#e8f0fe",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed": "#00174b",
+                        "on-surface": "#1f2329",
+                        "tertiary-container": "#008724",
+                        "surface-dim": "#d9dadb",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#1f2329",
+                        "surface": "#ffffff",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface-tint": "#3370ff",
+                        "error": "#f54a45",
+                        "surface-container-low": "#f5f6f7",
+                        "status-ai-review": "#7B61FF",
+                        "secondary-container": "#dae0ea",
+                        "secondary": "#5c6066",
+                        "error-container": "#ffdad6",
+                        "status-approved": "#00B634",
+                        "outline-variant": "#c3c6d8",
+                        "inverse-surface": "#2e3132",
+                        "tertiary": "#006b1b",
+                        "on-primary-container": "#3370ff",
+                        "text-main": "#1F2329",
+                        "surface-bright": "#ffffff",
+                        "on-tertiary-fixed": "#002204",
+                        "on-tertiary": "#ffffff",
+                        "inverse-primary": "#b4c5ff",
+                        "on-primary": "#ffffff",
+                        "status-labeling": "#3370FF",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-tertiary-container": "#f7fff1",
+                        "on-secondary-fixed": "#161c23",
+                        "on-error": "#ffffff",
+                        "outline": "#737687",
+                        "primary": "#3370ff",
+                        "border-light": "#dee0e3",
+                        "tertiary-fixed-dim": "#4de25a",
+                        "warning-orange": "#FF8800",
+                        "success-green": "#00B634",
+                        "secondary-fixed": "#dde3ed",
+                        "tertiary-fixed": "#70ff76",
+                        "inverse-on-surface": "#f0f1f2",
+                        "on-tertiary-fixed-variant": "#005312",
+                        "on-secondary-container": "#5d636c",
+                        "background": "#f5f6f7",
+                        "text-caption": "#8F959E",
+                        "secondary-fixed-dim": "#c1c7d1",
+                        "status-rejected": "#F54A45",
+                        "on-surface-variant": "#424655",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#edeeef"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-page": "24px",
+                        "gutter": "16px",
+                        "xl": "32px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Inter", "system-ui", "sans-serif"],
+                        "headline-md": ["Inter", "system-ui", "sans-serif"],
+                        "body-md": ["Inter", "system-ui", "sans-serif"],
+                        "label-bold": ["Inter", "system-ui", "sans-serif"],
+                        "display-lg": ["Inter", "system-ui", "sans-serif"],
+                        "code-sm": ["JetBrains Mono"],
+                        "body-sm": ["Inter", "system-ui", "sans-serif"],
+                        "body-lg": ["Inter", "system-ui", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "22px", "fontWeight": "400"}],
+                        "label-bold": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "code-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                        "body-sm": ["12px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface h-full text-text-main font-body-md overflow-hidden flex">
+<!-- SideNavBar -->
+<nav class="bg-surface-container-low dark:bg-surface-dim text-primary dark:text-inverse-primary font-label-bold text-label-bold fixed left-0 top-0 h-full w-[240px] z-30 border-r border-border-light dark:border-outline-variant flat no shadows flex flex-col p-md gap-sm hidden md:flex">
+<!-- Header -->
+<div class="flex items-center gap-sm mb-lg px-sm">
+<div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-display-lg text-display-lg font-black" style="font-size: 16px; line-height: 1;">L</div>
+<div>
+<div class="font-headline-sm text-headline-sm font-bold text-primary dark:text-inverse-primary">LabelHub</div>
+<div class="text-xs text-text-caption font-body-sm text-body-sm">企业工作空间</div>
+</div>
+</div>
+<!-- Create Button -->
+<button class="w-full bg-primary text-on-primary py-2 px-4 rounded-lg font-label-bold text-label-bold mb-md hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+            新建任务
+        </button>
+<!-- Tabs -->
+<div class="flex-1 flex flex-col gap-xs overflow-y-auto">
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high px-3 py-2 rounded-lg flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                仪表盘
+            </a>
+<a class="bg-secondary-container dark:bg-primary-container text-primary dark:text-on-primary-container rounded-lg px-3 py-2 flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">assignment</span>
+                任务管理
+            </a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high px-3 py-2 rounded-lg flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">database</span>
+                数据集
+            </a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high px-3 py-2 rounded-lg flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">psychology</span>
+                AI 规则
+            </a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high px-3 py-2 rounded-lg flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">file_export</span>
+                导出中心
+            </a>
+</div>
+<!-- Footer -->
+<div class="mt-auto pt-4 border-t border-border-light flex flex-col gap-xs">
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high px-3 py-2 rounded-lg flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+                设置
+            </a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high px-3 py-2 rounded-lg flex items-center gap-3 transition-colors" href="#">
+<span class="material-symbols-outlined">contact_support</span>
+                帮助中心
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col md:ml-[240px] h-full overflow-hidden">
+<!-- TopNavBar -->
+<header class="bg-surface dark:bg-inverse-surface font-body-md text-body-md docked full-width top-0 z-20 border-b border-border-light dark:border-outline-variant flat no shadows flex items-center justify-between h-14 px-md w-full">
+<div class="flex items-center">
+<div class="md:hidden font-headline-sm text-headline-sm font-bold text-primary mr-4">LabelHub</div>
+<!-- Search -->
+<div class="relative hidden sm:block w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-caption">search</span>
+<input class="w-full pl-10 pr-4 py-1.5 bg-surface-container-low border border-border-strong rounded focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim outline-none text-sm transition-all" placeholder="搜索任务..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="hover:bg-surface-container dark:hover:bg-surface-variant transition-colors p-1.5 rounded-full cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="hover:bg-surface-container dark:hover:bg-surface-variant transition-colors p-1.5 rounded-full cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined">help</span>
+</button>
+<button class="hover:bg-surface-container dark:hover:bg-surface-variant transition-colors p-1.5 rounded-full cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined">apps</span>
+</button>
+<div class="h-6 w-px bg-border-strong mx-1"></div>
+<div class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+<span class="font-label-bold text-label-bold text-text-main hidden sm:block">管理员</span>
+<img alt="User Avatar" class="w-8 h-8 rounded-full border border-border-light object-cover" data-alt="A small circular avatar placeholder showing a professional headshot of a smiling man. The image is clean and bright, fitting a modern corporate web application style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4FJLw1OWNyd9Atf8hqgGWG7bKMJX7JOmNvfl0l4sywaEkpBnyTzy3pY-o_gIS4Sz-hsJGpCmnpMOARwBOTyOottEAmuFeYAffzQoQPHw1qJXvdXvhdOZ74eXq6-t_zIsyy5YT15mdt7hOuNHKoaj0w_8EtKkQigz2HJ4_11IASb47isGktWv2DZ-LihtdEXC05AiH0bPLoHZ7G2cIk2PnjDyuXY6dMcg4W0znJmFHAI3GTxKawp7f2SIBguftzpLfczPczTs9jy4"/>
+</div>
+</div>
+</header>
+<!-- Page Content Canvas -->
+<main class="flex-1 overflow-y-auto p-margin-page bg-background">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between mb-lg gap-4">
+<div>
+<h1 class="font-headline-md text-headline-md text-text-main">任务管理</h1>
+<p class="text-text-caption font-body-sm text-body-sm mt-1">总览和管理所有标注任务。</p>
+</div>
+<!-- Filters & Actions -->
+<div class="flex items-center gap-sm">
+<div class="flex bg-surface-container-low p-1 rounded border border-border-light">
+<button class="px-3 py-1 rounded bg-surface shadow-sm font-label-bold text-label-bold text-primary">全部</button>
+<button class="px-3 py-1 rounded hover:bg-surface-container transition-colors font-body-sm text-body-sm text-text-main">草稿</button>
+<button class="px-3 py-1 rounded hover:bg-surface-container transition-colors font-body-sm text-body-sm text-text-main">发布中</button>
+<button class="px-3 py-1 rounded hover:bg-surface-container transition-colors font-body-sm text-body-sm text-text-main">已结束</button>
+</div>
+</div>
+</div>
+<!-- Stats Overview Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-lg">
+<div class="bg-surface p-md rounded-lg border border-border-light">
+<div class="flex items-center gap-2 mb-2">
+<div class="w-8 h-8 rounded bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-size: 18px;">library_books</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-caption">总任务数</span>
+</div>
+<div class="font-display-lg text-display-lg text-text-main">124</div>
+</div>
+<div class="bg-surface p-md rounded-lg border border-border-light">
+<div class="flex items-center gap-2 mb-2">
+<div class="w-8 h-8 rounded bg-[#F0EEFF] flex items-center justify-center text-status-ai-review">
+<span class="material-symbols-outlined" style="font-size: 18px;">psychology</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-caption">AI 审核中</span>
+</div>
+<div class="font-display-lg text-display-lg text-text-main">45</div>
+</div>
+<div class="bg-surface p-md rounded-lg border border-border-light">
+<div class="flex items-center gap-2 mb-2">
+<div class="w-8 h-8 rounded bg-[#E6F4EA] flex items-center justify-center text-success-green">
+<span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-caption">已通过数量</span>
+</div>
+<div class="font-display-lg text-display-lg text-text-main">8,402</div>
+</div>
+<div class="bg-surface p-md rounded-lg border border-border-light">
+<div class="flex items-center gap-2 mb-2">
+<div class="w-8 h-8 rounded bg-error-container flex items-center justify-center text-error-red">
+<span class="material-symbols-outlined" style="font-size: 18px;">trending_down</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-caption">平均拒绝率</span>
+</div>
+<div class="font-display-lg text-display-lg text-text-main">4.2%</div>
+</div>
+</div>
+<!-- Task List Table -->
+<div class="bg-surface rounded-lg border border-border-light overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-border-light font-body-sm text-body-sm text-text-caption">
+<th class="py-3 px-4 font-normal">任务名称</th>
+<th class="py-3 px-4 font-normal">状态</th>
+<th class="py-3 px-4 font-normal">进度</th>
+<th class="py-3 px-4 font-normal text-right">总题数</th>
+<th class="py-3 px-4 font-normal text-right">已提交</th>
+<th class="py-3 px-4 font-normal text-right">拒绝率</th>
+<th class="py-3 px-4 font-normal">操作</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm text-text-main divide-y divide-border-light">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-3 px-4">
+<div class="font-label-bold text-label-bold">电商商品分类</div>
+<div class="text-text-caption text-xs mt-0.5">ID: TSK-2023-001 • 创建于 10月24日</div>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#E6F4EA] text-success-green border border-[#CEEAD6]">
+                                        发布中
+                                    </span>
+</td>
+<td class="py-3 px-4 w-48">
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 75%"></div>
+</div>
+<span class="text-xs text-text-caption w-8">75%</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">10,000</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">7,500</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm text-error-red">2.1%</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Edit"><span class="material-symbols-outlined" style="font-size: 16px;">edit</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Data Import"><span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Config Template"><span class="material-symbols-outlined" style="font-size: 16px;">design_services</span></button>
+<button class="p-1 text-text-caption hover:text-status-ai-review rounded hover:bg-[#F0EEFF] transition-colors" title="Review Rules"><span class="material-symbols-outlined" style="font-size: 16px;">rule</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Results"><span class="material-symbols-outlined" style="font-size: 16px;">monitoring</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Export"><span class="material-symbols-outlined" style="font-size: 16px;">download</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-3 px-4">
+<div class="font-label-bold text-label-bold">自动驾驶拉框标注</div>
+<div class="text-text-caption text-xs mt-0.5">ID: TSK-2023-002 • 创建于 10月22日</div>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#F0EEFF] text-status-ai-review border border-[#E0D4FF]">
+<span class="material-symbols-outlined mr-1" style="font-size: 12px;">psychology</span> AI 审核中
+                                    </span>
+</td>
+<td class="py-3 px-4 w-48">
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-status-ai-review" style="width: 40%"></div>
+</div>
+<span class="text-xs text-text-caption w-8">40%</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">50,000</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">20,000</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm text-warning-orange">8.5%</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Edit"><span class="material-symbols-outlined" style="font-size: 16px;">edit</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Data Import"><span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Config Template"><span class="material-symbols-outlined" style="font-size: 16px;">design_services</span></button>
+<button class="p-1 text-text-caption hover:text-status-ai-review rounded hover:bg-[#F0EEFF] transition-colors" title="Review Rules"><span class="material-symbols-outlined" style="font-size: 16px;">rule</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Results"><span class="material-symbols-outlined" style="font-size: 16px;">monitoring</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Export"><span class="material-symbols-outlined" style="font-size: 16px;">download</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-3 px-4">
+<div class="font-label-bold text-label-bold text-text-caption">医疗文本实体抽取</div>
+<div class="text-text-caption text-xs mt-0.5">ID: TSK-2023-003 • 创建于 10月15日</div>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-variant text-secondary border border-border-strong">
+                                        草稿
+                                    </span>
+</td>
+<td class="py-3 px-4 w-48">
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-secondary" style="width: 0%"></div>
+</div>
+<span class="text-xs text-text-caption w-8">0%</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">5,000</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">0</td>
+<td class="py-3 px-4 text-right font-code-sm text-code-sm">-</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Edit"><span class="material-symbols-outlined" style="font-size: 16px;">edit</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Data Import"><span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Config Template"><span class="material-symbols-outlined" style="font-size: 16px;">design_services</span></button>
+<button class="p-1 text-text-caption hover:text-status-ai-review rounded hover:bg-[#F0EEFF] transition-colors" title="Review Rules"><span class="material-symbols-outlined" style="font-size: 16px;">rule</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Results"><span class="material-symbols-outlined" style="font-size: 16px;">monitoring</span></button>
+<button class="p-1 text-text-caption hover:text-primary rounded hover:bg-primary-fixed-dim transition-colors" title="Export"><span class="material-symbols-outlined" style="font-size: 16px;">download</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="flex items-center justify-between px-4 py-3 border-t border-border-light bg-surface">
+<span class="text-sm text-text-caption">显示第 1 到 3 条，共 124 条结果</span>
+<div class="flex gap-1">
+<button class="px-2 py-1 rounded border border-border-strong text-text-caption hover:bg-surface-container transition-colors disabled:opacity-50" disabled=""><span class="material-symbols-outlined" style="font-size: 16px;">chevron_left</span></button>
+<button class="px-3 py-1 rounded border border-primary bg-primary-fixed-dim text-primary text-sm font-medium">1</button>
+<button class="px-3 py-1 rounded border border-border-strong text-text-main hover:bg-surface-container transition-colors text-sm">2</button>
+<button class="px-3 py-1 rounded border border-border-strong text-text-main hover:bg-surface-container transition-colors text-sm">3</button>
+<button class="px-2 py-1 rounded border border-border-strong text-text-main hover:bg-surface-container transition-colors"><span class="material-symbols-outlined" style="font-size: 16px;">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

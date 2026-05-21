@@ -1,0 +1,17 @@
+{
+  "name": "@labelhub/schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "dev": "node -e \"console.log('@labelhub/schema: schema package placeholder')\"",
+    "build": "node -e \"console.log('@labelhub/schema: build placeholder')\"",
+    "test": "node -e \"console.log('@labelhub/schema: test placeholder')\"",
+    "lint": "node -e \"console.log('@labelhub/schema: lint placeholder')\"",
+    "typecheck": "node -e \"console.log('@labelhub/schema: typecheck placeholder')\"",
+    "format": "node -e \"console.log('@labelhub/schema: format placeholder')\""
+  }
+}

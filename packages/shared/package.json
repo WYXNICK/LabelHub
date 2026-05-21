@@ -1,0 +1,17 @@
+{
+  "name": "@labelhub/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "dev": "node -e \"console.log('@labelhub/shared: shared package placeholder')\"",
+    "build": "node -e \"console.log('@labelhub/shared: build placeholder')\"",
+    "test": "node -e \"console.log('@labelhub/shared: test placeholder')\"",
+    "lint": "node -e \"console.log('@labelhub/shared: lint placeholder')\"",
+    "typecheck": "node -e \"console.log('@labelhub/shared: typecheck placeholder')\"",
+    "format": "node -e \"console.log('@labelhub/shared: format placeholder')\""
+  }
+}

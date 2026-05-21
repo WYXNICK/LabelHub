@@ -1,0 +1,17 @@
+{
+  "name": "@labelhub/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "dev": "node -e \"console.log('@labelhub/ui: ui package placeholder')\"",
+    "build": "node -e \"console.log('@labelhub/ui: build placeholder')\"",
+    "test": "node -e \"console.log('@labelhub/ui: test placeholder')\"",
+    "lint": "node -e \"console.log('@labelhub/ui: lint placeholder')\"",
+    "typecheck": "node -e \"console.log('@labelhub/ui: typecheck placeholder')\"",
+    "format": "node -e \"console.log('@labelhub/ui: format placeholder')\""
+  }
+}

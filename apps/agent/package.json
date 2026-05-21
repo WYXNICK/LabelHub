@@ -1,0 +1,14 @@
+{
+  "name": "@labelhub/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./src/main.js",
+    "build": "node ./src/main.js",
+    "test": "node ./src/main.js",
+    "lint": "node ./src/main.js",
+    "typecheck": "node ./src/main.js",
+    "format": "node ./src/main.js"
+  }
+}

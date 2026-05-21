@@ -1,0 +1,19 @@
+{
+  "name": "labelhub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LabelHub 数据标注平台 monorepo。",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "pnpm -r format"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

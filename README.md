@@ -2,7 +2,7 @@
 
 LabelHub 是一个前后端分离的 AI 数据标注平台，目标覆盖「任务创建 -> 数据导入 -> 动态模板搭建 -> 标注员作答 -> AI 自动预审 -> 人工审核 -> 多格式导出」完整链路。
 
-当前仓库已经初始化为 monorepo 骨架，后续开发在此基础上补齐前端、后端、Agent 与共享包实现。
+当前仓库已经初始化为 monorepo。阶段 0 已落地前端角色入口、后端基础 API、Agent 契约骨架、OpenAPI、Alembic 迁移骨架和基础测试。
 
 ## 目录结构
 
@@ -61,29 +61,115 @@ corepack prepare pnpm@latest --activate
 pnpm --version
 ```
 
-## 当前命令
+## 启动与常用命令
 
-当前只是项目骨架，脚本会输出占位信息。后续接入真实框架后替换为 React/Vite 前端、Python 后端服务和 Python Agent 启动命令。
+### 1. 首次准备
 
 ```bash
-# 前端
-pnpm install
-pnpm dev:web
-pnpm build:web
-pnpm test:web
-pnpm lint:web
-pnpm typecheck:web
+# 查看仓库声明的 pnpm 版本是否可用；本项目通过 Corepack 固定 pnpm
+corepack pnpm --version
 
-# 后端 API
-cd apps/api
-uv run --python 3.11 python -m labelhub_api
-
-# AI Agent
-cd apps/agent
-uv run --python 3.11 python -m labelhub_agent
+# 安装前端 monorepo 依赖；首次拉取项目或 package.json / pnpm-lock.yaml 变化后运行
+corepack pnpm install
 ```
 
 后端与 Agent 的 Python 依赖必须分别在各自目录下通过 `uv` 管理，不使用 `pip install` 直接写入全局环境。
+
+### 2. 前端命令
+
+以下命令均在仓库根目录运行：
+
+| 命令 | 什么时候运行 | 说明 |
+| --- | --- | --- |
+| `corepack pnpm dev:web` | 日常前端开发 | 启动 Vite 开发服务器，默认访问 `http://localhost:5173` |
+| `corepack pnpm build:web` | 提交前或验证生产构建 | 执行 TypeScript 构建检查并生成前端生产产物 |
+| `corepack pnpm test:web` | 修改前端逻辑后 | 运行 Vitest 单元测试 |
+| `corepack pnpm lint:web` | 修改前端代码后、提交前 | 运行 ESLint，检查代码规范和潜在问题 |
+| `corepack pnpm typecheck:web` | 修改类型、接口契约或组件 props 后 | 只运行 TypeScript 类型检查，不生成产物 |
+| `corepack pnpm format` | 需要统一格式时 | 对 workspace 内配置支持的文件执行格式化 |
+
+前端登录页需要后端 API 提供 `POST /api/auth/login` 和 `GET /api/auth/me`，因此完整体验建议同时启动后端。
+
+### 3. 后端 API 命令
+
+以下命令在 `apps/api` 目录运行：
+
+```bash
+# 安装/同步后端依赖；首次进入后端或 pyproject.toml / uv.lock 变化后运行
+uv sync --extra dev
+
+# 运行后端测试；修改 API、Schema、鉴权、错误结构后运行
+uv run pytest
+
+# 启动后端开发服务；默认监听 http://localhost:8000
+uv run python -m labelhub_api
+```
+
+数据库迁移命令只在需要初始化或更新 MySQL 表结构时运行：
+
+```bash
+# 需要 MySQL 已启动，并且 DATABASE_URL 指向可访问的库
+uv run alembic upgrade head
+```
+
+### 4. AI Agent 命令
+
+以下命令在 `apps/agent` 目录运行：
+
+```bash
+# 安装/同步 Agent 依赖；首次进入 Agent 或 pyproject.toml / uv.lock 变化后运行
+uv sync --extra dev
+
+# 运行 Agent 契约测试；修改结构化输出 DTO 或配置读取后运行
+uv run pytest
+
+# 启动 Agent 当前阶段的健康输出；阶段 0 只校验配置读取，不消费真实队列
+uv run python -m labelhub_agent
+```
+
+### 5. 本地 MySQL / Redis
+
+```bash
+# 启动本地 MySQL 和 Redis
+docker compose -f infra/docker/compose.yaml up -d
+
+# 停止本地 MySQL 和 Redis
+docker compose -f infra/docker/compose.yaml down
+```
+
+当前阶段如果只体验前端角色入口、登录、健康检查和 OpenAPI，可以先不启动 MySQL。
+
+## 当前 MySQL 使用状态
+
+MySQL 已经作为项目确定数据库，并且阶段 0 已准备好以下内容：
+
+- `.env.example` 中的 `DATABASE_URL=mysql+pymysql://labelhub:labelhub@localhost:3306/labelhub`。
+- `infra/docker/compose.yaml` 中的 MySQL 8 本地容器。
+- `apps/api/migrations/` 中的 Alembic 迁移骨架。
+- 首个迁移 `0001_create_users.py`，用于创建 `users` 表和 demo 用户记录。
+
+但阶段 0 的后端运行时接口还没有真正依赖 MySQL。当前 `GET /api/health`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` 使用的是内存 demo 用户和 Cookie Session，目的是先打通前后端契约与角色入口。
+
+MySQL 会从后续阶段开始成为主链路依赖：阶段 1 的任务创建、数据集导入、模板版本、审核配置、状态迁移和审计日志都需要持久化到 MySQL。也就是说，当前 MySQL 处于“已选型、已配置、已具备迁移骨架，但尚未接入阶段 0 运行时业务接口”的状态。
+
+## 阶段 0 Demo 账号
+
+统一密码：`labelhub123`
+
+| 角色 | 邮箱 |
+| --- | --- |
+| Owner | `owner@labelhub.dev` |
+| Labeler | `labeler@labelhub.dev` |
+| Reviewer | `reviewer@labelhub.dev` |
+
+## uv 缓存目录说明
+
+仓库根目录中的 `.uv-cache/` 与 `uvcache/` 都属于 uv 包缓存目录，已被 `.gitignore` 忽略。
+
+- `uvcache/` 当前包含 `archive-v0`、`wheels-v6`、`simple-v21` 等 uv 标准缓存结构，通常来自曾经设置 `UV_CACHE_DIR=uvcache` 或执行过 `uv --cache-dir uvcache ...`。
+- `.uv-cache/` 当前为空或仅包含缓存标签，通常来自另一次本地缓存目录尝试。
+- 当前 shell 环境没有 `UV_CACHE_DIR`，uv 默认会使用用户目录缓存；若遇到 Windows 权限问题，可临时指定到可写目录，例如 `D:\tmp\labelhub-uv-cache`。
+- 这两个目录不是源代码，不需要提交。
 
 ## 文档入口
 

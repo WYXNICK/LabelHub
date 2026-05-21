@@ -4,19 +4,21 @@
 
 本文档是 `apps/api` 的后端 SDD 基线，覆盖 Python API 服务以及 `apps/agent` AI 预审 worker 与后端接口之间的契约。正式开发前，本文件必须与 `apps/web/SDD.md` 中的前端 VO 和接口调用逐字段对齐。
 
-当前文档不代表已经进入正式开发阶段；它定义后续开发必须遵守的 SDD 对齐流程和接口契约规则。
+当前文档已经进入阶段 0 实现基线；阶段 0 先固化鉴权、健康检查、OpenAPI、通用错误结构、用户角色 VO、数据库迁移骨架和 Agent 结构化输出契约。后续阶段如需变更公共契约，必须先更新本文档与 `apps/web/SDD.md`。
 
 ## 2. 技术基线
 
 - 后端语言：Python 3.11+
-- Web 框架：待后端设计阶段确认，当前只固定 Python
-- 数据校验：待后端设计阶段确认，必须支持 Request/VO/DTO 结构校验
-- ORM：待后端设计阶段确认
-- 迁移：待后端设计阶段确认
+- Web 框架：FastAPI
+- 数据校验：Pydantic v2
+- ORM：SQLAlchemy 2
+- 迁移：Alembic
 - 数据库：MySQL
-- 队列：待 Agent 设计阶段确认
+- MySQL Driver：PyMySQL
+- 队列：阶段 0 只保留接口边界，正式队列实现后续阶段确认
 - 包管理器：uv
 - LLM 接入：OpenAI API 格式，具体模型暂未定
+- 鉴权：HttpOnly Cookie Session
 
 ## 3. uv 包管理规则
 
@@ -144,7 +146,125 @@ HTTP 状态语义：
 - `422`：业务校验失败。
 - `500`：服务端错误。
 
-## 8. 当前首批接口占位
+阶段 0 所有错误响应必须统一为：
+
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "请先登录。",
+    "details": null,
+    "requestId": "req_..."
+  }
+}
+```
+
+字段约定：
+
+- JSON 出参统一使用 camelCase。
+- Python 内部模型使用 snake_case，通过 Pydantic alias 映射到 camelCase。
+- 时间字段统一为 ISO 8601 字符串。
+- 枚举统一使用 UPPER_SNAKE 字符串。
+
+## 8. 阶段 0 已对齐接口契约
+
+### 8.1 通用枚举
+
+```python
+class UserRole(str, Enum):
+    OWNER = "OWNER"
+    LABELER = "LABELER"
+    REVIEWER = "REVIEWER"
+    SYSTEM = "SYSTEM"
+
+
+class UserStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+```
+
+### 8.2 `GET /api/health`
+
+Request：无。
+
+VO：
+
+```python
+class HealthVO:
+    status: str
+    service: str
+    version: str
+    environment: str
+    serverTime: str
+```
+
+### 8.3 `POST /api/auth/login`
+
+Request：
+
+```python
+class LoginRequest:
+    email: str
+    password: str
+```
+
+VO：
+
+```python
+class UserVO:
+    id: str
+    email: str
+    name: str
+    role: str
+    status: str
+    createdAt: str
+
+
+class AuthSessionVO:
+    expiresAt: str
+
+
+class LoginResponseVO:
+    user: UserVO
+    session: AuthSessionVO
+```
+
+行为：
+
+- 登录成功后后端写入 `labelhub_session` HttpOnly Cookie。
+- 账号不存在、密码错误或账号禁用统一返回 `401 INVALID_CREDENTIALS`。
+- Cookie 默认 `SameSite=Lax`，开发环境允许非 secure，生产环境必须开启 secure。
+
+### 8.4 `GET /api/auth/me`
+
+Request：通过 `labelhub_session` Cookie 鉴权。
+
+VO：`UserVO`。
+
+行为：
+
+- 未登录或 Session 无效返回 `401 UNAUTHORIZED`。
+
+### 8.5 `POST /api/auth/logout`
+
+Request：无。
+
+VO：
+
+```python
+class LogoutResponseVO:
+    success: bool
+```
+
+行为：
+
+- 后端删除 `labelhub_session` Cookie。
+
+### 8.6 `GET /api/openapi.json`
+
+由 FastAPI 自动暴露 OpenAPI 契约，路径固定为 `/api/openapi.json`。
+
+## 9. 后续首批业务接口占位
 
 正式开发前，以下接口必须与前端 SDD 完整展开：
 
@@ -161,7 +281,30 @@ HTTP 状态语义：
 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
 
-## 9. Agent 与 OpenAI API 格式契约
+## 10. 阶段 0 Entity 与迁移契约
+
+阶段 0 先落地 `users` 表迁移骨架，便于后续 Auth/User 模块切换到数据库持久化。
+
+```python
+class UserEntity:
+    id: str
+    email: str
+    name: str
+    password_hash: str | None
+    role: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+```
+
+约束：
+
+- `email` 唯一。
+- `role` 取值必须属于 `OWNER`、`LABELER`、`REVIEWER`、`SYSTEM`。
+- `status` 取值必须属于 `ACTIVE`、`DISABLED`。
+- Entity 不直接作为 API VO 返回。
+
+## 11. Agent 与 OpenAI API 格式契约
 
 Agent 调用 LLM 前必须定义结构化输出模型。
 
@@ -183,12 +326,12 @@ class AiReviewResultDTO:
 要求：
 
 - LLM 请求使用 OpenAI API 格式。
-- `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL` 从环境变量读取。
+- `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL` 从环境变量读取，日志中不得输出 API Key。
 - LLM 输出必须通过后端结构化模型校验。
 - 校验失败不能进入终审流程，应重试或进入人工复核。
 - Agent 写回结果必须通过后端受控服务或内部接口，不直接绕过状态机。
 
-## 10. 前后端字段映射检查清单
+## 12. 前后端字段映射检查清单
 
 每次开发前必须检查：
 
@@ -203,14 +346,12 @@ class AiReviewResultDTO:
 - Entity 不直接返回给前端。
 - LLM 输出 DTO 不直接等同于人工审核 VO，必须经过业务规则转换。
 
-## 11. 未确认事项
+## 13. 未确认事项
 
-正式开发前需要确认：
+阶段 0 已确认：FastAPI、Pydantic v2、SQLAlchemy 2、Alembic、PyMySQL、HttpOnly Cookie Session。
 
-- Python Web 框架。
-- Python 数据校验库。
-- ORM 与迁移工具。
+后续阶段仍需确认：
+
 - 队列实现方案。
-- 鉴权使用 Cookie Session 还是 Bearer Token。
-- 前端类型是否从后端 OpenAPI 自动生成。
+- 前端类型是否从后端 OpenAPI 自动生成，阶段 0 先手写契约类型。
 - OpenAI API 格式供应商的 base URL、模型名和结构化输出能力。

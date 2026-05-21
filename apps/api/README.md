@@ -10,22 +10,40 @@ Python 后端 API 服务，负责：
 技术基线：
 
 - Python
+- FastAPI
+- Pydantic v2
+- SQLAlchemy 2
+- Alembic
 - MySQL
 - uv
 
-Web 框架、数据校验库、ORM、迁移工具、队列实现尚未作为最终选型固定；确认前必须先更新后端 SDD。
+队列实现尚未作为最终选型固定；确认前必须先更新后端 SDD。
 
-当前为占位骨架，可运行：
+阶段 0 可运行：
 
 ```bash
-uv run --python 3.11 python -m labelhub_api
+uv sync --extra dev
+uv run pytest
+uv run alembic upgrade head
+uv run python -m labelhub_api
 ```
 
 PowerShell:
 
 ```powershell
-uv run --python 3.11 python -m labelhub_api
+uv sync --extra dev
+uv run pytest
+uv run alembic upgrade head
+uv run python -m labelhub_api
 ```
+
+接口：
+
+- `GET /api/health`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+- `GET /api/openapi.json`
 
 包管理规则：
 

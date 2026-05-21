@@ -17,16 +17,20 @@ Agent 不应直接终审通过数据，也不应绕过后端状态机。
 
 具体 LLM 模型、SDK/client、队列实现尚未作为最终选型固定；确认前必须先更新后端 SDD。
 
-当前为占位骨架，可运行：
+阶段 0 已提供配置读取与结构化输出 DTO，可运行：
 
 ```bash
-uv run --python 3.11 python -m labelhub_agent
+uv sync --extra dev
+uv run pytest
+uv run python -m labelhub_agent
 ```
 
 PowerShell:
 
 ```powershell
-uv run --python 3.11 python -m labelhub_agent
+uv sync --extra dev
+uv run pytest
+uv run python -m labelhub_agent
 ```
 
 包管理规则：

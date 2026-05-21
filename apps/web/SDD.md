@@ -4,7 +4,7 @@
 
 本文档是 `apps/web` 的前端 SDD 基线，用于约束后续 React 18 + TypeScript 开发。正式开发前，前端 SDD 必须与 `apps/api/SDD.md` 中的后端接口契约逐字段对齐。
 
-当前文档不代表已经进入正式开发阶段；它定义后续开发必须遵守的协作流程和接口映射规则。
+当前文档已经进入阶段 0 实现基线；阶段 0 先落地登录页、角色入口、受保护布局、无权限页、API Client、通用 VO 和鉴权状态。后续阶段如需变更公共契约，必须先更新本文档与 `apps/api/SDD.md`。
 
 ## 2. 技术基线
 
@@ -16,6 +16,7 @@
 - 拖拽：@dnd-kit/core
 - 状态管理：Zustand
 - API 协议：REST + OpenAPI/JSON Schema
+- 鉴权：HttpOnly Cookie Session，前端请求统一携带 `credentials: "include"`
 
 ## 3. SDD 驱动流程
 
@@ -63,6 +64,8 @@ export interface TaskVO {
 - 响应 VO 字段名与后端 VO 字段一致。
 - 列表接口统一读取 `data` 和 `pagination`。
 - 错误统一读取 `error.code`、`error.message`、`error.details`、`error.requestId`。
+- 不在 localStorage/sessionStorage 保存登录 Token。
+- `VITE_API_BASE_URL` 仅配置后端地址，不包含 `/api` 前缀。
 
 通用分页响应：
 
@@ -91,7 +94,78 @@ export interface ApiErrorVO {
 }
 ```
 
-## 6. 当前首批契约占位
+## 6. 阶段 0 已对齐页面与交互
+
+| 页面/模块 | 路由 | 阶段 0 行为 |
+| --- | --- | --- |
+| 登录页 | `/login` | 邮箱密码登录；提供 Owner、Labeler、Reviewer 三类 demo 快速入口 |
+| 角色首页 | `/owner/*`、`/labeler/*`、`/reviewer/*` | 登录后按用户角色进入对应应用壳；展示阶段 0 契约与后续模块入口 |
+| 无权限页 | 任意非当前角色路径 | 展示当前角色与目标路径，提供回到角色首页入口 |
+| 鉴权加载态 | 全局 | 启动时调用 `GET /api/auth/me` 恢复会话 |
+| 退出登录 | 全局 Header | 调用 `POST /api/auth/logout` 并回到登录页 |
+
+## 7. 阶段 0 已对齐 VO 与 Request
+
+```ts
+export type UserRole = "OWNER" | "LABELER" | "REVIEWER" | "SYSTEM";
+export type UserStatus = "ACTIVE" | "DISABLED";
+
+export interface HealthVO {
+  status: string;
+  service: string;
+  version: string;
+  environment: string;
+  serverTime: string;
+}
+
+export interface UserVO {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthSessionVO {
+  expiresAt: string;
+}
+
+export interface LoginResponseVO {
+  user: UserVO;
+  session: AuthSessionVO;
+}
+
+export interface LogoutResponseVO {
+  success: boolean;
+}
+```
+
+字段映射结果：
+
+| 前端字段 | 后端字段 | 说明 |
+| --- | --- | --- |
+| `createdAt` | `createdAt` | 后端 Pydantic alias 从 `created_at` 映射 |
+| `expiresAt` | `expiresAt` | 后端 Pydantic alias 从 `expires_at` 映射 |
+| `serverTime` | `serverTime` | 后端 Pydantic alias 从 `server_time` 映射 |
+| `role` | `role` | 枚举值完全一致，使用 UPPER_SNAKE |
+
+## 8. 阶段 0 已对齐接口调用
+
+| 前端封装 | HTTP 接口 | Request | VO |
+| --- | --- | --- | --- |
+| `getHealth` | `GET /api/health` | 无 | `HealthVO` |
+| `login` | `POST /api/auth/login` | `LoginRequest` | `LoginResponseVO` |
+| `getCurrentUser` | `GET /api/auth/me` | Cookie Session | `UserVO` |
+| `logout` | `POST /api/auth/logout` | 无 | `LogoutResponseVO` |
+| `openapi` | `GET /api/openapi.json` | 无 | OpenAPI JSON |
+
+## 9. 后续首批业务契约占位
 
 正式开发前，以下契约必须与后端 SDD 完整展开：
 
@@ -106,7 +180,7 @@ export interface ApiErrorVO {
 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
-## 7. 前后端字段映射检查清单
+## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：
 
@@ -119,10 +193,11 @@ export interface ApiErrorVO {
 - 错误结构是否统一为 `error` 包裹。
 - 动态模板 schema 是否由后端保存、前端渲染，不出现前端私有字段。
 
-## 8. 未确认事项
+## 11. 未确认事项
 
-正式开发前需要确认：
+阶段 0 已确认：鉴权使用 HttpOnly Cookie Session；阶段 0 前端类型先手写并与后端 OpenAPI 对齐；动态模板 schema 将作为语言无关 JSON 结构维护。
 
-- 鉴权使用 Cookie Session 还是 Bearer Token。
-- 前端类型是否通过 OpenAPI 自动生成。
-- 动态模板 schema 是否单独发布为语言无关 JSON Schema。
+后续阶段仍需确认：
+
+- 是否引入 OpenAPI 自动生成 TypeScript 类型。
+- 动态模板 schema 的最终 JSON Schema 发布目录与版本策略。

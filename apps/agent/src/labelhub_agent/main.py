@@ -1,2 +1,22 @@
+from __future__ import annotations
+
+import json
+
+from labelhub_agent.config import AgentSettings
+
+
 def main() -> None:
-    print("labelhub-agent: Python AI 预审 Agent 占位。后续接入 OpenAI API 格式 LLM。")
+    settings = AgentSettings()
+    print(
+        json.dumps(
+            {
+                "service": "labelhub-agent",
+                "status": "ready",
+                "apiBaseUrl": settings.api_base_url,
+                "openaiBaseUrl": settings.openai_base_url,
+                "modelConfigured": bool(settings.openai_model),
+                "apiKeyConfigured": bool(settings.openai_api_key),
+            },
+            ensure_ascii=False,
+        )
+    )

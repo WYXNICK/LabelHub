@@ -43,3 +43,6 @@ Thumbs.db
 # Demo data editor temp files
 .~*.xlsx
 ~$*.xlsx
+
+# Source requirement PDFs kept locally only
+docs/LabelHub 数据标注平台 · AI全栈课题实现要求.pdf

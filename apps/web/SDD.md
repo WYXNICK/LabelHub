@@ -168,18 +168,23 @@ export interface LogoutResponseVO {
 
 ## 9. 后续首批业务契约占位
 
-正式开发前，以下契约必须与后端 SDD 完整展开：
+正式开发前，以下契约必须与后端 SDD 完整展开。阶段 1 的目标是任务、数据集、审核配置和发布前检查底座；真正可领取发布必须等阶段 2 模板版本完成后再放开。
 
-| 页面/模块 | 前端 VO | 后端接口 | 状态 |
-| --- | --- | --- | --- |
-| 任务列表 | `TaskVO` | `GET /api/tasks` | 待细化 |
-| 任务详情 | `TaskDetailVO` | `GET /api/tasks/{taskId}` | 待细化 |
-| 数据导入 | `ImportJobVO` | `POST /api/tasks/{taskId}/import-jobs` | 待细化 |
-| 模板版本 | `TemplateVersionVO` | `POST /api/tasks/{taskId}/template-versions` | 待细化 |
-| 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
-| 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
-| 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
-| 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
+| 阶段 | 页面/模块 | 前端 VO / Request | 后端接口 | 状态 |
+| --- | --- | --- | --- | --- |
+| 1 | 任务列表 | `TaskVO`、`ListTasksRequest` | `GET /api/tasks` | 待细化 |
+| 1 | 任务创建/编辑 | `TaskDetailVO`、`CreateTaskRequest`、`UpdateTaskRequest` | `POST /api/tasks`、`PATCH /api/tasks/{taskId}` | 待细化 |
+| 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 待细化 |
+| 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 待细化 |
+| 1 | 题目预览与批量编辑 | `DatasetItemVO`、`BatchUpdateDatasetItemsRequest` | `GET /api/datasets/{datasetId}/items`、`PATCH /api/datasets/{datasetId}/items:batch` | 待细化 |
+| 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 待细化 |
+| 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 待细化 |
+| 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 待细化 |
+| 2 | 模板版本 | `TemplateVersionVO`、`TemplateSchemaVO` | `POST /api/tasks/{taskId}/template-versions` | 待细化 |
+| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
+| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
+| 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
+| 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
 ## 10. 前后端字段映射检查清单
 

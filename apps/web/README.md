@@ -16,13 +16,25 @@
 - 无权限页。
 - API Client 与阶段 0 VO/Request 类型。
 
-运行：
+常用命令：
+
+在仓库根目录运行：
 
 ```bash
-pnpm install
-pnpm dev:web
-pnpm build:web
-pnpm test:web
-pnpm lint:web
-pnpm typecheck:web
+corepack pnpm install
+corepack pnpm dev:web
+corepack pnpm build:web
+corepack pnpm test:web
+corepack pnpm lint:web
+corepack pnpm typecheck:web
+```
+
+在 `apps/web` 目录内也可以运行对应本地脚本：
+
+```bash
+pnpm dev
+pnpm build
+pnpm test
+pnpm lint
+pnpm typecheck
 ```

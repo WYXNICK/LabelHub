@@ -24,7 +24,6 @@ Python 后端 API 服务，负责：
 ```bash
 uv sync --extra dev
 uv run pytest
-uv run alembic upgrade head
 uv run python -m labelhub_api
 ```
 
@@ -33,9 +32,16 @@ PowerShell:
 ```powershell
 uv sync --extra dev
 uv run pytest
-uv run alembic upgrade head
 uv run python -m labelhub_api
 ```
+
+数据库迁移需要本地 MySQL 已启动，且 `DATABASE_URL` 指向可访问的库：
+
+```bash
+uv run alembic upgrade head
+```
+
+阶段 0 的运行时鉴权接口仍使用内存 demo 用户；`users` 表迁移用于提前固定数据库骨架，阶段 1 起任务、数据集、审核配置和审计日志会进入 MySQL 主链路。
 
 接口：
 

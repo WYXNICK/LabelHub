@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from labelhub_agent.config import AgentSettings
 from labelhub_agent.contracts import AiReviewResultDTO
 
 
@@ -31,3 +32,23 @@ def test_ai_review_result_contract_rejects_unknown_conclusion() -> None:
                 "issues": [],
             }
         )
+
+
+def test_agent_settings_accepts_provider_aliases_and_disables_thinking(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1")
+    monkeypatch.setenv("MODEL_NAME", "mimo-v2.5-pro")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_THINKING_ENABLED", "false")
+
+    settings = AgentSettings(_env_file=None)
+
+    assert settings.openai_base_url == "https://token-plan-cn.xiaomimimo.com/v1"
+    assert settings.openai_model == "mimo-v2.5-pro"
+    assert settings.openai_api_key == "test-key"
+    assert settings.openai_thinking_enabled is False
+    assert settings.is_llm_configured is True
+    assert settings.chat_completion_extra_body == {
+        "chat_template_kwargs": {
+            "enable_thinking": False,
+        }
+    }

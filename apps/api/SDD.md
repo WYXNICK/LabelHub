@@ -17,7 +17,7 @@
 - MySQL Driver：PyMySQL
 - 队列：阶段 0 只保留接口边界，正式队列实现后续阶段确认
 - 包管理器：uv
-- LLM 接入：OpenAI API 格式，具体模型暂未定
+- LLM 接入：OpenAI API 格式；Agent 默认 `BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`、`MODEL_NAME=mimo-v2.5-pro`、thinking 关闭
 - 鉴权：HttpOnly Cookie Session
 
 ## 3. uv 包管理规则
@@ -28,7 +28,7 @@
 
 ```bash
 cd apps/api
-uv sync
+uv sync --extra dev
 uv run python -m labelhub_api
 ```
 
@@ -36,7 +36,7 @@ AI Agent：
 
 ```bash
 cd apps/agent
-uv sync
+uv sync --extra dev
 uv run python -m labelhub_agent
 ```
 
@@ -45,7 +45,7 @@ uv run python -m labelhub_agent
 - 新增运行依赖使用 `uv add <package>`。
 - 新增开发依赖使用 `uv add --dev <package>`。
 - 不使用全局 `pip install` 安装项目依赖。
-- `uv.lock` 由正式依赖安装阶段生成后提交。
+- `uv.lock` 已纳入仓库；后续依赖变更必须同步更新并提交对应锁文件。
 
 ## 4. SDD 驱动流程
 
@@ -266,24 +266,37 @@ class LogoutResponseVO:
 
 ## 9. 后续首批业务接口占位
 
-正式开发前，以下接口必须与前端 SDD 完整展开：
+正式开发前，以下接口必须与前端 SDD 完整展开。阶段 1 只做任务、数据集、审核配置和发布前检查底座；缺少模板版本时发布必须被阻塞，真正可领取发布在阶段 2 模板版本完成后放开。
 
-| 接口 | Request | VO | 状态 |
-| --- | --- | --- | --- |
-| `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 待细化 |
-| `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 待细化 |
-| `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 待细化 |
-| `POST /api/tasks/{taskId}/import-jobs` | `CreateImportJobRequest` | `ImportJobVO` | 待细化 |
-| `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
-| `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
-| `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
-| `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
-| `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
-| `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
+| 阶段 | 接口 | Request | VO | 状态 |
+| --- | --- | --- | --- | --- |
+| 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 待细化 |
+| 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 待细化 |
+| 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 待细化 |
+| 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 待细化 |
+| 1 | `POST /api/tasks/{taskId}/state-transitions` | `TaskStateTransitionRequest` | `TaskDetailVO` | 待细化 |
+| 1 | `GET /api/tasks/{taskId}/publish-check` | `GetPublishCheckRequest` | `PublishCheckVO` | 待细化 |
+| 1 | `POST /api/tasks/{taskId}/import-jobs` | `CreateImportJobRequest` | `ImportJobVO` | 待细化 |
+| 1 | `GET /api/import-jobs/{importJobId}` | `GetImportJobRequest` | `ImportJobVO` | 待细化 |
+| 1 | `GET /api/import-jobs/{importJobId}/errors` | `ListImportErrorsRequest` | `PageVO[ImportErrorRowVO]` | 待细化 |
+| 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 待细化 |
+| 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 待细化 |
+| 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 待细化 |
+| 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
+| 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
+| 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 待细化 |
+| 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 待细化 |
+| 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 待细化 |
+| 2 | `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
+| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
+| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
+| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
+| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
+| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
 
 ## 10. 阶段 0 Entity 与迁移契约
 
-阶段 0 先落地 `users` 表迁移骨架，便于后续 Auth/User 模块切换到数据库持久化。
+阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。
 
 ```python
 class UserEntity:
@@ -326,7 +339,7 @@ class AiReviewResultDTO:
 要求：
 
 - LLM 请求使用 OpenAI API 格式。
-- `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL` 从环境变量读取，日志中不得输出 API Key。
+- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`。
 - LLM 输出必须通过后端结构化模型校验。
 - 校验失败不能进入终审流程，应重试或进入人工复核。
 - Agent 写回结果必须通过后端受控服务或内部接口，不直接绕过状态机。
@@ -354,4 +367,4 @@ class AiReviewResultDTO:
 
 - 队列实现方案。
 - 前端类型是否从后端 OpenAPI 自动生成，阶段 0 先手写契约类型。
-- OpenAI API 格式供应商的 base URL、模型名和结构化输出能力。
+- 当前 OpenAI API 兼容供应商的基础 Chat Completions 请求和 `chat_template_kwargs.enable_thinking=false` 已验证可用；结构化输出能力仍需在正式 Agent 调用阶段联调。

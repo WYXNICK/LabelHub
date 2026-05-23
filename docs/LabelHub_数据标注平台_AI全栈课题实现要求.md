@@ -182,9 +182,9 @@
 ```text
 Doubao-Seed-2.0-lite
 
-EP：ep-20260514105718-jthdm // 接入点
-APIKEY：ark-2af51d30-ed70-4061-a2cd-74f454ccc4e8-2282e
-APIKEY：ark-4126af52-1fda-4c17-8561-8db89e066502-95563
+EP：已脱敏，实际接入点请通过本地环境变量配置
+APIKEY：已脱敏，禁止将真实密钥写入仓库
+APIKEY：已脱敏，禁止将真实密钥写入仓库
 ```
 
 ⚠️ coding agent 非强制性要求，若大家有自己的 claude、codex 等工具，也可以使用自己的

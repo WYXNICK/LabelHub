@@ -294,6 +294,95 @@ class LogoutResponseVO:
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
 
+### 9.1 阶段 1.0 已对齐契约
+
+阶段 1.0 只交付 Owner 任务、数据集、导入、审核配置、发布检查与审计的契约和数据底座，不实现真实 CRUD、导入解析或状态迁移业务。所有阶段 1.0 业务接口在 OpenAPI 中暴露，并在业务实现完成前统一返回 `501 NOT_IMPLEMENTED`。
+
+阶段 1.0 枚举：
+
+```python
+class TaskStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    PAUSED = "PAUSED"
+    ENDED = "ENDED"
+
+
+class DistributionStrategy(str, Enum):
+    FIRST_COME_FIRST_SERVED = "FIRST_COME_FIRST_SERVED"
+    ASSIGNED = "ASSIGNED"
+    QUOTA_GRAB = "QUOTA_GRAB"
+
+
+class DatasetType(str, Enum):
+    QA_QUALITY = "QA_QUALITY"
+    PREFERENCE_COMPARE = "PREFERENCE_COMPARE"
+    CUSTOM = "CUSTOM"
+
+
+class DatasetSourceFormat(str, Enum):
+    JSON = "JSON"
+    JSONL = "JSONL"
+    EXCEL = "EXCEL"
+    MIXED = "MIXED"
+
+
+class DatasetStatus(str, Enum):
+    IMPORTING = "IMPORTING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class DatasetItemStatus(str, Enum):
+    AVAILABLE = "AVAILABLE"
+    CLAIMED = "CLAIMED"
+    DISABLED = "DISABLED"
+
+
+class ImportStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ReviewConfigVersionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+
+
+class PublishBlockerCode(str, Enum):
+    MISSING_REQUIRED_FIELDS = "MISSING_REQUIRED_FIELDS"
+    MISSING_DATASET = "MISSING_DATASET"
+    MISSING_TEMPLATE_VERSION = "MISSING_TEMPLATE_VERSION"
+    MISSING_REVIEW_CONFIG = "MISSING_REVIEW_CONFIG"
+    INVALID_QUOTA = "INVALID_QUOTA"
+    INVALID_DEADLINE = "INVALID_DEADLINE"
+```
+
+阶段 1.0 Request 与 VO 字段：
+
+| 契约 | 字段 |
+| --- | --- |
+| `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
+| `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
+| `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
+| `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
+| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`createdBy`、`createdAt` |
+| `DatasetVO` | `id`、`taskId`、`name`、`datasetType`、`sourceFormat`、`itemCount`、`enabledItemCount`、`disabledItemCount`、`status`、`createdBy`、`createdAt`、`updatedAt` |
+| `DatasetItemVO` | `id`、`datasetId`、`taskId`、`externalItemId`、`sourceFormat`、`sourceRowNumber`、`payload`、`mediaRefs`、`checksum`、`status`、`tags`、`createdAt`、`updatedAt` |
+| `CreateImportJobRequest` | `datasetName`、`datasetType`、`sourceFormat`、`fileObjectId`、`idempotencyKey` |
+| `ImportJobVO` | `id`、`taskId`、`datasetId`、`fileObjectId`、`sourceFormat`、`status`、`successCount`、`failedCount`、`errorSummary`、`createdBy`、`createdAt`、`updatedAt` |
+| `ImportErrorRowVO` | `id`、`importJobId`、`taskId`、`datasetId`、`sourceRowNumber`、`fieldPath`、`errorCode`、`errorMessage`、`rawFragment`、`createdAt` |
+| `BatchUpdateDatasetItemsRequest` | `itemIds`、`enabled`、`tags`、`reason`、`expectedVersion` |
+| `ReviewConfigDraftVO` | `id`、`taskId`、`promptTemplate`、`dimensions`、`thresholds`、`outputSchema`、`updatedBy`、`createdAt`、`updatedAt` |
+| `ReviewConfigVersionVO` | `id`、`taskId`、`versionNo`、`promptTemplate`、`dimensions`、`thresholds`、`outputSchema`、`status`、`publishedBy`、`publishedAt`、`createdAt`、`updatedAt` |
+| `PublishCheckVO` | `taskId`、`canPublish`、`blockers`、`checkedAt` |
+| `AuditLogVO` | `id`、`entityType`、`entityId`、`actorId`、`actorRole`、`action`、`fromState`、`toState`、`reason`、`metadata`、`requestId`、`createdAt` |
+
+阶段 1.0 Entity 与迁移表：`tasks`、`task_state_transitions`、`file_objects`、`datasets`、`dataset_items`、`import_jobs`、`import_error_rows`、`review_config_drafts`、`review_config_versions`、`audit_logs`。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

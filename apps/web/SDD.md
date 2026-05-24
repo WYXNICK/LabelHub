@@ -186,6 +186,53 @@ export interface LogoutResponseVO {
 | 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
+### 9.1 阶段 1.0 已对齐前端契约
+
+阶段 1.0 先建立 Owner 任务、数据集、导入、审核配置、发布检查与审计的前端类型和 API 调用外壳。业务页面在 1.1-1.5 分粒度实现；当前前端只依赖这些已对齐类型，不自行猜测后端字段。
+
+阶段 1.0 枚举：
+
+```ts
+export type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "ENDED";
+export type DistributionStrategy = "FIRST_COME_FIRST_SERVED" | "ASSIGNED" | "QUOTA_GRAB";
+export type DatasetType = "QA_QUALITY" | "PREFERENCE_COMPARE" | "CUSTOM";
+export type DatasetSourceFormat = "JSON" | "JSONL" | "EXCEL" | "MIXED";
+export type DatasetStatus = "IMPORTING" | "READY" | "FAILED";
+export type DatasetItemStatus = "AVAILABLE" | "CLAIMED" | "DISABLED";
+export type ImportStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+export type ReviewConfigVersionStatus = "ACTIVE" | "DISABLED";
+export type PublishBlockerCode =
+  | "MISSING_REQUIRED_FIELDS"
+  | "MISSING_DATASET"
+  | "MISSING_TEMPLATE_VERSION"
+  | "MISSING_REVIEW_CONFIG"
+  | "INVALID_QUOTA"
+  | "INVALID_DEADLINE";
+```
+
+阶段 1.0 前后端字段映射：
+
+| 前端 VO / Request | 字段 |
+| --- | --- |
+| `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
+| `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
+| `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
+| `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
+| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`createdBy`、`createdAt` |
+| `DatasetVO` | `id`、`taskId`、`name`、`datasetType`、`sourceFormat`、`itemCount`、`enabledItemCount`、`disabledItemCount`、`status`、`createdBy`、`createdAt`、`updatedAt` |
+| `DatasetItemVO` | `id`、`datasetId`、`taskId`、`externalItemId`、`sourceFormat`、`sourceRowNumber`、`payload`、`mediaRefs`、`checksum`、`status`、`tags`、`createdAt`、`updatedAt` |
+| `CreateImportJobRequest` | `datasetName`、`datasetType`、`sourceFormat`、`fileObjectId`、`idempotencyKey` |
+| `ImportJobVO` | `id`、`taskId`、`datasetId`、`fileObjectId`、`sourceFormat`、`status`、`successCount`、`failedCount`、`errorSummary`、`createdBy`、`createdAt`、`updatedAt` |
+| `ImportErrorRowVO` | `id`、`importJobId`、`taskId`、`datasetId`、`sourceRowNumber`、`fieldPath`、`errorCode`、`errorMessage`、`rawFragment`、`createdAt` |
+| `BatchUpdateDatasetItemsRequest` | `itemIds`、`enabled`、`tags`、`reason`、`expectedVersion` |
+| `ReviewConfigDraftVO` | `id`、`taskId`、`promptTemplate`、`dimensions`、`thresholds`、`outputSchema`、`updatedBy`、`createdAt`、`updatedAt` |
+| `ReviewConfigVersionVO` | `id`、`taskId`、`versionNo`、`promptTemplate`、`dimensions`、`thresholds`、`outputSchema`、`status`、`publishedBy`、`publishedAt`、`createdAt`、`updatedAt` |
+| `PublishCheckVO` | `taskId`、`canPublish`、`blockers`、`checkedAt` |
+| `AuditLogVO` | `id`、`entityType`、`entityId`、`actorId`、`actorRole`、`action`、`fromState`、`toState`、`reason`、`metadata`、`requestId`、`createdAt` |
+
+阶段 1.0 前端文件落点：`src/features/tasks`、`src/features/datasets`、`src/features/review-config`、`src/features/audit`、`src/features/files`。这些文件只做类型和 API 封装，页面开发从 1.1 开始。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：

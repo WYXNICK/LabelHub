@@ -26,3 +26,5 @@ export interface HealthVO {
   environment: string;
   serverTime: string;
 }
+
+export type JsonObject = Record<string, unknown>;

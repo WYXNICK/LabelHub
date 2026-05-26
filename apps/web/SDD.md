@@ -233,6 +233,25 @@ export type PublishBlockerCode =
 
 阶段 1.0 前端文件落点：`src/features/tasks`、`src/features/datasets`、`src/features/review-config`、`src/features/audit`、`src/features/files`。这些文件只做类型和 API 封装，页面开发从 1.1 开始。
 
+### 9.2 阶段 1.1 Owner 任务页面
+
+阶段 1.1 将 Owner 任务管理页推进为可操作页面，覆盖任务 CRUD、状态迁移入口和审计提示。
+
+页面范围：
+
+| 页面 | 路由 | 行为 |
+| --- | --- | --- |
+| 任务列表 | `/owner/tasks` | 搜索、状态筛选、分页、任务状态标签、数据量摘要、创建入口、编辑入口、发布/暂停/恢复/结束入口 |
+| 任务创建 | `/owner/tasks/new` | 创建 `DRAFT` 任务，字段包含标题、描述、富文本说明、标签、奖励规则、截止时间、配额和分发策略 |
+| 任务设置 | `/owner/tasks/:taskId/settings` | 加载任务详情，只允许编辑 `DRAFT` 任务；提交时携带 `version` 做乐观锁 |
+
+交互规则：
+
+- 状态迁移由后端决定最终结果；前端只发起 `TaskStateTransitionRequest`。
+- 发布失败时展示后端 `PUBLISH_BLOCKED` 的阻塞项，例如缺少数据集、模板版本或审核配置。
+- 列表和详情页都必须处理 loading、empty、error 和成功反馈。
+- 阶段 1.1 不在前端实现数据导入、审核配置保存、模板搭建或完整发布检查抽屉。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：
@@ -254,3 +273,24 @@ export type PublishBlockerCode =
 
 - 是否引入 OpenAPI 自动生成 TypeScript 类型。
 - 动态模板 schema 的最终 JSON Schema 发布目录与版本策略。
+
+## 12. 浏览器真实验收流程
+
+后续每次完成前端页面或核心交互后，必须使用 Chrome DevTools MCP 做真实浏览器验收，并且后端数据链路必须连接 MySQL，不能用 SQLite 替代官方要求的数据库。
+
+推荐流程：
+
+1. 确认 MySQL 可用，并执行 `apps/api` 下的 `alembic upgrade head`。阶段 1 以后任务、数据集、审核配置、状态迁移和审计日志必须写入 MySQL。
+2. 启动后端 API，并确保 `DATABASE_URL` 指向 MySQL；如果前端使用非默认端口，需要同步配置 `API_CORS_ORIGINS`。
+3. 启动前端 Vite；如使用非默认 API 地址，需要设置 `VITE_API_BASE_URL`。
+4. 使用 Chrome DevTools MCP 打开页面，优先使用 `http://localhost:<port>`，不要混用 `127.0.0.1` 与 `localhost`，避免 HttpOnly Cookie Session 在跨 host 请求中丢失。
+5. 至少检查 `1280×800` 与 `1920×1080` 两个视口。每个视口需确认关键内容可见、布局不遮挡、不出现非预期滚动、主要交互可完成。
+6. 检查 Console 与 Network：Console 不应有非预期 error/issue；Network 需确认核心接口状态码与契约一致。业务预期错误（例如发布保护返回 `409 PUBLISH_BLOCKED`）应在页面展示清晰阻塞项。
+7. 保存必要截图到本地临时目录或验收记录中；发现视觉、可访问性、接口或 Cookie 问题时，必须先修复并复验。
+
+本次阶段 1.1 验收使用过的有效方式：
+
+- MySQL：`labelhub-mysql-browser-check` 容器，`localhost:3307`，迁移版本 `0002_create_stage1_foundation (head)`。
+- API：`http://localhost:8001`。
+- Web：`http://localhost:5174`，通过 `VITE_API_BASE_URL=http://localhost:8001` 直连 API。
+- 已验证：登录、Owner 任务列表、任务创建写入 MySQL、任务设置页回填、发布阻塞 `409 PUBLISH_BLOCKED` 展示、Console 清洁复验、Network 核心接口状态码正确。

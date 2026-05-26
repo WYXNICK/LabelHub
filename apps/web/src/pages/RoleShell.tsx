@@ -13,6 +13,9 @@ import type { MenuProps } from "antd";
 import { navigate } from "../app/routes";
 import { useAuthStore } from "../features/auth/store";
 import type { UserRole, UserVO } from "../features/auth/types";
+import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
+import { OwnerTaskListPage } from "./OwnerTaskListPage";
+import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { RoleHomePage } from "./RoleHomePage";
 
 const roleName: Record<UserRole, string> = {
@@ -48,6 +51,7 @@ interface RoleShellProps {
 export function RoleShell({ user, path }: RoleShellProps) {
   const logout = useAuthStore((state) => state.logout);
   const role = user.role === "SYSTEM" ? "OWNER" : user.role;
+  const selectedMenuKey = path.startsWith("/owner/tasks") ? "/owner/tasks" : path;
 
   async function handleLogout() {
     await logout();
@@ -72,7 +76,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
           </Space>
           <Menu
             mode="inline"
-            selectedKeys={[path]}
+            selectedKeys={[selectedMenuKey]}
             items={menuItems[role]}
             onClick={({ key }) => navigate(key)}
             style={{ borderInlineEnd: 0, flex: 1 }}
@@ -97,9 +101,25 @@ export function RoleShell({ user, path }: RoleShellProps) {
           </Flex>
         </Layout.Header>
         <Layout.Content className="labelhub-page">
-          <RoleHomePage path={path} user={user} />
+          {renderRoleContent(user, path)}
         </Layout.Content>
       </Layout>
     </Layout>
   );
+}
+
+function renderRoleContent(user: UserVO, path: string) {
+  if (user.role === "OWNER") {
+    if (path === "/owner/tasks") {
+      return <OwnerTaskListPage />;
+    }
+    if (path === "/owner/tasks/new") {
+      return <OwnerTaskSettingsPage />;
+    }
+    const taskId = matchOwnerTaskSettingsPath(path);
+    if (taskId) {
+      return <OwnerTaskSettingsPage taskId={taskId} />;
+    }
+  }
+  return <RoleHomePage path={path} user={user} />;
 }

@@ -75,12 +75,15 @@ def test_stage1_contract_routes_are_auth_bound_and_business_not_implemented_yet(
         )
         assert login_response.status_code == 200
 
-        response = client.get("/api/tasks", headers={"X-Request-ID": "req_stage1_contract"})
+        response = client.get(
+            "/api/tasks/task_demo/publish-check",
+            headers={"X-Request-ID": "req_stage1_contract"},
+        )
 
     assert response.status_code == 501
     assert response.json()["error"] == {
         "code": "NOT_IMPLEMENTED",
-        "message": "任务列表业务实现将在后续粒度完成，阶段 1.0 仅暴露接口契约。",
+        "message": "发布前检查业务实现将在后续粒度完成，阶段 1.0 仅暴露接口契约。",
         "details": None,
         "requestId": "req_stage1_contract",
     }

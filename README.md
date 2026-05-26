@@ -90,6 +90,33 @@ corepack pnpm install
 
 前端登录页需要后端 API 提供 `POST /api/auth/login` 和 `GET /api/auth/me`，因此完整体验建议同时启动后端。
 
+### 2.1 前端真实浏览器验收
+
+完成前端页面或核心交互后，除 `typecheck/lint/test/build` 外，还必须使用 Chrome DevTools MCP 做真实浏览器验收。阶段 1 起数据库链路必须连接 MySQL，不使用 SQLite 代替。
+
+本地验收建议：
+
+```bash
+# 确认 MySQL 可用并完成迁移；DATABASE_URL 必须指向 MySQL
+cd apps/api
+uv run alembic upgrade head
+uv run python -m labelhub_api
+
+# 另开终端启动前端
+cd ../..
+corepack pnpm dev:web
+```
+
+如需使用临时端口，确保前端访问 host、`VITE_API_BASE_URL`、后端 `API_CORS_ORIGINS` 使用同一 host，例如统一使用 `localhost`，避免 Cookie Session 在 `127.0.0.1` 与 `localhost` 混用时丢失。
+
+Chrome DevTools MCP 检查项：
+
+- `1280×800` 与 `1920×1080` 两个视口。
+- 页面首屏、主要表单/表格、按钮交互、loading/empty/error 状态。
+- Console 无非预期 error/issue。
+- Network 中核心接口状态码和响应结构符合 SDD/OpenAPI；业务预期错误如 `409 PUBLISH_BLOCKED` 必须在页面清晰展示。
+- 涉及写入时，通过 Network 或数据库确认数据进入 MySQL。
+
 ### 3. 后端 API 命令
 
 以下命令在 `apps/api` 目录运行：

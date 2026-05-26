@@ -383,6 +383,42 @@ class PublishBlockerCode(str, Enum):
 
 阶段 1.0 Entity 与迁移表：`tasks`、`task_state_transitions`、`file_objects`、`datasets`、`dataset_items`、`import_jobs`、`import_error_rows`、`review_config_drafts`、`review_config_versions`、`audit_logs`。
 
+### 9.2 阶段 1.1 任务 CRUD 与状态机
+
+阶段 1.1 将 `GET/POST/PATCH /api/tasks`、`GET /api/tasks/{taskId}`、`POST /api/tasks/{taskId}/state-transitions` 和 `GET /api/audit-logs` 从契约占位推进为可用业务能力。
+
+状态迁移规则：
+
+| 当前状态 | 允许目标状态 | 说明 |
+| --- | --- | --- |
+| `DRAFT` | `PUBLISHED`、`ENDED` | 发布前必须通过最小发布保护；结束后不可恢复 |
+| `PUBLISHED` | `PAUSED`、`ENDED` | 发布中任务可暂停或结束 |
+| `PAUSED` | `PUBLISHED`、`ENDED` | 重新发布仍需通过最小发布保护 |
+| `ENDED` | 无 | 终态，不允许继续迁移 |
+
+发布最小保护：
+
+- `quota > 0`。
+- `deadlineAt` 必须存在且晚于当前时间。
+- 至少存在一个 `READY` 数据集。
+- `currentTemplateVersionId` 必须存在；阶段 2 前通常会被 `MISSING_TEMPLATE_VERSION` 阻塞。
+- `currentReviewConfigVersionId` 必须存在。
+
+业务错误：
+
+- 非 Owner 访问任务写接口返回 `403 FORBIDDEN`。
+- 任务不存在或不属于当前 Owner 返回 `404 NOT_FOUND`。
+- 非 `DRAFT` 任务更新基础信息返回 `409 TASK_NOT_EDITABLE`。
+- 乐观锁版本不匹配返回 `409 VERSION_CONFLICT`。
+- 非法状态迁移返回 `409 INVALID_STATE_TRANSITION`。
+- 发布保护不通过返回 `409 PUBLISH_BLOCKED`，`details.blockers` 使用 `PublishBlockerVO` 字段。
+
+审计：
+
+- 创建任务写入 `audit_logs.action=CREATE`。
+- 更新任务写入 `audit_logs.action=UPDATE`。
+- 状态迁移必须同时写入 `task_state_transitions` 与 `audit_logs.action=STATE_TRANSITION`。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

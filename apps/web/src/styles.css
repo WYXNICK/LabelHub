@@ -552,6 +552,47 @@ body {
   gap: 16px;
 }
 
+.labelhub-table-card .ant-card-body {
+  padding: 0;
+}
+
+.labelhub-table-description {
+  display: -webkit-box;
+  max-width: 520px;
+  overflow: hidden;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.labelhub-error-card {
+  border-color: #ffd8d6;
+  background: #fff7f6;
+}
+
+.labelhub-stage-note {
+  color: #245bdb;
+  background: #f2f7ff;
+  border-color: #d8e7ff;
+}
+
+.labelhub-blocker-list {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  line-height: 1.7;
+}
+
+.labelhub-form-card {
+  max-width: 1080px;
+}
+
+.labelhub-form-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.4fr) repeat(3, minmax(180px, 0.8fr));
+  gap: 16px;
+}
+
 .labelhub-route-chip {
   color: #3370ff;
   font-family: "JetBrains Mono", Consolas, monospace;
@@ -671,6 +712,27 @@ body {
   .labelhub-demo-strip {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .labelhub-page {
+    padding: 16px;
+  }
+
+  .labelhub-form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (max-width: 1280px) {
+  .labelhub-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .labelhub-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 

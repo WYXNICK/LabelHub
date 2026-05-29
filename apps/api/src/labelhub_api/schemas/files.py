@@ -16,6 +16,8 @@ class CreateFileObjectRequest(CamelModel):
     size_bytes: int = Field(ge=0)
     checksum: str | None = Field(default=None, max_length=128)
     purpose: FilePurpose
+    content_text: str | None = None
+    content_base64: str | None = None
 
 
 class FileObjectVO(CamelModel):

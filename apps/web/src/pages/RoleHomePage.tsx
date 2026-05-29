@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 
 import { getHealth } from "../features/auth/api";
 import type { UserVO } from "../features/auth/types";
+import { formatTaskTime } from "../features/tasks/view";
 import type { HealthVO } from "../shared/types/api";
 
 interface RoleHomePageProps {
@@ -120,7 +121,7 @@ export function RoleHomePage({ user, path }: RoleHomePageProps) {
             </Descriptions.Item>
             <Descriptions.Item label="版本">{health.version}</Descriptions.Item>
             <Descriptions.Item label="环境">{health.environment}</Descriptions.Item>
-            <Descriptions.Item label="服务时间">{health.serverTime}</Descriptions.Item>
+            <Descriptions.Item label="服务时间">{formatTaskTime(health.serverTime)}</Descriptions.Item>
             <Descriptions.Item label="当前路径">{path}</Descriptions.Item>
           </Descriptions>
         ) : (

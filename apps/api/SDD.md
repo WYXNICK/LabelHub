@@ -419,6 +419,65 @@ class PublishBlockerCode(str, Enum):
 - 更新任务写入 `audit_logs.action=UPDATE`。
 - 状态迁移必须同时写入 `task_state_transitions` 与 `audit_logs.action=STATE_TRANSITION`。
 
+### 9.3 阶段 1.2 JSON/JSONL/Excel 导入契约
+
+阶段 1.2 将文件登记、导入任务、数据集列表和导入错误行查询从契约占位推进为可用能力；题目预览与批量编辑仍属于阶段 1.3。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `POST /api/files` | 已实现 | 创建导入文件对象，阶段 1.2 支持 `contentText` 或 `contentBase64` 写入本地临时上传目录 |
+| `POST /api/tasks/{taskId}/import-jobs` | 已实现 | 同步解析导入文件并创建数据集、题目行、错误行和审计记录 |
+| `GET /api/import-jobs/{importJobId}` | 已实现 | 查询导入任务状态和成功/失败统计 |
+| `GET /api/import-jobs/{importJobId}/errors` | 已实现 | 分页查询导入错误行 |
+| `GET /api/tasks/{taskId}/datasets` | 已实现 | 分页查询当前任务下的数据集 |
+| `GET /api/datasets/{datasetId}/items` | 阶段 1.3 | 题目预览，不在 1.2 内实现 |
+| `PATCH /api/datasets/{datasetId}/items:batch` | 阶段 1.3 | 批量启用/禁用或标签编辑，不在 1.2 内实现 |
+
+`CreateFileObjectRequest` 在阶段 1.2 追加可选字段，`FileObjectVO` 不返回文件内容：
+
+```python
+class CreateFileObjectRequest:
+    bucket: str
+    objectKey: str
+    fileName: str
+    mimeType: str | None
+    sizeBytes: int
+    checksum: str | None
+    purpose: FilePurpose
+    contentText: str | None
+    contentBase64: str | None
+```
+
+导入解析规则：
+
+- `sourceFormat=JSON`：支持 JSON 数组；也支持对象内含 `items` 数组的结构。
+- `sourceFormat=JSONL`：每一行必须是一个 JSON Object，空行跳过。
+- `sourceFormat=EXCEL`：阶段 1.2 使用标准库解析 `.xlsx` 第一张工作表，首行为字段名。
+- 每行必须是对象，且必须包含非空 `id`；该值映射为 `DatasetItemVO.externalItemId`。
+- `QA_QUALITY` 至少需要 `prompt`、`model_answer`、`reference`。
+- `PREFERENCE_COMPARE` 至少需要 `prompt`、`response_a`、`response_b`。
+- 校验失败行写入 `import_error_rows`，不阻断其他合法行导入。
+
+幂等与去重策略：
+
+- `idempotencyKey` 非空且已存在时，直接返回既有 `ImportJobVO`，不得重复写入数据集或题目。
+- 单次导入内部按 `externalItemId` 去重；重复行写入错误行，错误码为 `DUPLICATE_ITEM`。
+- 数据库继续保留 `dataset_id + external_item_id` 唯一约束，作为最终一致性保护。
+
+审计要求：
+
+- 创建导入任务写入 `audit_logs.action=IMPORT_CREATE`，实体类型为 `IMPORT_JOB`。
+- 导入完成写入 `audit_logs.action=IMPORT_COMPLETE`，同时记录成功数、失败数和数据集 ID。
+
+验收标准：
+
+- `demo_data/datasets/qa_quality` 的 JSON、JSONL、Excel 均可导入 30 条。
+- `demo_data/datasets/preference_compare` 的 JSON、JSONL、Excel 均可导入 12 条。
+- 错误行可通过 `GET /api/import-jobs/{importJobId}/errors` 追踪到行号、字段、错误码、错误信息和原始片段。
+- 重复请求同一 `idempotencyKey` 不产生重复数据。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

@@ -1,5 +1,6 @@
 import {
   CheckCircleOutlined,
+  DatabaseOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
   PlusOutlined,
@@ -219,6 +220,13 @@ export function OwnerTaskListPage() {
               onClick={() => navigate(`/owner/tasks/${task.id}/settings`)}
             >
               设置
+            </Button>
+            <Button
+              size="small"
+              icon={<DatabaseOutlined />}
+              onClick={() => navigate(`/owner/tasks/${task.id}/datasets`)}
+            >
+              数据集
             </Button>
             {getTaskTransitionActions(task).map((action) => (
               <Button

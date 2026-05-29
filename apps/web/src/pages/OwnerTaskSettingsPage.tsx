@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, DatabaseOutlined, SaveOutlined } from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { navigate } from "../app/routes";
 import { createTask, getTask, updateTask } from "../features/tasks/api";
 import type { CreateTaskRequest, TaskDetailVO } from "../features/tasks/types";
-import { distributionStrategyOptions, formatTaskTime, taskStatusMeta } from "../features/tasks/view";
+import { distributionStrategyOptions, formatTaskTime, parseApiDateTime, taskStatusMeta } from "../features/tasks/view";
 import { ApiClientError } from "../shared/api/client";
 import type { JsonObject } from "../shared/types/api";
 
@@ -51,7 +51,7 @@ function toLocalDateTimeInput(value: string | null): string | undefined {
   if (!value) {
     return undefined;
   }
-  const date = new Date(value);
+  const date = parseApiDateTime(value);
   const pad = (input: number) => String(input).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
     date.getHours(),
@@ -184,6 +184,11 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/owner/tasks")}>
           返回列表
         </Button>
+        {taskId && (
+          <Button icon={<DatabaseOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/datasets`)}>
+            数据集
+          </Button>
+        )}
         {statusTag}
       </Space>
 

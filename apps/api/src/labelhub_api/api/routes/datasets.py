@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user
 from labelhub_api.api.routes._stage1_contract import raise_contract_only
+from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.schemas.datasets import (
@@ -15,6 +17,7 @@ from labelhub_api.schemas.datasets import (
     ImportErrorRowVO,
     ImportJobVO,
 )
+from labelhub_api.services.dataset_service import DatasetService
 
 router = APIRouter(prefix="/api", tags=["stage1-datasets"])
 
@@ -30,8 +33,19 @@ def create_import_job(
     request: Request,
     body: CreateImportJobRequest,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> ImportJobVO:
-    raise_contract_only(request, "数据导入任务创建")
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return DatasetService(db).create_import_job(
+        task_id=taskId,
+        user=user,
+        request_id=request_id,
+        request_dataset_name=body.dataset_name,
+        request_dataset_type=body.dataset_type,
+        request_source_format=body.source_format,
+        file_object_id=body.file_object_id,
+        idempotency_key=body.idempotency_key,
+    )
 
 
 @router.get(
@@ -41,10 +55,10 @@ def create_import_job(
 )
 def get_import_job(
     importJobId: str,
-    request: Request,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> ImportJobVO:
-    raise_contract_only(request, "数据导入任务查询")
+    return DatasetService(db).get_import_job(import_job_id=importJobId, user=user)
 
 
 @router.get(
@@ -54,12 +68,17 @@ def get_import_job(
 )
 def list_import_errors(
     importJobId: str,
-    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> PageVO[ImportErrorRowVO]:
-    raise_contract_only(request, "导入错误行查询")
+    return DatasetService(db).list_import_errors(
+        import_job_id=importJobId,
+        user=user,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get(
@@ -69,12 +88,17 @@ def list_import_errors(
 )
 def list_task_datasets(
     taskId: str,
-    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> PageVO[DatasetVO]:
-    raise_contract_only(request, "任务数据集列表")
+    return DatasetService(db).list_task_datasets(
+        task_id=taskId,
+        user=user,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get(

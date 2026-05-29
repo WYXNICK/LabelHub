@@ -252,6 +252,57 @@ export type PublishBlockerCode =
 - 列表和详情页都必须处理 loading、empty、error 和成功反馈。
 - 阶段 1.1 不在前端实现数据导入、审核配置保存、模板搭建或完整发布检查抽屉。
 
+### 9.3 阶段 1.2 Owner 数据集导入页面
+
+阶段 1.2 将 `/owner/tasks/:taskId/datasets` 推进为可操作页面，覆盖 JSON/JSONL/Excel 导入、导入结果反馈、数据集列表和错误行追踪；题目预览与批量启用/禁用仍放在阶段 1.3。
+
+页面范围：
+
+| 页面 | 路由 | 行为 |
+| --- | --- | --- |
+| 数据集导入 | `/owner/tasks/:taskId/datasets` | 读取任务信息，上传 JSON/JSONL/Excel，填写数据集名称、类型和格式，创建文件对象并触发导入任务 |
+| 导入结果 | 同页 | 展示导入状态、成功数、失败数、错误摘要和可追踪错误行 |
+| 数据集列表 | 同页 | 展示任务下数据集名称、类型、来源格式、总题数、可用题数、禁用题数和状态 |
+
+前端 Request/VO 对齐：
+
+```ts
+export interface CreateFileObjectRequest {
+  bucket: string;
+  objectKey: string;
+  fileName: string;
+  mimeType?: string | null;
+  sizeBytes: number;
+  checksum?: string | null;
+  purpose: FilePurpose;
+  contentText?: string | null;
+  contentBase64?: string | null;
+}
+
+export interface CreateImportJobRequest {
+  datasetName: string;
+  datasetType?: DatasetType;
+  sourceFormat: DatasetSourceFormat;
+  fileObjectId: string;
+  idempotencyKey?: string | null;
+}
+```
+
+交互规则：
+
+- 文件后缀自动推断 `sourceFormat`，用户仍可手动修正。
+- JSON/JSONL 使用 `File.text()` 读取后写入 `contentText`；Excel 使用 base64 写入 `contentBase64`。
+- 同一文件、任务、数据集名称、数据集类型和格式生成稳定 `idempotencyKey`，重复点击导入不会产生重复数据。
+- 导入成功后刷新数据集列表，并在页面内展示最近一次 `ImportJobVO`。
+- 导入存在失败行时，调用 `GET /api/import-jobs/{importJobId}/errors` 展示行号、字段、错误码、错误信息和原始片段。
+- 页面必须处理 loading、empty、error、partial success 和 failed 状态。
+
+浏览器验收：
+
+- 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
+- 后端必须连接 MySQL，并确认导入后数据进入 `datasets`、`dataset_items`、`import_jobs` 和 `import_error_rows`。
+- 至少验证 `qa_quality.json` 30 条与 `preference_compare.jsonl` 12 条导入链路；Excel 导入由后端测试覆盖，浏览器可视时间允许时补充上传验证。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：
@@ -294,3 +345,12 @@ export type PublishBlockerCode =
 - API：`http://localhost:8001`。
 - Web：`http://localhost:5174`，通过 `VITE_API_BASE_URL=http://localhost:8001` 直连 API。
 - 已验证：登录、Owner 任务列表、任务创建写入 MySQL、任务设置页回填、发布阻塞 `409 PUBLISH_BLOCKED` 展示、Console 清洁复验、Network 核心接口状态码正确。
+
+本次阶段 1.2 验收使用过的有效方式：
+
+- MySQL：`docker compose -f infra/docker/compose.yaml up -d mysql` 启动 `labelhub-mysql`，`localhost:3306`，迁移版本 `0002_create_stage1_foundation (head)`。
+- API：`http://localhost:8000`，默认 `DATABASE_URL=mysql+pymysql://labelhub:labelhub@localhost:3306/labelhub`。
+- Web：`http://localhost:5173`，Vite proxy 将 `/api` 转发到 `http://localhost:8000`。
+- 已验证：Owner 登录、创建阶段 1.2 任务、进入 `/owner/tasks/:taskId/datasets`、上传 `qa_quality.json` 导入 30 条、上传 `preference_compare.jsonl` 导入 12 条、上传包含缺字段和重复 id 的 JSONL 后展示 2 条错误行。
+- 数据库侧确认：`datasets=3`、`dataset_items=43`、`import_jobs=3`、`import_error_rows=2`。
+- 浏览器侧确认：Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 视口检查页面布局；Network 核心请求均为预期状态码；Console 无非预期 error/issue。

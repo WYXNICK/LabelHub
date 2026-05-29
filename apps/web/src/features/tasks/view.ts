@@ -46,15 +46,28 @@ export function matchOwnerTaskSettingsPath(path: string): string | null {
   return match?.[1] ?? null;
 }
 
+export function parseApiDateTime(value: string): Date {
+  const normalizedSeparator = value.trim().replace(
+    /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?)/,
+    "$1T$2",
+  );
+  const hasExplicitTimezone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(normalizedSeparator);
+  const isDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(normalizedSeparator);
+  // MySQL DATETIME 经 PyMySQL 返回后会丢失 UTC 标记；无时区的后端时间统一按 UTC 解析。
+  const normalizedValue = isDateTime && !hasExplicitTimezone ? `${normalizedSeparator}Z` : normalizedSeparator;
+  return new Date(normalizedValue);
+}
+
 export function formatTaskTime(value: string | null): string {
   if (!value) {
     return "未设置";
   }
   return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(parseApiDateTime(value));
 }

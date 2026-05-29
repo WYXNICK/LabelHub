@@ -8,6 +8,8 @@ export interface CreateFileObjectRequest {
   sizeBytes: number;
   checksum?: string | null;
   purpose: FilePurpose;
+  contentText?: string | null;
+  contentBase64?: string | null;
 }
 
 export interface FileObjectVO {

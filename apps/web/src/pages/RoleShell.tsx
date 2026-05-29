@@ -13,7 +13,9 @@ import type { MenuProps } from "antd";
 import { navigate } from "../app/routes";
 import { useAuthStore } from "../features/auth/store";
 import type { UserRole, UserVO } from "../features/auth/types";
+import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
+import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { RoleHomePage } from "./RoleHomePage";
@@ -115,6 +117,10 @@ function renderRoleContent(user: UserVO, path: string) {
     }
     if (path === "/owner/tasks/new") {
       return <OwnerTaskSettingsPage />;
+    }
+    const taskDatasetsId = matchOwnerTaskDatasetsPath(path);
+    if (taskDatasetsId) {
+      return <OwnerTaskDatasetsPage taskId={taskDatasetsId} />;
     }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {

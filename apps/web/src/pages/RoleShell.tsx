@@ -14,9 +14,11 @@ import { navigate } from "../app/routes";
 import { useAuthStore } from "../features/auth/store";
 import type { UserRole, UserVO } from "../features/auth/types";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
+import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
 import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
 import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
+import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { RoleHomePage } from "./RoleHomePage";
 
@@ -121,6 +123,10 @@ function renderRoleContent(user: UserVO, path: string) {
     const taskDatasetsId = matchOwnerTaskDatasetsPath(path);
     if (taskDatasetsId) {
       return <OwnerTaskDatasetsPage taskId={taskDatasetsId} />;
+    }
+    const taskReviewConfigId = matchOwnerTaskReviewConfigPath(path);
+    if (taskReviewConfigId) {
+      return <OwnerTaskReviewConfigPage taskId={taskReviewConfigId} />;
     }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {

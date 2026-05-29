@@ -282,10 +282,10 @@ class LogoutResponseVO:
 | 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 待细化 |
 | 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 阶段 1.3 已实现 |
 | 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 阶段 1.3 已实现 |
-| 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
-| 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
-| 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 待细化 |
+| 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 阶段 1.4 已实现 |
+| 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 阶段 1.4 已实现 |
+| 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 阶段 1.4 已实现 |
+| 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 阶段 1.4 已实现 |
 | 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 待细化 |
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
 | 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
@@ -510,6 +510,49 @@ class CreateFileObjectRequest:
 - 可通过关键词搜索题目内容或外部题目 ID。
 - 可批量禁用、重新启用和替换标签，并同步更新数据集统计。
 - 批量操作可在审计接口中查询到 `BATCH_UPDATE` 记录。
+
+### 9.5 阶段 1.4 审核配置草稿与版本契约
+
+阶段 1.4 将审核配置从契约占位推进为可用能力，用于为阶段 4 AI 自动预审提供稳定的 Prompt、评分维度、阈值和结构化输出 schema。该阶段只保存和发布配置版本，不触发 AI 调用、不生成预审记录。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/review-config-draft` | 已实现 | Owner 获取任务审核配置草稿；不存在时返回默认草稿并落库 |
+| `PUT /api/tasks/{taskId}/review-config-draft` | 已实现 | Owner 保存 Prompt、评分维度、阈值和输出 schema |
+| `POST /api/tasks/{taskId}/review-config-versions` | 已实现 | 从草稿发布不可变审核配置版本，并绑定到任务当前审核配置版本 |
+| `GET /api/tasks/{taskId}/review-config-versions` | 已实现 | 分页查看任务下的审核配置版本，按版本号倒序返回 |
+
+`SaveReviewConfigDraftRequest` 规则：
+
+- `promptTemplate` 必填，长度 1-8000；后端统一去除首尾空白。
+- `dimensions` 至少 1 个、最多 20 个；`key` 在同一配置内必须唯一，字段去除首尾空白；`maxScore` 范围为 1-100，`weight` 范围为 `(0, 10]`。
+- `thresholds.returnBelowScore <= thresholds.humanReviewMinScore <= thresholds.passMinScore`；当 `humanReviewMinScore` 为空时要求 `returnBelowScore <= passMinScore`。
+- 阈值不能超过 `sum(maxScore * weight)` 计算出的配置最高分。
+- `outputSchema` 为空时由后端按维度生成默认结构化输出 JSON Schema；非空时按调用方传入值保存。
+- 阶段 1.4 仅允许 Owner 在 `DRAFT` 任务上保存和发布审核配置，避免运行中任务被阶段性能力意外改写。
+
+`POST /api/tasks/{taskId}/review-config-versions` 规则：
+
+- `draftId` 必须属于当前任务。
+- 发布前复用草稿校验规则。
+- 新版本 `versionNo = 当前最大版本号 + 1`，新版本状态为 `ACTIVE`，同任务既有 `ACTIVE` 版本置为 `DISABLED`。
+- 发布成功后更新 `tasks.currentReviewConfigVersionId`，并将 `tasks.version + 1`，供发布前检查和乐观锁使用。
+- 发布版本不可变；后续修改必须先保存草稿，再发布新版本。
+
+审计要求：
+
+- 保存草稿写入 `audit_logs.action=REVIEW_CONFIG_SAVE`，`entityType=REVIEW_CONFIG`，`entityId=draftId`。
+- 发布版本写入 `audit_logs.action=REVIEW_CONFIG_PUBLISH`，`entityType=REVIEW_CONFIG`，`entityId=versionId`，`metadata` 记录 `taskId`、`draftId`、`versionNo`、`versionNote`。
+
+验收标准：
+
+- Owner 可进入任务审核配置页，加载默认草稿，保存 Prompt、维度、阈值和输出 schema。
+- 发布版本后任务详情中的 `currentReviewConfigVersionId` 指向最新版本，版本列表展示历史版本。
+- 发布第二个版本时旧版本自动变为 `DISABLED`，新版本为 `ACTIVE`。
+- 重复维度 key、阈值顺序错误或阈值超过最高分时返回结构化 `422 INVALID_REVIEW_CONFIG`。
+- 非 Owner 访问返回 `403 FORBIDDEN`，不存在或不归属当前 Owner 的任务返回 `404 NOT_FOUND`。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

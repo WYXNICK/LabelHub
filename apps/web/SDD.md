@@ -177,7 +177,7 @@ export interface LogoutResponseVO {
 | 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 待细化 |
 | 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 待细化 |
 | 1 | 题目预览与批量编辑 | `DatasetItemVO`、`BatchUpdateDatasetItemsRequest` | `GET /api/datasets/{datasetId}/items`、`PATCH /api/datasets/{datasetId}/items:batch` | 阶段 1.3 已实现 |
-| 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 待细化 |
+| 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 阶段 1.4 已实现 |
 | 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 待细化 |
 | 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 待细化 |
 | 2 | 模板版本 | `TemplateVersionVO`、`TemplateSchemaVO` | `POST /api/tasks/{taskId}/template-versions` | 待细化 |
@@ -355,6 +355,66 @@ export interface BatchUpdateDatasetItemsVO {
 - 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
 - 后端必须连接 MySQL；批量编辑后确认 `dataset_items.status/tags/version`、`datasets.enabledItemCount/disabledItemCount` 和 `audit_logs.BATCH_UPDATE` 已落库。
 - Console 不应出现非预期 error/issue；Network 中题目预览与批量编辑接口状态码必须与契约一致。
+
+### 9.5 阶段 1.4 Owner 审核配置页面
+
+阶段 1.4 新增 `/owner/tasks/:taskId/review-config`，让 Owner 在任务发布前配置 AI 预审所需的 Prompt、评分维度、阈值和结构化输出 schema。页面只产生配置草稿与版本，不触发 AI 预审，也不进入 Reviewer 工作台。
+
+页面范围：
+
+| 页面区域 | 行为 |
+| --- | --- |
+| 顶部任务上下文 | 展示任务标题、状态、当前审核配置版本入口状态，并提供返回、任务设置、数据集入口 |
+| Prompt 模板 | 编辑系统预审 Prompt，说明需要输出结构化 JSON |
+| 评分维度 | 支持增加、删除和编辑维度 `key/name/description/maxScore/weight` |
+| 阈值配置 | 编辑通过阈值、人工复核阈值、打回阈值，并展示当前加权最高分 |
+| 输出 Schema | 展示并允许编辑结构化输出 JSON Schema；可按当前维度一键生成默认 schema |
+| 草稿与发布 | 保存草稿、保存后发布审核配置版本；发布前先保存当前表单，避免版本内容落后 |
+| 版本历史 | 展示 `versionNo/status/publishedAt/publishedBy/thresholds`，最新版本排在前面 |
+
+前端 Request/VO 对齐：
+
+```ts
+export interface ReviewDimensionDTO {
+  key: string;
+  name: string;
+  description?: string | null;
+  maxScore: number;
+  weight: number;
+}
+
+export interface ReviewThresholdDTO {
+  passMinScore: number;
+  returnBelowScore: number;
+  humanReviewMinScore?: number | null;
+}
+
+export interface SaveReviewConfigDraftRequest {
+  promptTemplate: string;
+  dimensions: ReviewDimensionDTO[];
+  thresholds: ReviewThresholdDTO;
+  outputSchema?: JsonObject;
+}
+
+export interface PublishReviewConfigVersionRequest {
+  draftId: string;
+  versionNote?: string | null;
+}
+```
+
+交互规则：
+
+- 页面加载时并行读取任务详情、审核配置草稿和版本列表；草稿不存在时依赖后端返回默认草稿。
+- 表单侧先做轻量校验：维度 key 不为空且去重、阈值顺序合法、阈值不超过加权最高分、输出 schema 必须是 JSON Object。
+- 发布版本前先保存当前表单，再用返回的 `draftId` 发布版本；发布成功后刷新任务详情、草稿和版本列表。
+- 阶段 1.4 仅允许草稿任务编辑和发布审核配置；非草稿任务页面显示只读说明，并以后端结果为准。
+- 后端结构化错误需要显示具体信息，不使用笼统“服务暂不可用”吞掉业务原因。
+
+浏览器验收：
+
+- 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
+- 后端必须连接 MySQL；保存/发布后确认 `review_config_drafts`、`review_config_versions`、`tasks.current_review_config_version_id` 和 `audit_logs.REVIEW_CONFIG_*` 已落库。
+- Console 不应出现非预期 error/issue；Network 中审核配置接口状态码必须与契约一致。
 
 ## 10. 前后端字段映射检查清单
 

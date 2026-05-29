@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user
-from labelhub_api.api.routes._stage1_contract import raise_contract_only
+from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.schemas.review_configs import (
@@ -12,6 +13,7 @@ from labelhub_api.schemas.review_configs import (
     ReviewConfigVersionVO,
     SaveReviewConfigDraftRequest,
 )
+from labelhub_api.services.review_config_service import ReviewConfigService
 
 router = APIRouter(prefix="/api/tasks/{taskId}", tags=["stage1-review-configs"])
 
@@ -23,10 +25,10 @@ router = APIRouter(prefix="/api/tasks/{taskId}", tags=["stage1-review-configs"])
 )
 def get_review_config_draft(
     taskId: str,
-    request: Request,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> ReviewConfigDraftVO:
-    raise_contract_only(request, "审核配置草稿查询")
+    return ReviewConfigService(db).get_draft(task_id=taskId, user=user)
 
 
 @router.put(
@@ -39,8 +41,15 @@ def save_review_config_draft(
     request: Request,
     body: SaveReviewConfigDraftRequest,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> ReviewConfigDraftVO:
-    raise_contract_only(request, "审核配置草稿保存")
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return ReviewConfigService(db).save_draft(
+        task_id=taskId,
+        user=user,
+        request_id=request_id,
+        body=body,
+    )
 
 
 @router.post(
@@ -54,8 +63,15 @@ def publish_review_config_version(
     request: Request,
     body: PublishReviewConfigVersionRequest,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> ReviewConfigVersionVO:
-    raise_contract_only(request, "审核配置版本发布")
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return ReviewConfigService(db).publish_version(
+        task_id=taskId,
+        user=user,
+        request_id=request_id,
+        body=body,
+    )
 
 
 @router.get(
@@ -65,9 +81,14 @@ def publish_review_config_version(
 )
 def list_review_config_versions(
     taskId: str,
-    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> PageVO[ReviewConfigVersionVO]:
-    raise_contract_only(request, "审核配置版本列表")
+    return ReviewConfigService(db).list_versions(
+        task_id=taskId,
+        user=user,
+        page=page,
+        page_size=page_size,
+    )

@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, DatabaseOutlined, SaveOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, AuditOutlined, DatabaseOutlined, SaveOutlined } from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -187,6 +187,11 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
         {taskId && (
           <Button icon={<DatabaseOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/datasets`)}>
             数据集
+          </Button>
+        )}
+        {taskId && (
+          <Button icon={<AuditOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/review-config`)}>
+            审核配置
           </Button>
         )}
         {statusTag}

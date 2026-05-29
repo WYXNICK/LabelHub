@@ -1,4 +1,5 @@
 import {
+  AuditOutlined,
   CheckCircleOutlined,
   DatabaseOutlined,
   EditOutlined,
@@ -211,7 +212,7 @@ export function OwnerTaskListPage() {
         title: "操作",
         key: "actions",
         fixed: "right",
-        width: 250,
+        width: 330,
         render: (_, task) => (
           <Space wrap>
             <Button
@@ -227,6 +228,13 @@ export function OwnerTaskListPage() {
               onClick={() => navigate(`/owner/tasks/${task.id}/datasets`)}
             >
               数据集
+            </Button>
+            <Button
+              size="small"
+              icon={<AuditOutlined />}
+              onClick={() => navigate(`/owner/tasks/${task.id}/review-config`)}
+            >
+              审核配置
             </Button>
             {getTaskTransitionActions(task).map((action) => (
               <Button

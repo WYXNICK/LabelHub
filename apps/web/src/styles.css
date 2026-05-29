@@ -674,6 +674,56 @@ body {
   line-height: 1.6;
 }
 
+.labelhub-review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-review-main-card {
+  min-width: 0;
+}
+
+.labelhub-review-side {
+  position: sticky;
+  top: 76px;
+}
+
+.labelhub-review-dimension-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(140px, 1fr) 110px 110px 40px;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 10px;
+}
+
+.labelhub-review-dimension-desc {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.labelhub-review-threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(180px, 0.8fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.labelhub-review-score-card {
+  background: #f8fbff;
+  border-color: #d8e7ff;
+}
+
+.labelhub-schema-editor {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .labelhub-blocker-list {
   margin: 0;
   white-space: pre-wrap;
@@ -823,7 +873,17 @@ body {
 
   .labelhub-dataset-grid,
   .labelhub-import-stats,
+  .labelhub-review-grid,
+  .labelhub-review-threshold-grid,
   .labelhub-batch-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-review-side {
+    position: static;
+  }
+
+  .labelhub-review-dimension-row {
     grid-template-columns: 1fr;
   }
 
@@ -835,6 +895,14 @@ body {
 @media (max-width: 1280px) {
   .labelhub-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .labelhub-review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-review-side {
+    position: static;
   }
 }
 

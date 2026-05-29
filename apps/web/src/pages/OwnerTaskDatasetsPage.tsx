@@ -1,7 +1,11 @@
 import {
   ArrowLeftOutlined,
+  CheckCircleOutlined,
   DatabaseOutlined,
+  EyeOutlined,
   ReloadOutlined,
+  StopOutlined,
+  TagsOutlined,
   UploadOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
@@ -10,6 +14,7 @@ import {
   App as AntdApp,
   Button,
   Card,
+  Drawer,
   Empty,
   Flex,
   Input,
@@ -24,8 +29,15 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { navigate } from "../app/routes";
-import { createImportJob, listImportErrors, listTaskDatasets } from "../features/datasets/api";
+import {
+  batchUpdateDatasetItems,
+  createImportJob,
+  listDatasetItems,
+  listImportErrors,
+  listTaskDatasets,
+} from "../features/datasets/api";
 import type {
+  DatasetItemVO,
   DatasetSourceFormat,
   DatasetType,
   DatasetVO,
@@ -33,7 +45,9 @@ import type {
   ImportJobVO,
 } from "../features/datasets/types";
 import {
+  buildPayloadSummary,
   buildImportIdempotencyKey,
+  datasetItemStatusMeta,
   datasetStatusMeta,
   datasetTypeOptions,
   defaultDatasetName,
@@ -41,6 +55,7 @@ import {
   importStatusMeta,
   inferDatasetSourceFormat,
   inferDatasetType,
+  normalizeBatchTags,
   sourceFormatOptions,
 } from "../features/datasets/view";
 import { createFileObject } from "../features/files/api";
@@ -112,10 +127,26 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
   const [sourceFormat, setSourceFormat] = useState<DatasetSourceFormat>("JSON");
   const [lastJob, setLastJob] = useState<ImportJobVO | null>(null);
   const [importErrors, setImportErrors] = useState<ImportErrorRowVO[]>([]);
+  const [activeDataset, setActiveDataset] = useState<DatasetVO | null>(null);
+  const [items, setItems] = useState<DatasetItemVO[]>([]);
+  const [itemPagination, setItemPagination] = useState<PaginationVO>({
+    page: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 0,
+  });
+  const [itemKeyword, setItemKeyword] = useState("");
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [batchTagsText, setBatchTagsText] = useState("");
+  const [batchReason, setBatchReason] = useState("");
+  const [payloadItem, setPayloadItem] = useState<DatasetItemVO | null>(null);
   const [loading, setLoading] = useState(true);
   const [datasetLoading, setDatasetLoading] = useState(false);
+  const [itemLoading, setItemLoading] = useState(false);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [itemError, setItemError] = useState<string | null>(null);
   const [queryState, setQueryState] = useState({ page: 1, pageSize: 10, requestId: 0 });
 
   const loadDatasets = useCallback(
@@ -125,11 +156,39 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
         const response = await listTaskDatasets(taskId, { page, pageSize });
         setDatasets(response.data);
         setPagination(response.pagination);
+        setActiveDataset((current) => {
+          if (!current) {
+            return null;
+          }
+          return response.data.find((dataset) => dataset.id === current.id) ?? current;
+        });
       } finally {
         setDatasetLoading(false);
       }
     },
     [taskId],
+  );
+
+  const loadItems = useCallback(
+    async (datasetId: string, page: number, pageSize: number, keyword: string) => {
+      setItemLoading(true);
+      setItemError(null);
+      try {
+        const response = await listDatasetItems(datasetId, {
+          page,
+          pageSize,
+          keyword: keyword.trim() || undefined,
+        });
+        setItems(response.data);
+        setItemPagination(response.pagination);
+      } catch (requestError) {
+        setItems([]);
+        setItemError(getErrorMessage(requestError));
+      } finally {
+        setItemLoading(false);
+      }
+    },
+    [],
   );
 
   useEffect(() => {
@@ -182,6 +241,57 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
 
   function refreshDatasets() {
     setQueryState((current) => ({ ...current, requestId: current.requestId + 1 }));
+  }
+
+  function selectDataset(dataset: DatasetVO) {
+    setActiveDataset(dataset);
+    setItems([]);
+    setSelectedItemIds([]);
+    setItemKeyword("");
+    void loadItems(dataset.id, 1, 10, "");
+  }
+
+  function refreshItems() {
+    if (!activeDataset) {
+      return;
+    }
+    void loadItems(activeDataset.id, itemPagination.page, itemPagination.pageSize, itemKeyword);
+  }
+
+  function handleItemSearch(keyword: string) {
+    setItemKeyword(keyword);
+    setSelectedItemIds([]);
+    if (activeDataset) {
+      void loadItems(activeDataset.id, 1, itemPagination.pageSize, keyword);
+    }
+  }
+
+  async function handleBatchUpdate(input: { enabled?: boolean; tags?: string[] }) {
+    if (!activeDataset || selectedItemIds.length === 0) {
+      return;
+    }
+    if (input.tags && input.tags.length === 0) {
+      message.warning("请先填写至少一个标签");
+      return;
+    }
+    setBatchSubmitting(true);
+    setItemError(null);
+    try {
+      const result = await batchUpdateDatasetItems(activeDataset.id, {
+        itemIds: selectedItemIds,
+        enabled: input.enabled ?? null,
+        tags: input.tags ?? null,
+        reason: batchReason.trim() || null,
+      });
+      message.success(`已更新 ${result.updatedCount} 条题目${result.skippedCount ? `，跳过 ${result.skippedCount} 条` : ""}`);
+      setSelectedItemIds([]);
+      refreshDatasets();
+      refreshItems();
+    } catch (requestError) {
+      setItemError(getErrorMessage(requestError));
+    } finally {
+      setBatchSubmitting(false);
+    }
   }
 
   async function handleImport() {
@@ -272,6 +382,16 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
       width: 180,
       render: (value: string) => formatTaskTime(value),
     },
+    {
+      title: "操作",
+      width: 130,
+      fixed: "right",
+      render: (_, dataset) => (
+        <Button type={activeDataset?.id === dataset.id ? "primary" : "link"} onClick={() => selectDataset(dataset)}>
+          查看题目
+        </Button>
+      ),
+    },
   ];
 
   const errorColumns: TableColumnsType<ImportErrorRowVO> = [
@@ -279,6 +399,66 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
     { title: "字段", dataIndex: "fieldPath", width: 160, render: (value) => value ?? "-" },
     { title: "错误码", dataIndex: "errorCode", width: 190 },
     { title: "说明", dataIndex: "errorMessage", minWidth: 260 },
+  ];
+
+  const itemColumns: TableColumnsType<DatasetItemVO> = [
+    {
+      title: "题目",
+      minWidth: 300,
+      render: (_, item) => (
+        <Space direction="vertical" size={4}>
+          <Typography.Text strong>{item.externalItemId ?? item.id}</Typography.Text>
+          <Typography.Text type="secondary" className="labelhub-payload-summary">
+            {buildPayloadSummary(item.payload)}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: "行号",
+      dataIndex: "sourceRowNumber",
+      width: 90,
+      render: (value) => value ?? "-",
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 110,
+      render: (value: DatasetItemVO["status"]) => (
+        <Tag color={datasetItemStatusMeta[value].color}>{datasetItemStatusMeta[value].label}</Tag>
+      ),
+    },
+    {
+      title: "标签",
+      dataIndex: "tags",
+      minWidth: 180,
+      render: (tags: string[]) =>
+        tags.length ? (
+          <Space size={4} wrap>
+            {tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">未设置</Typography.Text>
+        ),
+    },
+    {
+      title: "最近更新",
+      dataIndex: "updatedAt",
+      width: 180,
+      render: (value: string) => formatTaskTime(value),
+    },
+    {
+      title: "操作",
+      width: 130,
+      fixed: "right",
+      render: (_, item) => (
+        <Button icon={<EyeOutlined />} onClick={() => setPayloadItem(item)}>
+          Payload
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -436,7 +616,8 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
           loading={datasetLoading}
           columns={datasetColumns}
           dataSource={datasets}
-          scroll={{ x: 820 }}
+          rowClassName={(dataset) => (dataset.id === activeDataset?.id ? "labelhub-active-row" : "")}
+          scroll={{ x: 980 }}
           locale={{
             emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据集，先导入一个文件" />,
           }}
@@ -455,6 +636,133 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
           }}
         />
       </Card>
+
+      <Card
+        title={
+          <Space direction="vertical" size={2}>
+            <Typography.Text strong>题目预览与批量编辑</Typography.Text>
+            <Typography.Text type="secondary">
+              {activeDataset
+                ? `当前数据集：${activeDataset.name}，可用 ${activeDataset.enabledItemCount} / 禁用 ${activeDataset.disabledItemCount}`
+                : "先在上方选择一个数据集"}
+            </Typography.Text>
+          </Space>
+        }
+        extra={
+          activeDataset && (
+            <Space wrap>
+              <Input.Search
+                id="owner-dataset-item-keyword"
+                name="ownerDatasetItemKeyword"
+                allowClear
+                value={itemKeyword}
+                placeholder="搜索 ID、payload 或标签"
+                onChange={(event) => setItemKeyword(event.target.value)}
+                onSearch={handleItemSearch}
+                style={{ width: 260 }}
+              />
+              <Button icon={<ReloadOutlined />} onClick={refreshItems}>
+                刷新
+              </Button>
+            </Space>
+          )
+        }
+        className="labelhub-table-card"
+      >
+        {!activeDataset ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择数据集后预览题目 payload，并进行批量启用、禁用或标签编辑" />
+        ) : (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            {itemError && <Alert type="error" showIcon message={itemError} />}
+            <div className="labelhub-batch-toolbar">
+              <Space wrap>
+                <Tag color={selectedItemIds.length ? "blue" : "default"}>已选 {selectedItemIds.length} 条</Tag>
+                <Button
+                  icon={<StopOutlined />}
+                  disabled={!selectedItemIds.length}
+                  loading={batchSubmitting}
+                  onClick={() => void handleBatchUpdate({ enabled: false })}
+                >
+                  批量禁用
+                </Button>
+                <Button
+                  icon={<CheckCircleOutlined />}
+                  disabled={!selectedItemIds.length}
+                  loading={batchSubmitting}
+                  onClick={() => void handleBatchUpdate({ enabled: true })}
+                >
+                  批量启用
+                </Button>
+              </Space>
+              <Flex gap={8} wrap="wrap" className="labelhub-batch-tag-editor">
+                <Input
+                  id="owner-dataset-batch-tags"
+                  name="ownerDatasetBatchTags"
+                  value={batchTagsText}
+                  onChange={(event) => setBatchTagsText(event.target.value)}
+                  placeholder="标签，支持逗号或换行分隔"
+                  aria-label="批量标签"
+                />
+                <Input
+                  id="owner-dataset-batch-reason"
+                  name="ownerDatasetBatchReason"
+                  value={batchReason}
+                  onChange={(event) => setBatchReason(event.target.value)}
+                  placeholder="操作原因，可选"
+                  aria-label="批量操作原因"
+                />
+                <Button
+                  icon={<TagsOutlined />}
+                  disabled={!selectedItemIds.length}
+                  loading={batchSubmitting}
+                  onClick={() => void handleBatchUpdate({ tags: normalizeBatchTags(batchTagsText) })}
+                >
+                  替换标签
+                </Button>
+              </Flex>
+            </div>
+
+            <Table
+              rowKey="id"
+              loading={itemLoading}
+              columns={itemColumns}
+              dataSource={items}
+              rowSelection={{
+                selectedRowKeys: selectedItemIds,
+                onChange: (keys) => setSelectedItemIds(keys.map(String)),
+              }}
+              scroll={{ x: 1080 }}
+              locale={{
+                emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无题目，或当前关键词没有匹配结果" />,
+              }}
+              pagination={{
+                current: itemPagination.page,
+                pageSize: itemPagination.pageSize,
+                total: itemPagination.totalItems,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条题目`,
+                onChange: (page, pageSize) => {
+                  setSelectedItemIds([]);
+                  if (activeDataset) {
+                    void loadItems(activeDataset.id, page, pageSize, itemKeyword);
+                  }
+                },
+              }}
+            />
+          </Space>
+        )}
+      </Card>
+
+      <Drawer
+        title={payloadItem?.externalItemId ?? "题目 Payload"}
+        open={Boolean(payloadItem)}
+        width={640}
+        onClose={() => setPayloadItem(null)}
+      >
+        <pre className="labelhub-json-preview">
+          {payloadItem ? JSON.stringify(payloadItem.payload, null, 2) : ""}
+        </pre>
+      </Drawer>
     </Space>
   );
 }

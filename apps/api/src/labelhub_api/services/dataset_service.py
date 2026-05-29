@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 from xml.etree import ElementTree
 
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from labelhub_api.core.enums import (
@@ -32,7 +32,14 @@ from labelhub_api.models.file import FileObjectEntity
 from labelhub_api.models.task import TaskEntity
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
-from labelhub_api.schemas.datasets import DatasetVO, ImportErrorRowVO, ImportJobVO
+from labelhub_api.schemas.datasets import (
+    BatchUpdateDatasetItemsRequest,
+    BatchUpdateDatasetItemsVO,
+    DatasetItemVO,
+    DatasetVO,
+    ImportErrorRowVO,
+    ImportJobVO,
+)
 from labelhub_api.services.file_service import FileService
 
 
@@ -235,6 +242,114 @@ class DatasetService:
                 total_items=total_items,
                 total_pages=ceil(total_items / page_size) if total_items else 0,
             ),
+        )
+
+    def list_dataset_items(
+        self,
+        *,
+        dataset_id: str,
+        user: UserVO,
+        page: int,
+        page_size: int,
+        keyword: str | None,
+    ) -> PageVO[DatasetItemVO]:
+        self._require_owner(user)
+        dataset = self._get_owned_dataset(dataset_id, user)
+        query = select(DatasetItemEntity).where(DatasetItemEntity.dataset_id == dataset.id)
+        normalized_keyword = keyword.strip() if keyword else ""
+        if normalized_keyword:
+            pattern = f"%{normalized_keyword}%"
+            query = query.where(
+                or_(
+                    DatasetItemEntity.external_item_id.like(pattern),
+                    cast(DatasetItemEntity.payload, String).like(pattern),
+                    cast(DatasetItemEntity.tags, String).like(pattern),
+                )
+            )
+
+        total_items = self._db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
+        items = list(
+            self._db.scalars(
+                query.order_by(
+                    DatasetItemEntity.source_row_number.asc(),
+                    DatasetItemEntity.created_at.asc(),
+                )
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return PageVO(
+            data=[self._to_dataset_item_vo(item) for item in items],
+            pagination=PaginationVO(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=ceil(total_items / page_size) if total_items else 0,
+            ),
+        )
+
+    def batch_update_dataset_items(
+        self,
+        *,
+        dataset_id: str,
+        user: UserVO,
+        request_id: str,
+        body: BatchUpdateDatasetItemsRequest,
+    ) -> BatchUpdateDatasetItemsVO:
+        self._require_owner(user)
+        dataset = self._get_owned_dataset(dataset_id, user)
+        item_ids = list(dict.fromkeys(body.item_ids))
+        items = list(
+            self._db.scalars(
+                select(DatasetItemEntity).where(
+                    DatasetItemEntity.dataset_id == dataset.id,
+                    DatasetItemEntity.id.in_(item_ids),
+                )
+            )
+        )
+        if body.expected_version is not None and any(item.version != body.expected_version for item in items):
+            raise ApiException(
+                status_code=409,
+                code="VERSION_CONFLICT",
+                message="题目已被其他操作更新，请刷新后重试。",
+                request_id=request_id,
+            )
+
+        tags = self._normalize_tags(body.tags) if body.tags is not None else None
+        now = datetime.now(UTC)
+        for item in items:
+            if body.enabled is not None:
+                item.status = DatasetItemStatus.AVAILABLE.value if body.enabled else DatasetItemStatus.DISABLED.value
+            if tags is not None:
+                item.tags = tags
+            item.version += 1
+            item.updated_at = now
+
+        # 先 flush 题目状态，再重算数据集统计，保证同一事务内统计值与明细一致。
+        self._db.flush()
+        self._refresh_dataset_counts(dataset)
+        dataset.updated_at = now
+        audit_log_id = self._append_audit(
+            entity_type=AuditEntityType.DATASET,
+            entity_id=dataset.id,
+            actor=user,
+            action=AuditAction.BATCH_UPDATE,
+            request_id=request_id,
+            metadata={
+                "taskId": dataset.task_id,
+                "itemIds": item_ids,
+                "enabled": body.enabled,
+                "tags": tags,
+                "updatedCount": len(items),
+                "skippedCount": len(item_ids) - len(items),
+            },
+            reason=body.reason,
+        )
+        self._db.commit()
+        return BatchUpdateDatasetItemsVO(
+            updated_count=len(items),
+            skipped_count=len(item_ids) - len(items),
+            audit_log_id=audit_log_id,
         )
 
     def _parse_file(
@@ -578,6 +693,40 @@ class DatasetService:
             raise ApiException(status_code=404, code="NOT_FOUND", message="导入任务不存在。")
         return job
 
+    def _get_owned_dataset(self, dataset_id: str, user: UserVO) -> DatasetEntity:
+        dataset = self._db.get(DatasetEntity, dataset_id)
+        if dataset is None:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="数据集不存在。")
+        task = self._db.get(TaskEntity, dataset.task_id)
+        if task is None or task.created_by != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="数据集不存在。")
+        return dataset
+
+    def _refresh_dataset_counts(self, dataset: DatasetEntity) -> None:
+        total_count = self._db.scalar(
+            select(func.count()).select_from(DatasetItemEntity).where(DatasetItemEntity.dataset_id == dataset.id)
+        ) or 0
+        disabled_count = self._db.scalar(
+            select(func.count()).select_from(DatasetItemEntity).where(
+                DatasetItemEntity.dataset_id == dataset.id,
+                DatasetItemEntity.status == DatasetItemStatus.DISABLED.value,
+            )
+        ) or 0
+        dataset.item_count = total_count
+        dataset.disabled_item_count = disabled_count
+        dataset.enabled_item_count = total_count - disabled_count
+
+    def _normalize_tags(self, tags: list[str]) -> list[str]:
+        normalized_tags: list[str] = []
+        seen: set[str] = set()
+        for tag in tags:
+            normalized_tag = str(tag).strip()
+            if not normalized_tag or normalized_tag in seen:
+                continue
+            seen.add(normalized_tag)
+            normalized_tags.append(normalized_tag)
+        return normalized_tags
+
     def _append_audit(
         self,
         *,
@@ -587,10 +736,12 @@ class DatasetService:
         action: AuditAction,
         request_id: str,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
+        reason: str | None = None,
+    ) -> str:
+        audit_log_id = self._new_id("audit")
         self._db.add(
             AuditLogEntity(
-                id=self._new_id("audit"),
+                id=audit_log_id,
                 entity_type=entity_type.value,
                 entity_id=entity_id,
                 actor_id=actor.id,
@@ -598,12 +749,13 @@ class DatasetService:
                 action=action.value,
                 from_state=None,
                 to_state=None,
-                reason=None,
+                reason=reason,
                 metadata_json=metadata,
                 request_id=request_id,
                 created_at=datetime.now(UTC),
             )
         )
+        return audit_log_id
 
     def _to_dataset_vo(self, dataset: DatasetEntity) -> DatasetVO:
         return DatasetVO(
@@ -635,6 +787,23 @@ class DatasetService:
             created_by=job.created_by,
             created_at=job.created_at,
             updated_at=job.updated_at,
+        )
+
+    def _to_dataset_item_vo(self, item: DatasetItemEntity) -> DatasetItemVO:
+        return DatasetItemVO(
+            id=item.id,
+            dataset_id=item.dataset_id,
+            task_id=item.task_id,
+            external_item_id=item.external_item_id,
+            source_format=item.source_format,
+            source_row_number=item.source_row_number,
+            payload=item.payload,
+            media_refs=item.media_refs or [],
+            checksum=item.checksum,
+            status=item.status,
+            tags=item.tags or [],
+            created_at=item.created_at,
+            updated_at=item.updated_at,
         )
 
     def _to_error_vo(self, error: ImportErrorRowEntity) -> ImportErrorRowVO:

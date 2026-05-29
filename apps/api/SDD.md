@@ -280,8 +280,8 @@ class LogoutResponseVO:
 | 1 | `GET /api/import-jobs/{importJobId}` | `GetImportJobRequest` | `ImportJobVO` | 待细化 |
 | 1 | `GET /api/import-jobs/{importJobId}/errors` | `ListImportErrorsRequest` | `PageVO[ImportErrorRowVO]` | 待细化 |
 | 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 待细化 |
-| 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 待细化 |
-| 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 待细化 |
+| 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 阶段 1.3 已实现 |
+| 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 阶段 1.3 已实现 |
 | 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
 | 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
 | 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 待细化 |
@@ -477,6 +477,39 @@ class CreateFileObjectRequest:
 - `demo_data/datasets/preference_compare` 的 JSON、JSONL、Excel 均可导入 12 条。
 - 错误行可通过 `GET /api/import-jobs/{importJobId}/errors` 追踪到行号、字段、错误码、错误信息和原始片段。
 - 重复请求同一 `idempotencyKey` 不产生重复数据。
+
+### 9.4 阶段 1.3 数据预览与批量编辑契约
+
+阶段 1.3 将题目预览与批量编辑从契约占位推进为可用能力，继续复用阶段 1.0 已落库的 `dataset_items`、`datasets` 与 `audit_logs`，不新增数据库表。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/datasets/{datasetId}/items` | 已实现 | Owner 分页预览题目，支持 `page`、`pageSize`、`keyword` |
+| `PATCH /api/datasets/{datasetId}/items:batch` | 已实现 | 批量启用/禁用题目或替换标签，写入审计日志 |
+
+`GET /api/datasets/{datasetId}/items` 规则：
+
+- 仅 Owner 可访问，且数据集必须归属于当前 Owner 创建的任务；否则分别返回 `403 FORBIDDEN` 或 `404 NOT_FOUND`。
+- `keyword` 为空时按 `sourceRowNumber ASC, createdAt ASC` 返回；非空时匹配 `externalItemId`、`payload` 序列化内容或 `tags` 序列化内容。
+- 返回 `PageVO[DatasetItemVO]`，字段名必须继续使用 camelCase，与前端 `DatasetItemVO` 一一对应。
+
+`PATCH /api/datasets/{datasetId}/items:batch` 规则：
+
+- `itemIds` 必填，最多 500 条；后端按顺序去重。
+- `enabled` 与 `tags` 至少提供一个：`enabled=true` 将选中题目置为 `AVAILABLE`，`enabled=false` 将选中题目置为 `DISABLED`；`tags` 使用去空白、去重后的列表整体替换。
+- `expectedVersion` 为可选保护字段；传入时，所有实际命中的题目版本必须一致，否则返回 `409 VERSION_CONFLICT`。
+- 不属于当前数据集的 `itemIds` 不报错，计入 `skippedCount`；实际命中的题目写入 `updatedAt` 并将 `version + 1`。
+- 批量操作完成后必须重算 `datasets.itemCount`、`enabledItemCount`、`disabledItemCount`，并写入 `audit_logs.action=BATCH_UPDATE`、`entityType=DATASET`、`entityId=datasetId`，`metadata` 记录 `taskId`、`itemIds`、`enabled`、`tags`、`updatedCount`、`skippedCount`。
+- 返回 `BatchUpdateDatasetItemsVO`：`updatedCount`、`skippedCount`、`auditLogId`。
+
+验收标准：
+
+- 可分页查看导入后的 `qa_quality` 和 `preference_compare` payload。
+- 可通过关键词搜索题目内容或外部题目 ID。
+- 可批量禁用、重新启用和替换标签，并同步更新数据集统计。
+- 批量操作可在审计接口中查询到 `BATCH_UPDATE` 记录。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

@@ -176,7 +176,7 @@ export interface LogoutResponseVO {
 | 1 | 任务创建/编辑 | `TaskDetailVO`、`CreateTaskRequest`、`UpdateTaskRequest` | `POST /api/tasks`、`PATCH /api/tasks/{taskId}` | 待细化 |
 | 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 待细化 |
 | 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 待细化 |
-| 1 | 题目预览与批量编辑 | `DatasetItemVO`、`BatchUpdateDatasetItemsRequest` | `GET /api/datasets/{datasetId}/items`、`PATCH /api/datasets/{datasetId}/items:batch` | 待细化 |
+| 1 | 题目预览与批量编辑 | `DatasetItemVO`、`BatchUpdateDatasetItemsRequest` | `GET /api/datasets/{datasetId}/items`、`PATCH /api/datasets/{datasetId}/items:batch` | 阶段 1.3 已实现 |
 | 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 待细化 |
 | 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 待细化 |
 | 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 待细化 |
@@ -302,6 +302,59 @@ export interface CreateImportJobRequest {
 - 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
 - 后端必须连接 MySQL，并确认导入后数据进入 `datasets`、`dataset_items`、`import_jobs` 和 `import_error_rows`。
 - 至少验证 `qa_quality.json` 30 条与 `preference_compare.jsonl` 12 条导入链路；Excel 导入由后端测试覆盖，浏览器可视时间允许时补充上传验证。
+
+### 9.4 阶段 1.3 Owner 题目预览与批量编辑页面
+
+阶段 1.3 继续扩展 `/owner/tasks/:taskId/datasets`，在数据集导入与列表基础上增加题目预览、关键词检索、分页和批量编辑。前端不新增独立路由，避免 Owner 在导入与验收数据之间频繁跳转。
+
+页面范围：
+
+| 页面区域 | 行为 |
+| --- | --- |
+| 数据集列表 | 每行提供“查看题目”入口；选中数据集后加载 `GET /api/datasets/{datasetId}/items` |
+| 题目预览 | 展示外部题目 ID、行号、状态、标签、最近更新和 payload 摘要 |
+| Payload 抽屉 | 点击“查看 payload”后展示格式化 JSON，便于核对原始导入内容 |
+| 批量工具栏 | 选择题目后可批量禁用、启用或替换标签；提交 `PATCH /api/datasets/{datasetId}/items:batch` |
+| 检索与分页 | 支持关键词查询 payload、外部题目 ID 或标签；分页结构继续使用 `PageVO` |
+
+前端 Request/VO 对齐：
+
+```ts
+export interface ListDatasetItemsRequest {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+}
+
+export interface BatchUpdateDatasetItemsRequest {
+  itemIds: string[];
+  enabled?: boolean | null;
+  tags?: string[] | null;
+  reason?: string | null;
+  expectedVersion?: number | null;
+}
+
+export interface BatchUpdateDatasetItemsVO {
+  updatedCount: number;
+  skippedCount: number;
+  auditLogId: string | null;
+}
+```
+
+交互规则：
+
+- 未选中数据集时显示明确 empty 状态；选中数据集后自动加载第一页题目。
+- 搜索框只改变题目列表，不影响数据集列表；清空关键词后恢复全量分页。
+- 批量启用/禁用必须基于表格选中项；未选择题目时按钮不可用。
+- 标签编辑使用逗号或换行分隔，前端去空白、去重后提交；后端仍做最终校验。
+- 批量操作成功后刷新题目列表、数据集统计和任务统计，并展示 `updatedCount`、`skippedCount`。
+- 页面必须处理 loading、empty、error、partial skipped 和接口结构化错误。
+
+浏览器验收：
+
+- 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
+- 后端必须连接 MySQL；批量编辑后确认 `dataset_items.status/tags/version`、`datasets.enabledItemCount/disabledItemCount` 和 `audit_logs.BATCH_UPDATE` 已落库。
+- Console 不应出现非预期 error/issue；Network 中题目预览与批量编辑接口状态码必须与契约一致。
 
 ## 10. 前后端字段映射检查清单
 

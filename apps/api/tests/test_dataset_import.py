@@ -257,3 +257,75 @@ def test_import_error_rows_are_traceable(client_with_db: tuple[TestClient, sessi
     errors = errors_response.json()["data"]
     assert {error["errorCode"] for error in errors} == {"MISSING_REQUIRED_FIELD", "DUPLICATE_ITEM"}
     assert {error["sourceRowNumber"] for error in errors} == {2, 3}
+
+
+def test_dataset_items_can_be_previewed_and_batch_updated(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    task = create_task(client, "stage 1.3 dataset item preview")
+    file_path = DEMO_DATA_DIR / "qa_quality" / "json" / "qa_quality.json"
+    file_object_id = create_file_object(
+        client,
+        file_path=file_path,
+        source_format="JSON",
+        object_key="qa_quality/json/qa_quality_stage13.json",
+    )
+    job = create_import_job(
+        client,
+        task_id=task["id"],
+        file_object_id=file_object_id,
+        dataset_name="qa_quality_stage13",
+        dataset_type="QA_QUALITY",
+        source_format="JSON",
+        idempotency_key="qa-quality-json-stage13",
+    )
+    dataset_id = job["datasetId"]
+    assert dataset_id
+
+    items_response = client.get(f"/api/datasets/{dataset_id}/items?page=1&pageSize=5")
+    assert items_response.status_code == 200
+    items_page = items_response.json()
+    assert items_page["pagination"]["totalItems"] == 30
+    first_two_ids = [item["id"] for item in items_page["data"][:2]]
+    first_external_id = items_page["data"][0]["externalItemId"]
+    assert items_page["data"][0]["payload"]["prompt"]
+
+    keyword_response = client.get(f"/api/datasets/{dataset_id}/items?keyword={first_external_id}&page=1&pageSize=10")
+    assert keyword_response.status_code == 200
+    assert keyword_response.json()["pagination"]["totalItems"] == 1
+
+    batch_response = client.patch(
+        f"/api/datasets/{dataset_id}/items:batch",
+        json={
+            "itemIds": first_two_ids,
+            "enabled": False,
+            "tags": ["needs_review", "golden"],
+            "reason": "stage 1.3 regression",
+        },
+    )
+    assert batch_response.status_code == 200
+    batch_body = batch_response.json()
+    assert batch_body["updatedCount"] == 2
+    assert batch_body["skippedCount"] == 0
+    assert batch_body["auditLogId"]
+
+    updated_items_response = client.get(f"/api/datasets/{dataset_id}/items?page=1&pageSize=2")
+    assert updated_items_response.status_code == 200
+    updated_items = updated_items_response.json()["data"]
+    assert {item["status"] for item in updated_items} == {"DISABLED"}
+    assert {tuple(item["tags"]) for item in updated_items} == {("needs_review", "golden")}
+
+    datasets_response = client.get(f"/api/tasks/{task['id']}/datasets?page=1&pageSize=10")
+    assert datasets_response.status_code == 200
+    dataset = datasets_response.json()["data"][0]
+    assert dataset["itemCount"] == 30
+    assert dataset["enabledItemCount"] == 28
+    assert dataset["disabledItemCount"] == 2
+
+    audit_response = client.get(f"/api/audit-logs?entityType=DATASET&entityId={dataset_id}")
+    assert audit_response.status_code == 200
+    audit_log = audit_response.json()["data"][0]
+    assert audit_log["action"] == "BATCH_UPDATE"
+    assert audit_log["metadata"]["updatedCount"] == 2

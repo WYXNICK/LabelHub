@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildPayloadSummary,
   buildImportIdempotencyKey,
   defaultDatasetName,
   inferDatasetSourceFormat,
   inferDatasetType,
   matchOwnerTaskDatasetsPath,
+  normalizeBatchTags,
 } from "./view";
 
 describe("dataset view helpers", () => {
@@ -44,5 +46,18 @@ describe("dataset view helpers", () => {
         sourceFormat: "JSON",
       }),
     );
+  });
+
+  it("normalizes batch tags from comma and newline input", () => {
+    expect(normalizeBatchTags("golden, needs_review\n黄金样本，golden")).toEqual([
+      "golden",
+      "needs_review",
+      "黄金样本",
+    ]);
+  });
+
+  it("builds compact payload summary from preferred fields", () => {
+    expect(buildPayloadSummary({ prompt: "请判断回答是否准确", response_a: "A" })).toBe("请判断回答是否准确");
+    expect(buildPayloadSummary({ id: "item_1" })).toBe('{"id":"item_1"}');
   });
 });

@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user
-from labelhub_api.api.routes._stage1_contract import raise_contract_only
 from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
@@ -108,13 +107,19 @@ def list_task_datasets(
 )
 def list_dataset_items(
     datasetId: str,
-    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     keyword: str | None = Query(default=None, max_length=120),
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> PageVO[DatasetItemVO]:
-    raise_contract_only(request, "数据题目预览")
+    return DatasetService(db).list_dataset_items(
+        dataset_id=datasetId,
+        user=user,
+        page=page,
+        page_size=page_size,
+        keyword=keyword,
+    )
 
 
 @router.patch(
@@ -127,5 +132,12 @@ def batch_update_dataset_items(
     request: Request,
     body: BatchUpdateDatasetItemsRequest,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> BatchUpdateDatasetItemsVO:
-    raise_contract_only(request, "数据题目批量编辑")
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return DatasetService(db).batch_update_dataset_items(
+        dataset_id=datasetId,
+        user=user,
+        request_id=request_id,
+        body=body,
+    )

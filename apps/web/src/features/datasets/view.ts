@@ -1,4 +1,5 @@
-import type { DatasetSourceFormat, DatasetStatus, DatasetType, ImportStatus } from "./types";
+import type { JsonObject } from "../../shared/types/api";
+import type { DatasetItemStatus, DatasetSourceFormat, DatasetStatus, DatasetType, ImportStatus } from "./types";
 
 export const datasetTypeOptions: Array<{ label: string; value: DatasetType }> = [
   { label: "QA 质量评估", value: "QA_QUALITY" },
@@ -23,6 +24,12 @@ export const importStatusMeta: Record<ImportStatus, { label: string; color: stri
   RUNNING: { label: "导入中", color: "processing" },
   SUCCEEDED: { label: "导入完成", color: "success" },
   FAILED: { label: "导入失败", color: "error" },
+};
+
+export const datasetItemStatusMeta: Record<DatasetItemStatus, { label: string; color: string }> = {
+  AVAILABLE: { label: "可用", color: "success" },
+  CLAIMED: { label: "已领取", color: "processing" },
+  DISABLED: { label: "已禁用", color: "default" },
 };
 
 export function matchOwnerTaskDatasetsPath(path: string): string | null {
@@ -64,6 +71,31 @@ export function formatFileSize(sizeBytes: number): string {
     return `${(sizeBytes / 1024).toFixed(1)} KB`;
   }
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+export function normalizeBatchTags(value: string): string[] {
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  value
+    .split(/[\n,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((tag) => {
+      if (!seen.has(tag)) {
+        seen.add(tag);
+        tags.push(tag);
+      }
+    });
+  return tags;
+}
+
+export function buildPayloadSummary(payload: JsonObject): string {
+  const preferredFields = ["prompt", "question", "title", "content", "response_a", "model_answer"];
+  const preferredValue = preferredFields
+    .map((field) => payload[field])
+    .find((value) => typeof value === "string" && value.trim());
+  const summary = typeof preferredValue === "string" ? preferredValue : JSON.stringify(payload);
+  return summary.length > 96 ? `${summary.slice(0, 96)}...` : summary;
 }
 
 export function buildImportIdempotencyKey(input: {

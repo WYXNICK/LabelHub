@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from labelhub_api.core.enums import (
     DatasetItemStatus,
@@ -94,6 +94,12 @@ class BatchUpdateDatasetItemsRequest(CamelModel):
     tags: list[str] | None = Field(default=None, max_length=20)
     reason: str | None = Field(default=None, max_length=500)
     expected_version: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def require_update_operation(self) -> "BatchUpdateDatasetItemsRequest":
+        if self.enabled is None and self.tags is None:
+            raise ValueError("enabled 与 tags 至少需要提供一个。")
+        return self
 
 
 class BatchUpdateDatasetItemsVO(CamelModel):

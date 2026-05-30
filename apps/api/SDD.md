@@ -287,9 +287,9 @@ class LogoutResponseVO:
 | 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 阶段 1.4 已实现 |
 | 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 阶段 1.4 已实现 |
 | 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 阶段 1.1 已实现 |
-| 2 | `GET /api/tasks/{taskId}/template-draft` | `GetTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.0 契约已暴露，业务占位 |
-| 2 | `PUT /api/tasks/{taskId}/template-draft` | `SaveTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.0 契约已暴露，业务占位 |
-| 2 | `POST /api/template-schemas:validate` | `ValidateTemplateSchemaRequest` | `TemplateSchemaValidationVO` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `GET /api/tasks/{taskId}/template-draft` | `GetTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.1 已实现 |
+| 2 | `PUT /api/tasks/{taskId}/template-draft` | `SaveTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.1 已实现 |
+| 2 | `POST /api/template-schemas:validate` | `ValidateTemplateSchemaRequest` | `TemplateSchemaValidationVO` | 阶段 2.1 已实现 |
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.0 契约已暴露，业务占位 |
 | 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.0 契约已暴露，业务占位 |
 | 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.0 契约已暴露，业务占位 |
@@ -663,6 +663,50 @@ Request 与 VO 字段：
 - SQLAlchemy metadata 注册 `template_drafts`、`template_versions`。
 - Alembic `0003_create_template_foundation` 可在 MySQL 上执行。
 - 阶段 2.0 的接口登录后返回 `501 NOT_IMPLEMENTED`，提醒调用方这只是契约底座，不是可用业务能力。
+
+### 9.8 阶段 2.1 模板 schema 基础结构与后端校验
+
+阶段 2.1 将模板草稿和 schema 校验从占位推进为可用能力。该阶段仍不实现 Renderer、Designer 拖拽、基础物料属性面板或模板版本发布；版本发布继续由 2.7 完成。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/template-draft` | 已实现 | Owner 获取任务模板草稿；不存在时创建默认空 schema 草稿 |
+| `PUT /api/tasks/{taskId}/template-draft` | 已实现 | Owner 保存模板草稿；非法 schema 返回结构化错误 |
+| `POST /api/template-schemas:validate` | 已实现 | Owner 校验模板 schema；返回 `valid=false` 与错误列表，不写库 |
+| `POST/GET /api/tasks/{taskId}/template-versions` | 仍占位 | 2.7 实现版本发布与列表 |
+| `GET /api/template-versions/{templateVersionId}` | 仍占位 | 2.7 实现版本详情 |
+
+基础校验规则：
+
+- `schemaVersion` 当前必须为 `labelhub-template/v1`。
+- `component.id` 在同一 schema 内必须唯一。
+- `component.type` 必须属于官方物料白名单。
+- 采集类物料必须配置非空 `fieldKey`，且同一 schema 内 `fieldKey` 必须唯一。
+- `SHOW_ITEM`、`LLM_ACTION`、`GROUP`、`TABS` 不参与提交，不应配置 `fieldKey`。
+- `layout.root` 必须是数组，布局节点只能是组件 ID 字符串或包含 `componentId` 的对象。
+- 布局引用的组件必须存在；同一组件不能在布局中重复出现；组件也不能成为孤儿节点。
+- `children` 仅允许用于 `GROUP`；`tabs` 仅允许用于 `TABS`。
+
+错误语义：
+
+- `POST /api/template-schemas:validate` 校验失败时返回 `200`，`TemplateSchemaValidationVO.valid=false`，`errors` 中包含 `field` 和 `message`。
+- `PUT /api/tasks/{taskId}/template-draft` 校验失败时返回 `422 INVALID_TEMPLATE_SCHEMA`，`details.errors` 与校验接口字段一致。
+- 非 Owner 返回 `403 FORBIDDEN`；任务不存在或不归属当前 Owner 返回 `404 NOT_FOUND`。
+- 当前仅允许在 `DRAFT` 任务上保存模板草稿；非草稿任务返回 `409 TASK_NOT_EDITABLE`。
+
+审计要求：
+
+- 保存草稿写入 `audit_logs.action=TEMPLATE_SAVE`，`entityType=TEMPLATE`，`entityId=draftId`。
+- `metadata` 记录 `taskId`、`componentCount` 和 `schemaVersion`。
+
+验收标准：
+
+- Owner 可获取默认空模板草稿，默认 `layout.root=[]`。
+- 合法 schema 可保存到 `template_drafts.schema`。
+- 非法物料、重复 `fieldKey`、重复布局引用、引用不存在组件、孤儿组件均能得到结构化错误。
+- MySQL 环境下可以真实创建任务、保存模板草稿，并在 `template_drafts` 中查询到 schema。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

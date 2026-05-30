@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user
 from labelhub_api.api.routes._stage1_contract import raise_contract_only
+from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.schemas.templates import (
@@ -14,6 +16,7 @@ from labelhub_api.schemas.templates import (
     TemplateVersionVO,
     ValidateTemplateSchemaRequest,
 )
+from labelhub_api.services.template_service import TemplateService
 
 task_router = APIRouter(prefix="/api/tasks/{taskId}", tags=["stage2-templates"])
 schema_router = APIRouter(prefix="/api", tags=["stage2-templates"])
@@ -26,10 +29,10 @@ schema_router = APIRouter(prefix="/api", tags=["stage2-templates"])
 )
 def get_template_draft(
     taskId: str,
-    request: Request,
-    _user: UserVO = Depends(get_current_user),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> TemplateDraftVO:
-    return raise_contract_only(request, "Stage 2.1 template draft")
+    return TemplateService(db).get_draft(task_id=taskId, user=user)
 
 
 @task_router.put(
@@ -41,9 +44,11 @@ def save_template_draft(
     taskId: str,
     body: SaveTemplateDraftRequest,
     request: Request,
-    _user: UserVO = Depends(get_current_user),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> TemplateDraftVO:
-    return raise_contract_only(request, "Stage 2.1 template draft")
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return TemplateService(db).save_draft(task_id=taskId, user=user, request_id=request_id, body=body)
 
 
 @schema_router.post(
@@ -53,10 +58,10 @@ def save_template_draft(
 )
 def validate_template_schema(
     body: ValidateTemplateSchemaRequest,
-    request: Request,
-    _user: UserVO = Depends(get_current_user),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> TemplateSchemaValidationVO:
-    return raise_contract_only(request, "Stage 2.1 template schema validation")
+    return TemplateService(db).validate_schema(body=body, user=user)
 
 
 @task_router.post(

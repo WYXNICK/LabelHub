@@ -27,10 +27,28 @@ export interface TemplateComponentDTO {
   visibility: JsonObject;
 }
 
+export interface TemplateLayoutTabDTO {
+  id: string;
+  label: string;
+  children: TemplateLayoutNodeDTO[];
+}
+
+export type TemplateLayoutNodeDTO =
+  | string
+  | {
+      componentId: string;
+      children?: TemplateLayoutNodeDTO[];
+      tabs?: TemplateLayoutTabDTO[];
+    };
+
+export interface TemplateLayoutDTO {
+  root: TemplateLayoutNodeDTO[];
+}
+
 export interface TemplateSchemaVO {
   schemaVersion: string;
   components: TemplateComponentDTO[];
-  layout: JsonObject;
+  layout: TemplateLayoutDTO;
   llmActions: JsonObject[];
   showItems: JsonObject[];
 }

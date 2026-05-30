@@ -5,13 +5,13 @@ from typing import Any
 
 from pydantic import Field
 
-from labelhub_api.core.enums import TemplateComponentType, TemplateVersionStatus
+from labelhub_api.core.enums import TemplateVersionStatus
 from labelhub_api.schemas.common import CamelModel
 
 
 class TemplateComponentDTO(CamelModel):
     id: str = Field(min_length=1, max_length=64)
-    type: TemplateComponentType
+    type: str = Field(min_length=1, max_length=64)
     field_key: str | None = Field(default=None, max_length=128)
     label: str = Field(min_length=1, max_length=120)
     props: dict[str, Any] = Field(default_factory=dict)

@@ -180,8 +180,8 @@ export interface LogoutResponseVO {
 | 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 阶段 1.4 已实现 |
 | 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 阶段 1.5 已实现 |
 | 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 阶段 1.1 已实现 |
-| 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.0 契约已暴露，业务占位 |
-| 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.1 已实现 |
+| 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.1 已实现 |
 | 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.0 契约已暴露，业务占位 |
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
 | 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
@@ -522,6 +522,24 @@ export interface TemplateSchemaVO {
 - 后端 Pydantic 使用 alias 对外返回同名 camelCase JSON。
 - VO 中对外字段必须使用 `schema`；后端内部可用 `template_schema` 避免遮蔽 Pydantic BaseModel 方法。
 - 2.1 实现业务时，Designer、Renderer、Labeler 必须复用这同一份 `TemplateSchemaVO`，不得引入前端私有 schema。
+
+### 9.8 阶段 2.1 模板 schema 基础结构与校验反馈
+
+阶段 2.1 在前端新增模板 schema 基础工具，不新增页面。Designer 和 Renderer 后续必须复用这些工具生成默认结构、创建物料和展示后端校验结果。
+
+前端文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/view.ts` | 默认 schema、默认物料、采集字段提取、校验结果摘要 |
+| `src/features/templates/view.test.ts` | 覆盖默认 schema、默认 fieldKey、校验摘要 |
+
+交互边界：
+
+- `getTemplateDraft`、`saveTemplateDraft`、`validateTemplateSchema` 已可调用真实后端业务。
+- `publishTemplateVersion`、`listTemplateVersions`、`getTemplateVersion` 仍是 2.7 占位接口，前端页面不得把它们当成可用发布能力。
+- `TemplateLayoutDTO` 以 `root` 数组作为基础布局；字符串节点表示组件 ID，对象节点为后续 `GROUP/TABS` 预留。
+- 前端只做轻量结构准备和校验结果展示，非法物料、重复字段和非法布局最终以后端校验为准。
 
 ## 10. 前后端字段映射检查清单
 

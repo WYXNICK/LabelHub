@@ -16,7 +16,7 @@
 - 无权限页。
 - Owner 任务管理、任务设置、数据集导入、题目预览与批量编辑、审核配置、发布前检查抽屉。
 - API Client 与阶段 1 VO/Request 类型。
-- 阶段 2.0 模板 schema、模板草稿、模板版本的 TypeScript 类型与 API 外壳。
+- 阶段 2.0-2.1 模板 schema、模板草稿、模板版本的 TypeScript 类型、API 外壳和基础 schema 工具。
 
 常用命令：
 

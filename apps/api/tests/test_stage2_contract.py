@@ -72,10 +72,10 @@ def test_stage2_alembic_migration_contains_template_foundation_tables() -> None:
         assert f'"{table_name}"' in migration_source
 
 
-def test_stage2_template_routes_are_contract_only_until_later_grains() -> None:
+def test_stage2_template_version_routes_are_contract_only_until_later_grains() -> None:
     with TestClient(create_app()) as client:
         _login_owner(client)
-        response = client.get("/api/tasks/task_demo/template-draft")
+        response = client.get("/api/tasks/task_demo/template-versions")
 
     assert response.status_code == 501
     assert response.json()["error"]["code"] == "NOT_IMPLEMENTED"

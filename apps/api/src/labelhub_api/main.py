@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from labelhub_api import __version__
-from labelhub_api.api.routes import auth, health
+from labelhub_api.api.routes import audit, auth, datasets, files, health, review_configs, tasks
 from labelhub_api.core.config import get_settings
 from labelhub_api.core.errors import (
     ApiException,
@@ -44,6 +44,11 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(files.router)
+    app.include_router(tasks.router)
+    app.include_router(datasets.router)
+    app.include_router(review_configs.router)
+    app.include_router(audit.router)
     return app
 
 

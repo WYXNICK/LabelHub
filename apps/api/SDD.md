@@ -270,29 +270,326 @@ class LogoutResponseVO:
 
 | 阶段 | 接口 | Request | VO | 状态 |
 | --- | --- | --- | --- | --- |
-| 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 待细化 |
-| 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `POST /api/tasks/{taskId}/state-transitions` | `TaskStateTransitionRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/publish-check` | `GetPublishCheckRequest` | `PublishCheckVO` | 待细化 |
-| 1 | `POST /api/tasks/{taskId}/import-jobs` | `CreateImportJobRequest` | `ImportJobVO` | 待细化 |
-| 1 | `GET /api/import-jobs/{importJobId}` | `GetImportJobRequest` | `ImportJobVO` | 待细化 |
-| 1 | `GET /api/import-jobs/{importJobId}/errors` | `ListImportErrorsRequest` | `PageVO[ImportErrorRowVO]` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 待细化 |
-| 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 待细化 |
-| 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
-| 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 待细化 |
-| 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 待细化 |
-| 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 待细化 |
+| 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 阶段 1.1 已实现 |
+| 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `POST /api/tasks/{taskId}/state-transitions` | `TaskStateTransitionRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `GET /api/tasks/{taskId}/publish-check` | `GetPublishCheckRequest` | `PublishCheckVO` | 阶段 1.5 已实现 |
+| 1 | `POST /api/tasks/{taskId}/import-jobs` | `CreateImportJobRequest` | `ImportJobVO` | 阶段 1.2 已实现 |
+| 1 | `GET /api/import-jobs/{importJobId}` | `GetImportJobRequest` | `ImportJobVO` | 阶段 1.2 已实现 |
+| 1 | `GET /api/import-jobs/{importJobId}/errors` | `ListImportErrorsRequest` | `PageVO[ImportErrorRowVO]` | 阶段 1.2 已实现 |
+| 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 阶段 1.2 已实现 |
+| 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 阶段 1.3 已实现 |
+| 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 阶段 1.3 已实现 |
+| 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 阶段 1.4 已实现 |
+| 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 阶段 1.4 已实现 |
+| 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 阶段 1.4 已实现 |
+| 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 阶段 1.4 已实现 |
+| 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 阶段 1.1 已实现 |
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
 | 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
 | 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
+
+### 9.1 阶段 1.0 已对齐契约
+
+阶段 1.0 只交付 Owner 任务、数据集、导入、审核配置、发布检查与审计的契约和数据底座，不实现真实 CRUD、导入解析或状态迁移业务。所有阶段 1.0 业务接口在 OpenAPI 中暴露，并在业务实现完成前统一返回 `501 NOT_IMPLEMENTED`。
+
+阶段 1.0 枚举：
+
+```python
+class TaskStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    PAUSED = "PAUSED"
+    ENDED = "ENDED"
+
+
+class DistributionStrategy(str, Enum):
+    FIRST_COME_FIRST_SERVED = "FIRST_COME_FIRST_SERVED"
+    ASSIGNED = "ASSIGNED"
+    QUOTA_GRAB = "QUOTA_GRAB"
+
+
+class DatasetType(str, Enum):
+    QA_QUALITY = "QA_QUALITY"
+    PREFERENCE_COMPARE = "PREFERENCE_COMPARE"
+    CUSTOM = "CUSTOM"
+
+
+class DatasetSourceFormat(str, Enum):
+    JSON = "JSON"
+    JSONL = "JSONL"
+    EXCEL = "EXCEL"
+    MIXED = "MIXED"
+
+
+class DatasetStatus(str, Enum):
+    IMPORTING = "IMPORTING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class DatasetItemStatus(str, Enum):
+    AVAILABLE = "AVAILABLE"
+    CLAIMED = "CLAIMED"
+    DISABLED = "DISABLED"
+
+
+class ImportStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ReviewConfigVersionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+
+
+class PublishBlockerCode(str, Enum):
+    INVALID_TASK_STATUS = "INVALID_TASK_STATUS"
+    MISSING_REQUIRED_FIELDS = "MISSING_REQUIRED_FIELDS"
+    MISSING_DATASET = "MISSING_DATASET"
+    MISSING_TEMPLATE_VERSION = "MISSING_TEMPLATE_VERSION"
+    MISSING_REVIEW_CONFIG = "MISSING_REVIEW_CONFIG"
+    INVALID_QUOTA = "INVALID_QUOTA"
+    INVALID_DEADLINE = "INVALID_DEADLINE"
+```
+
+阶段 1.0 Request 与 VO 字段：
+
+| 契约 | 字段 |
+| --- | --- |
+| `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
+| `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
+| `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
+| `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
+| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`createdBy`、`createdAt` |
+| `DatasetVO` | `id`、`taskId`、`name`、`datasetType`、`sourceFormat`、`itemCount`、`enabledItemCount`、`disabledItemCount`、`status`、`createdBy`、`createdAt`、`updatedAt` |
+| `DatasetItemVO` | `id`、`datasetId`、`taskId`、`externalItemId`、`sourceFormat`、`sourceRowNumber`、`payload`、`mediaRefs`、`checksum`、`status`、`tags`、`createdAt`、`updatedAt` |
+| `CreateImportJobRequest` | `datasetName`、`datasetType`、`sourceFormat`、`fileObjectId`、`idempotencyKey` |
+| `ImportJobVO` | `id`、`taskId`、`datasetId`、`fileObjectId`、`sourceFormat`、`status`、`successCount`、`failedCount`、`errorSummary`、`createdBy`、`createdAt`、`updatedAt` |
+| `ImportErrorRowVO` | `id`、`importJobId`、`taskId`、`datasetId`、`sourceRowNumber`、`fieldPath`、`errorCode`、`errorMessage`、`rawFragment`、`createdAt` |
+| `BatchUpdateDatasetItemsRequest` | `itemIds`、`enabled`、`tags`、`reason`、`expectedVersion` |
+| `ReviewConfigDraftVO` | `id`、`taskId`、`promptTemplate`、`dimensions`、`thresholds`、`outputSchema`、`updatedBy`、`createdAt`、`updatedAt` |
+| `ReviewConfigVersionVO` | `id`、`taskId`、`versionNo`、`promptTemplate`、`dimensions`、`thresholds`、`outputSchema`、`status`、`publishedBy`、`publishedAt`、`createdAt`、`updatedAt` |
+| `PublishCheckVO` | `taskId`、`canPublish`、`blockers`、`checkedAt` |
+| `AuditLogVO` | `id`、`entityType`、`entityId`、`actorId`、`actorRole`、`action`、`fromState`、`toState`、`reason`、`metadata`、`requestId`、`createdAt` |
+
+阶段 1.0 Entity 与迁移表：`tasks`、`task_state_transitions`、`file_objects`、`datasets`、`dataset_items`、`import_jobs`、`import_error_rows`、`review_config_drafts`、`review_config_versions`、`audit_logs`。
+
+### 9.2 阶段 1.1 任务 CRUD 与状态机
+
+阶段 1.1 将 `GET/POST/PATCH /api/tasks`、`GET /api/tasks/{taskId}`、`POST /api/tasks/{taskId}/state-transitions` 和 `GET /api/audit-logs` 从契约占位推进为可用业务能力。
+
+状态迁移规则：
+
+| 当前状态 | 允许目标状态 | 说明 |
+| --- | --- | --- |
+| `DRAFT` | `PUBLISHED`、`ENDED` | 发布前必须通过最小发布保护；结束后不可恢复 |
+| `PUBLISHED` | `PAUSED`、`ENDED` | 发布中任务可暂停或结束 |
+| `PAUSED` | `PUBLISHED`、`ENDED` | 重新发布仍需通过最小发布保护 |
+| `ENDED` | 无 | 终态，不允许继续迁移 |
+
+发布最小保护：
+
+- `quota > 0`。
+- `deadlineAt` 必须存在且晚于当前时间。
+- 至少存在一个 `READY` 数据集。
+- `currentTemplateVersionId` 必须存在；阶段 2 前通常会被 `MISSING_TEMPLATE_VERSION` 阻塞。
+- `currentReviewConfigVersionId` 必须存在。
+
+业务错误：
+
+- 非 Owner 访问任务写接口返回 `403 FORBIDDEN`。
+- 任务不存在或不属于当前 Owner 返回 `404 NOT_FOUND`。
+- 非 `DRAFT` 任务更新基础信息返回 `409 TASK_NOT_EDITABLE`。
+- 乐观锁版本不匹配返回 `409 VERSION_CONFLICT`。
+- 非法状态迁移返回 `409 INVALID_STATE_TRANSITION`。
+- 发布保护不通过返回 `409 PUBLISH_BLOCKED`，`details.blockers` 使用 `PublishBlockerVO` 字段。
+
+审计：
+
+- 创建任务写入 `audit_logs.action=CREATE`。
+- 更新任务写入 `audit_logs.action=UPDATE`。
+- 状态迁移必须同时写入 `task_state_transitions` 与 `audit_logs.action=STATE_TRANSITION`。
+
+### 9.3 阶段 1.2 JSON/JSONL/Excel 导入契约
+
+阶段 1.2 将文件登记、导入任务、数据集列表和导入错误行查询从契约占位推进为可用能力；题目预览与批量编辑仍属于阶段 1.3。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `POST /api/files` | 已实现 | 创建导入文件对象，阶段 1.2 支持 `contentText` 或 `contentBase64` 写入本地临时上传目录 |
+| `POST /api/tasks/{taskId}/import-jobs` | 已实现 | 同步解析导入文件并创建数据集、题目行、错误行和审计记录 |
+| `GET /api/import-jobs/{importJobId}` | 已实现 | 查询导入任务状态和成功/失败统计 |
+| `GET /api/import-jobs/{importJobId}/errors` | 已实现 | 分页查询导入错误行 |
+| `GET /api/tasks/{taskId}/datasets` | 已实现 | 分页查询当前任务下的数据集 |
+| `GET /api/datasets/{datasetId}/items` | 阶段 1.3 | 题目预览，不在 1.2 内实现 |
+| `PATCH /api/datasets/{datasetId}/items:batch` | 阶段 1.3 | 批量启用/禁用或标签编辑，不在 1.2 内实现 |
+
+`CreateFileObjectRequest` 在阶段 1.2 追加可选字段，`FileObjectVO` 不返回文件内容：
+
+```python
+class CreateFileObjectRequest:
+    bucket: str
+    objectKey: str
+    fileName: str
+    mimeType: str | None
+    sizeBytes: int
+    checksum: str | None
+    purpose: FilePurpose
+    contentText: str | None
+    contentBase64: str | None
+```
+
+导入解析规则：
+
+- `sourceFormat=JSON`：支持 JSON 数组；也支持对象内含 `items` 数组的结构。
+- `sourceFormat=JSONL`：每一行必须是一个 JSON Object，空行跳过。
+- `sourceFormat=EXCEL`：阶段 1.2 使用标准库解析 `.xlsx` 第一张工作表，首行为字段名。
+- 每行必须是对象，且必须包含非空 `id`；该值映射为 `DatasetItemVO.externalItemId`。
+- `QA_QUALITY` 至少需要 `prompt`、`model_answer`、`reference`。
+- `PREFERENCE_COMPARE` 至少需要 `prompt`、`response_a`、`response_b`。
+- 校验失败行写入 `import_error_rows`，不阻断其他合法行导入。
+
+幂等与去重策略：
+
+- `idempotencyKey` 非空且已存在时，直接返回既有 `ImportJobVO`，不得重复写入数据集或题目。
+- 单次导入内部按 `externalItemId` 去重；重复行写入错误行，错误码为 `DUPLICATE_ITEM`。
+- 数据库继续保留 `dataset_id + external_item_id` 唯一约束，作为最终一致性保护。
+
+审计要求：
+
+- 创建导入任务写入 `audit_logs.action=IMPORT_CREATE`，实体类型为 `IMPORT_JOB`。
+- 导入完成写入 `audit_logs.action=IMPORT_COMPLETE`，同时记录成功数、失败数和数据集 ID。
+
+验收标准：
+
+- `demo_data/datasets/qa_quality` 的 JSON、JSONL、Excel 均可导入 30 条。
+- `demo_data/datasets/preference_compare` 的 JSON、JSONL、Excel 均可导入 12 条。
+- 错误行可通过 `GET /api/import-jobs/{importJobId}/errors` 追踪到行号、字段、错误码、错误信息和原始片段。
+- 重复请求同一 `idempotencyKey` 不产生重复数据。
+
+### 9.4 阶段 1.3 数据预览与批量编辑契约
+
+阶段 1.3 将题目预览与批量编辑从契约占位推进为可用能力，继续复用阶段 1.0 已落库的 `dataset_items`、`datasets` 与 `audit_logs`，不新增数据库表。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/datasets/{datasetId}/items` | 已实现 | Owner 分页预览题目，支持 `page`、`pageSize`、`keyword` |
+| `PATCH /api/datasets/{datasetId}/items:batch` | 已实现 | 批量启用/禁用题目或替换标签，写入审计日志 |
+
+`GET /api/datasets/{datasetId}/items` 规则：
+
+- 仅 Owner 可访问，且数据集必须归属于当前 Owner 创建的任务；否则分别返回 `403 FORBIDDEN` 或 `404 NOT_FOUND`。
+- `keyword` 为空时按 `sourceRowNumber ASC, createdAt ASC` 返回；非空时匹配 `externalItemId`、`payload` 序列化内容或 `tags` 序列化内容。
+- 返回 `PageVO[DatasetItemVO]`，字段名必须继续使用 camelCase，与前端 `DatasetItemVO` 一一对应。
+
+`PATCH /api/datasets/{datasetId}/items:batch` 规则：
+
+- `itemIds` 必填，最多 500 条；后端按顺序去重。
+- `enabled` 与 `tags` 至少提供一个：`enabled=true` 将选中题目置为 `AVAILABLE`，`enabled=false` 将选中题目置为 `DISABLED`；`tags` 使用去空白、去重后的列表整体替换。
+- `expectedVersion` 为可选保护字段；传入时，所有实际命中的题目版本必须一致，否则返回 `409 VERSION_CONFLICT`。
+- 不属于当前数据集的 `itemIds` 不报错，计入 `skippedCount`；实际命中的题目写入 `updatedAt` 并将 `version + 1`。
+- 批量操作完成后必须重算 `datasets.itemCount`、`enabledItemCount`、`disabledItemCount`，并写入 `audit_logs.action=BATCH_UPDATE`、`entityType=DATASET`、`entityId=datasetId`，`metadata` 记录 `taskId`、`itemIds`、`enabled`、`tags`、`updatedCount`、`skippedCount`。
+- 返回 `BatchUpdateDatasetItemsVO`：`updatedCount`、`skippedCount`、`auditLogId`。
+
+验收标准：
+
+- 可分页查看导入后的 `qa_quality` 和 `preference_compare` payload。
+- 可通过关键词搜索题目内容或外部题目 ID。
+- 可批量禁用、重新启用和替换标签，并同步更新数据集统计。
+- 批量操作可在审计接口中查询到 `BATCH_UPDATE` 记录。
+
+### 9.5 阶段 1.4 审核配置草稿与版本契约
+
+阶段 1.4 将审核配置从契约占位推进为可用能力，用于为阶段 4 AI 自动预审提供稳定的 Prompt、评分维度、阈值和结构化输出 schema。该阶段只保存和发布配置版本，不触发 AI 调用、不生成预审记录。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/review-config-draft` | 已实现 | Owner 获取任务审核配置草稿；不存在时返回默认草稿并落库 |
+| `PUT /api/tasks/{taskId}/review-config-draft` | 已实现 | Owner 保存 Prompt、评分维度、阈值和输出 schema |
+| `POST /api/tasks/{taskId}/review-config-versions` | 已实现 | 从草稿发布不可变审核配置版本，并绑定到任务当前审核配置版本 |
+| `GET /api/tasks/{taskId}/review-config-versions` | 已实现 | 分页查看任务下的审核配置版本，按版本号倒序返回 |
+
+`SaveReviewConfigDraftRequest` 规则：
+
+- `promptTemplate` 必填，长度 1-8000；后端统一去除首尾空白。
+- `dimensions` 至少 1 个、最多 20 个；`key` 在同一配置内必须唯一，字段去除首尾空白；`maxScore` 范围为 1-100，`weight` 范围为 `(0, 10]`。
+- `thresholds.returnBelowScore <= thresholds.humanReviewMinScore <= thresholds.passMinScore`；当 `humanReviewMinScore` 为空时要求 `returnBelowScore <= passMinScore`。
+- 阈值不能超过 `sum(maxScore * weight)` 计算出的配置最高分。
+- `outputSchema` 为空时由后端按维度生成默认结构化输出 JSON Schema；非空时按调用方传入值保存。
+- 阶段 1.4 仅允许 Owner 在 `DRAFT` 任务上保存和发布审核配置，避免运行中任务被阶段性能力意外改写。
+
+`POST /api/tasks/{taskId}/review-config-versions` 规则：
+
+- `draftId` 必须属于当前任务。
+- 发布前复用草稿校验规则。
+- 新版本 `versionNo = 当前最大版本号 + 1`，新版本状态为 `ACTIVE`，同任务既有 `ACTIVE` 版本置为 `DISABLED`。
+- 发布成功后更新 `tasks.currentReviewConfigVersionId`，并将 `tasks.version + 1`，供发布前检查和乐观锁使用。
+- 发布版本不可变；后续修改必须先保存草稿，再发布新版本。
+
+审计要求：
+
+- 保存草稿写入 `audit_logs.action=REVIEW_CONFIG_SAVE`，`entityType=REVIEW_CONFIG`，`entityId=draftId`。
+- 发布版本写入 `audit_logs.action=REVIEW_CONFIG_PUBLISH`，`entityType=REVIEW_CONFIG`，`entityId=versionId`，`metadata` 记录 `taskId`、`draftId`、`versionNo`、`versionNote`。
+
+验收标准：
+
+- Owner 可进入任务审核配置页，加载默认草稿，保存 Prompt、维度、阈值和输出 schema。
+- 发布版本后任务详情中的 `currentReviewConfigVersionId` 指向最新版本，版本列表展示历史版本。
+- 发布第二个版本时旧版本自动变为 `DISABLED`，新版本为 `ACTIVE`。
+- 重复维度 key、阈值顺序错误或阈值超过最高分时返回结构化 `422 INVALID_REVIEW_CONFIG`。
+- 非 Owner 访问返回 `403 FORBIDDEN`，不存在或不归属当前 Owner 的任务返回 `404 NOT_FOUND`。
+
+### 9.6 阶段 1.5 发布前检查契约
+
+阶段 1.5 将发布前检查从契约占位推进为可用能力。该接口不绕过阶段 2 模板要求；如果任务尚未绑定模板版本，必须返回 `MISSING_TEMPLATE_VERSION`，并且实际状态迁移仍由 `POST /api/tasks/{taskId}/state-transitions` 做最终保护。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/publish-check` | 已实现 | Owner 读取任务发布阻塞项，返回 `PublishCheckVO` |
+
+`PublishBlockerCode` 当前取值：
+
+| Code | 说明 |
+| --- | --- |
+| `INVALID_TASK_STATUS` | 任务不是 `DRAFT` 或 `PAUSED`，不能执行发布/恢复发布 |
+| `MISSING_REQUIRED_FIELDS` | 预留基础信息缺失兜底码 |
+| `INVALID_QUOTA` | `quota <= 0` |
+| `INVALID_DEADLINE` | `deadlineAt` 为空或不晚于当前时间 |
+| `MISSING_DATASET` | 当前任务没有 `READY` 数据集 |
+| `MISSING_TEMPLATE_VERSION` | 当前任务没有 `currentTemplateVersionId`；阶段 2 前这是预期阻塞 |
+| `MISSING_REVIEW_CONFIG` | 当前任务没有 `currentReviewConfigVersionId` |
+
+接口规则：
+
+- 仅 Owner 可访问；任务不存在或不归属当前 Owner 返回 `404 NOT_FOUND`。
+- `canPublish = blockers.length == 0`。
+- `checkedAt` 使用后端当前时间。
+- `GET /publish-check` 为只读检查，不写审计日志；真正发布成功时由状态迁移写入 `task_state_transitions` 与 `audit_logs.STATE_TRANSITION`。
+- `POST /state-transitions` 迁移到 `PUBLISHED` 时必须复用同一套阻塞规则，即使前端未先调用发布检查也不能绕过。
+
+验收标准：
+
+- 草稿任务缺少数据集、模板版本和审核配置时，接口返回 `200` 且 `canPublish=false`，阻塞项至少包含 `MISSING_DATASET`、`MISSING_TEMPLATE_VERSION`、`MISSING_REVIEW_CONFIG`。
+- 补齐 READY 数据集、模板版本 ID 和审核配置版本 ID 后，接口返回 `canPublish=true`。
+- 已结束任务返回 `INVALID_TASK_STATUS`，不得显示为可发布。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

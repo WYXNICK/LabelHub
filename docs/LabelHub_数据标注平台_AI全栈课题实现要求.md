@@ -32,27 +32,27 @@
 
 **任务发布** ｜对应 4.1 任务管理：任务状态机（草稿 / 发布中 / 已暂停 / 已结束）、分发策略、配额与截止时间、发布前抽屉。
 
-![任务发布](labelhub_markdown_assets/page-02-image-01.png)
+![任务发布](assets/page-02-image-01.png)
 
 **模板配置** ｜对应 4.2 标注页面动态搭建：左侧物料 → 中间画布（含 LLM 触发组件 / 展示项 ShowItem） → 右侧属性 / 校验 / 联动配置。
 
-![模板配置](labelhub_markdown_assets/page-02-image-02.png)
+![模板配置](assets/page-02-image-02.png)
 
 ---
 
 **标注台** ｜对应 4.3 标注员工作台：题目导航 / 草稿自动保存 / 打回提示 / 题目级 LLM 辅助调用 / 提交校验。
 
-![标注台](labelhub_markdown_assets/page-03-image-01.png)
+![标注台](assets/page-03-image-01.png)
 
 **机审（AI 自动预审）**｜对应 4.4 AI Agent：异步队列、维度评分（function_calling 结构化输出）、Prompt 模板、失败重试与人工兜底。
 
-![机审（AI 自动预审）](labelhub_markdown_assets/page-03-image-02.png)
+![机审（AI 自动预审）](assets/page-03-image-02.png)
 
 ---
 
 **验收（人工审核流转）**｜对应 4.5 多角色审核流转：复审/终审视图、第 1 / 2 轮 diff、AI 评语、批量操作、完整审计时间线。
 
-![验收（人工审核流转）](labelhub_markdown_assets/page-04-image-01.png)
+![验收（人工审核流转）](assets/page-04-image-01.png)
 
 ## 三、角色与权限模型
 
@@ -230,19 +230,19 @@ APIKEY：已脱敏，禁止将真实密钥写入仓库
 
 ### 9.1 任务负责人后台 · 模板搭建（拖拽搭建器）
 
-![9.1 任务负责人后台 · 模板搭建（拖拽搭建器）](labelhub_markdown_assets/page-09-image-01.jpeg)
+![9.1 任务负责人后台 · 模板搭建（拖拽搭建器）](assets/page-09-image-01.png)
 
 ### 9.2 标注员工作台 · 任务广场与作答页
 
-![9.2 标注员工作台 · 任务广场与作答页](labelhub_markdown_assets/page-10-image-01.jpeg)
+![9.2 标注员工作台 · 任务广场与作答页](assets/page-10-image-01.png)
 
 ### 9.3 AI 自动预审与人工审核
 
-![9.3 AI 自动预审与人工审核](labelhub_markdown_assets/page-10-image-02.jpeg)
+![9.3 AI 自动预审与人工审核](assets/page-10-image-02.png)
 
 ### 9.4 演示流程（建议录屏剧本）
 
-![9.4 演示流程（建议录屏剧本）](labelhub_markdown_assets/page-12-image-01.jpeg)
+![9.4 演示流程（建议录屏剧本）](assets/page-12-image-01.png)
 
 建议在画板中绘制端到端的演示流程图：建任务 → 搭模板 → 发布 → Labeler 作答 → 提交 → AI 预审 → 人工审核 → 导出。
 

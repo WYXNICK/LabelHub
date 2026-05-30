@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Query, Request
+
+from labelhub_api.api.deps import get_current_user
+from labelhub_api.api.routes._stage1_contract import raise_contract_only
+from labelhub_api.schemas.auth import UserVO
+from labelhub_api.schemas.common import PageVO
+from labelhub_api.schemas.templates import (
+    PublishTemplateVersionRequest,
+    SaveTemplateDraftRequest,
+    TemplateDraftVO,
+    TemplateSchemaValidationVO,
+    TemplateVersionVO,
+    ValidateTemplateSchemaRequest,
+)
+
+task_router = APIRouter(prefix="/api/tasks/{taskId}", tags=["stage2-templates"])
+schema_router = APIRouter(prefix="/api", tags=["stage2-templates"])
+
+
+@task_router.get(
+    "/template-draft",
+    response_model=TemplateDraftVO,
+    response_model_by_alias=True,
+)
+def get_template_draft(
+    taskId: str,
+    request: Request,
+    _user: UserVO = Depends(get_current_user),
+) -> TemplateDraftVO:
+    return raise_contract_only(request, "Stage 2.1 template draft")
+
+
+@task_router.put(
+    "/template-draft",
+    response_model=TemplateDraftVO,
+    response_model_by_alias=True,
+)
+def save_template_draft(
+    taskId: str,
+    body: SaveTemplateDraftRequest,
+    request: Request,
+    _user: UserVO = Depends(get_current_user),
+) -> TemplateDraftVO:
+    return raise_contract_only(request, "Stage 2.1 template draft")
+
+
+@schema_router.post(
+    "/template-schemas:validate",
+    response_model=TemplateSchemaValidationVO,
+    response_model_by_alias=True,
+)
+def validate_template_schema(
+    body: ValidateTemplateSchemaRequest,
+    request: Request,
+    _user: UserVO = Depends(get_current_user),
+) -> TemplateSchemaValidationVO:
+    return raise_contract_only(request, "Stage 2.1 template schema validation")
+
+
+@task_router.post(
+    "/template-versions",
+    response_model=TemplateVersionVO,
+    response_model_by_alias=True,
+    status_code=201,
+)
+def publish_template_version(
+    taskId: str,
+    body: PublishTemplateVersionRequest,
+    request: Request,
+    _user: UserVO = Depends(get_current_user),
+) -> TemplateVersionVO:
+    return raise_contract_only(request, "Stage 2.7 template version publish")
+
+
+@task_router.get(
+    "/template-versions",
+    response_model=PageVO[TemplateVersionVO],
+    response_model_by_alias=True,
+)
+def list_template_versions(
+    taskId: str,
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    _user: UserVO = Depends(get_current_user),
+) -> PageVO[TemplateVersionVO]:
+    return raise_contract_only(request, "Stage 2.7 template version list")
+
+
+@schema_router.get(
+    "/template-versions/{templateVersionId}",
+    response_model=TemplateVersionVO,
+    response_model_by_alias=True,
+)
+def get_template_version(
+    templateVersionId: str,
+    request: Request,
+    _user: UserVO = Depends(get_current_user),
+) -> TemplateVersionVO:
+    return raise_contract_only(request, "Stage 2.7 template version detail")

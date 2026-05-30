@@ -180,7 +180,9 @@ export interface LogoutResponseVO {
 | 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 阶段 1.4 已实现 |
 | 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 阶段 1.5 已实现 |
 | 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 阶段 1.1 已实现 |
-| 2 | 模板版本 | `TemplateVersionVO`、`TemplateSchemaVO` | `POST /api/tasks/{taskId}/template-versions` | 待细化 |
+| 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.0 契约已暴露，业务占位 |
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
 | 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
 | 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
@@ -464,6 +466,62 @@ export interface PublishCheckVO {
 - 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
 - 后端必须连接 MySQL；至少验证一个已具备数据集和审核配置但缺少模板版本的任务，抽屉清晰显示 `MISSING_TEMPLATE_VERSION` 并阻止发布。
 - Console 不应出现非预期 error/issue；Network 中 `publish-check` 返回 200，强制发布接口在缺模板时返回预期业务阻塞。
+
+### 9.7 阶段 2.0 动态模板契约与前端 API 外壳
+
+阶段 2.0 在前端只落模板类型和 API 封装，不新增 Designer 页面、不渲染模板、不实现拖拽交互。当前后端模板接口仍是 `501 NOT_IMPLEMENTED` 占位，2.1 开始再接入草稿保存和 schema 校验。
+
+前端文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/types.ts` | 定义 `TemplateSchemaVO`、`TemplateComponentDTO`、`TemplateDraftVO`、`TemplateVersionVO` 等类型 |
+| `src/features/templates/api.ts` | 封装模板草稿、schema 校验、模板版本列表和版本详情接口 |
+
+前端类型：
+
+```ts
+export type TemplateComponentType =
+  | "SHOW_ITEM"
+  | "TEXT_INPUT"
+  | "TEXTAREA"
+  | "RADIO"
+  | "CHECKBOX"
+  | "TAG_SELECT"
+  | "RICH_TEXT"
+  | "FILE_UPLOAD"
+  | "IMAGE_UPLOAD"
+  | "JSON_EDITOR"
+  | "LLM_ACTION"
+  | "GROUP"
+  | "TABS";
+
+export interface TemplateSchemaVO {
+  schemaVersion: string;
+  components: TemplateComponentDTO[];
+  layout: JsonObject;
+  llmActions: JsonObject[];
+  showItems: JsonObject[];
+}
+```
+
+接口封装：
+
+| 前端函数 | 后端接口 |
+| --- | --- |
+| `getTemplateDraft` | `GET /api/tasks/{taskId}/template-draft` |
+| `saveTemplateDraft` | `PUT /api/tasks/{taskId}/template-draft` |
+| `validateTemplateSchema` | `POST /api/template-schemas:validate` |
+| `publishTemplateVersion` | `POST /api/tasks/{taskId}/template-versions` |
+| `listTemplateVersions` | `GET /api/tasks/{taskId}/template-versions` |
+| `getTemplateVersion` | `GET /api/template-versions/{templateVersionId}` |
+
+字段对齐要求：
+
+- 前端字段使用 camelCase，例如 `schemaVersion`、`fieldKey`、`llmActions`、`showItems`。
+- 后端 Pydantic 使用 alias 对外返回同名 camelCase JSON。
+- VO 中对外字段必须使用 `schema`；后端内部可用 `template_schema` 避免遮蔽 Pydantic BaseModel 方法。
+- 2.1 实现业务时，Designer、Renderer、Labeler 必须复用这同一份 `TemplateSchemaVO`，不得引入前端私有 schema。
 
 ## 10. 前后端字段映射检查清单
 

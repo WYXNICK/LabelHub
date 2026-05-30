@@ -287,7 +287,12 @@ class LogoutResponseVO:
 | 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 阶段 1.4 已实现 |
 | 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 阶段 1.4 已实现 |
 | 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 阶段 1.1 已实现 |
-| 2 | `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
+| 2 | `GET /api/tasks/{taskId}/template-draft` | `GetTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `PUT /api/tasks/{taskId}/template-draft` | `SaveTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `POST /api/template-schemas:validate` | `ValidateTemplateSchemaRequest` | `TemplateSchemaValidationVO` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.0 契约已暴露，业务占位 |
 | 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
 | 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
@@ -590,6 +595,74 @@ class CreateFileObjectRequest:
 - 草稿任务缺少数据集、模板版本和审核配置时，接口返回 `200` 且 `canPublish=false`，阻塞项至少包含 `MISSING_DATASET`、`MISSING_TEMPLATE_VERSION`、`MISSING_REVIEW_CONFIG`。
 - 补齐 READY 数据集、模板版本 ID 和审核配置版本 ID 后，接口返回 `canPublish=true`。
 - 已结束任务返回 `INVALID_TASK_STATUS`，不得显示为可发布。
+
+### 9.7 阶段 2.0 动态模板契约与数据底座
+
+阶段 2.0 只交付动态模板的契约、OpenAPI 可见性、Entity 和 Alembic 迁移，不实现真实保存、校验、Designer 拖拽或模板版本发布业务。所有模板接口当前返回 `501 NOT_IMPLEMENTED`，后续 2.1、2.2、2.3-2.7 分粒度推进。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/template-draft` | 契约已暴露 | 获取任务模板草稿，2.1 实现 |
+| `PUT /api/tasks/{taskId}/template-draft` | 契约已暴露 | 保存任务模板草稿，2.1 实现 |
+| `POST /api/template-schemas:validate` | 契约已暴露 | 校验模板 schema，2.1 实现 |
+| `POST /api/tasks/{taskId}/template-versions` | 契约已暴露 | 发布不可变模板版本，2.7 实现 |
+| `GET /api/tasks/{taskId}/template-versions` | 契约已暴露 | 查询任务模板版本列表，2.7 实现 |
+| `GET /api/template-versions/{templateVersionId}` | 契约已暴露 | 获取单个模板版本详情，2.7 实现 |
+
+阶段 2.0 枚举：
+
+```python
+class TemplateComponentType(str, Enum):
+    SHOW_ITEM = "SHOW_ITEM"
+    TEXT_INPUT = "TEXT_INPUT"
+    TEXTAREA = "TEXTAREA"
+    RADIO = "RADIO"
+    CHECKBOX = "CHECKBOX"
+    TAG_SELECT = "TAG_SELECT"
+    RICH_TEXT = "RICH_TEXT"
+    FILE_UPLOAD = "FILE_UPLOAD"
+    IMAGE_UPLOAD = "IMAGE_UPLOAD"
+    JSON_EDITOR = "JSON_EDITOR"
+    LLM_ACTION = "LLM_ACTION"
+    GROUP = "GROUP"
+    TABS = "TABS"
+
+
+class TemplateVersionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+```
+
+Request 与 VO 字段：
+
+| 契约 | 字段 |
+| --- | --- |
+| `TemplateComponentDTO` | `id`、`type`、`fieldKey`、`label`、`props`、`validation`、`visibility` |
+| `TemplateSchemaVO` | `schemaVersion`、`components`、`layout`、`llmActions`、`showItems` |
+| `TemplateDraftVO` | `id`、`taskId`、`schema`、`updatedBy`、`createdAt`、`updatedAt` |
+| `TemplateVersionVO` | `id`、`taskId`、`versionNo`、`schema`、`status`、`versionNote`、`publishedBy`、`publishedAt`、`createdAt`、`updatedAt` |
+| `SaveTemplateDraftRequest` | `schema` |
+| `ValidateTemplateSchemaRequest` | `schema` |
+| `TemplateSchemaValidationVO` | `valid`、`errors` |
+| `PublishTemplateVersionRequest` | `draftId`、`versionNote` |
+
+阶段 2.0 Entity 与迁移表：`template_drafts`、`template_versions`。
+
+数据表约束：
+
+- `template_drafts.task_id` 唯一，一个任务只保留一个当前可编辑草稿。
+- `template_versions.task_id + version_no` 唯一，发布版本不可原地覆盖。
+- `template_versions.status` 使用 `ACTIVE/DISABLED`，2.7 发布新版本时再处理旧版本停用和 `tasks.current_template_version_id` 绑定。
+- `tasks.current_template_version_id` 当前仍保持普通索引，不在 2.0 强加外键，避免阶段 1 既有测试或演示数据中的临时模板 ID 被迁移破坏。
+
+验收标准：
+
+- `/api/openapi.json` 包含阶段 2 模板接口与 `Template*` schema。
+- SQLAlchemy metadata 注册 `template_drafts`、`template_versions`。
+- Alembic `0003_create_template_foundation` 可在 MySQL 上执行。
+- 阶段 2.0 的接口登录后返回 `501 NOT_IMPLEMENTED`，提醒调用方这只是契约底座，不是可用业务能力。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

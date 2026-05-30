@@ -65,6 +65,27 @@ class ReviewConfigVersionStatus(StrEnum):
     DISABLED = "DISABLED"
 
 
+class TemplateComponentType(StrEnum):
+    SHOW_ITEM = "SHOW_ITEM"
+    TEXT_INPUT = "TEXT_INPUT"
+    TEXTAREA = "TEXTAREA"
+    RADIO = "RADIO"
+    CHECKBOX = "CHECKBOX"
+    TAG_SELECT = "TAG_SELECT"
+    RICH_TEXT = "RICH_TEXT"
+    FILE_UPLOAD = "FILE_UPLOAD"
+    IMAGE_UPLOAD = "IMAGE_UPLOAD"
+    JSON_EDITOR = "JSON_EDITOR"
+    LLM_ACTION = "LLM_ACTION"
+    GROUP = "GROUP"
+    TABS = "TABS"
+
+
+class TemplateVersionStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+
+
 class PublishBlockerCode(StrEnum):
     INVALID_TASK_STATUS = "INVALID_TASK_STATUS"
     MISSING_REQUIRED_FIELDS = "MISSING_REQUIRED_FIELDS"
@@ -87,6 +108,7 @@ class AuditEntityType(StrEnum):
     DATASET_ITEM = "DATASET_ITEM"
     IMPORT_JOB = "IMPORT_JOB"
     REVIEW_CONFIG = "REVIEW_CONFIG"
+    TEMPLATE = "TEMPLATE"
     FILE_OBJECT = "FILE_OBJECT"
 
 

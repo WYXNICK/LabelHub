@@ -28,6 +28,7 @@ from labelhub_api.schemas.common import PageVO, PaginationVO
 from labelhub_api.schemas.tasks import (
     CreateTaskRequest,
     PublishBlockerVO,
+    PublishCheckVO,
     TaskDetailVO,
     TaskStateTransitionRequest,
     TaskStatsVO,
@@ -113,6 +114,17 @@ class TaskService:
     def get_task(self, *, task_id: str, user: UserVO) -> TaskDetailVO:
         self._require_owner(user)
         return self._to_task_detail_vo(self._get_owned_task(task_id, user))
+
+    def get_publish_check(self, *, task_id: str, user: UserVO) -> PublishCheckVO:
+        self._require_owner(user)
+        task = self._get_owned_task(task_id, user)
+        blockers = self._build_publish_status_blockers(task) + self._build_publish_blockers(task)
+        return PublishCheckVO(
+            task_id=task.id,
+            can_publish=len(blockers) == 0,
+            blockers=blockers,
+            checked_at=datetime.now(UTC),
+        )
 
     def update_task(
         self,
@@ -346,6 +358,19 @@ class TaskService:
                 )
             )
         return blockers
+
+    def _build_publish_status_blockers(self, task: TaskEntity) -> list[PublishBlockerVO]:
+        status = TaskStatus(task.status)
+        if status in {TaskStatus.DRAFT, TaskStatus.PAUSED}:
+            return []
+        message = "任务已处于发布中，无需再次发布。" if status == TaskStatus.PUBLISHED else "已结束任务不可恢复发布。"
+        return [
+            PublishBlockerVO(
+                code=PublishBlockerCode.INVALID_TASK_STATUS,
+                message=message,
+                field="status",
+            )
+        ]
 
     def _allowed_targets(self, status: TaskStatus) -> set[TaskStatus]:
         return {

@@ -3,6 +3,7 @@ import {
   CheckCircleOutlined,
   DatabaseOutlined,
   EyeOutlined,
+  FileProtectOutlined,
   ReloadOutlined,
   StopOutlined,
   TagsOutlined,
@@ -64,6 +65,7 @@ import type { TaskDetailVO } from "../features/tasks/types";
 import { formatTaskTime } from "../features/tasks/view";
 import { ApiClientError } from "../shared/api/client";
 import type { PaginationVO } from "../shared/types/api";
+import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 
 interface OwnerTaskDatasetsPageProps {
   taskId: string;
@@ -145,6 +147,7 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
   const [itemLoading, setItemLoading] = useState(false);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [publishCheckOpen, setPublishCheckOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [itemError, setItemError] = useState<string | null>(null);
   const [queryState, setQueryState] = useState({ page: 1, pageSize: 10, requestId: 0 });
@@ -468,6 +471,9 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
           返回任务列表
         </Button>
         <Button onClick={() => navigate(`/owner/tasks/${taskId}/settings`)}>任务设置</Button>
+        <Button icon={<FileProtectOutlined />} onClick={() => setPublishCheckOpen(true)}>
+          发布检查
+        </Button>
       </Space>
 
       <Card loading={loading}>
@@ -763,6 +769,13 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
           {payloadItem ? JSON.stringify(payloadItem.payload, null, 2) : ""}
         </pre>
       </Drawer>
+
+      <OwnerPublishCheckDrawer
+        taskId={taskId}
+        open={publishCheckOpen}
+        onClose={() => setPublishCheckOpen(false)}
+        onPublished={setTask}
+      />
     </Space>
   );
 }

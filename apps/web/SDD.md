@@ -172,14 +172,14 @@ export interface LogoutResponseVO {
 
 | 阶段 | 页面/模块 | 前端 VO / Request | 后端接口 | 状态 |
 | --- | --- | --- | --- | --- |
-| 1 | 任务列表 | `TaskVO`、`ListTasksRequest` | `GET /api/tasks` | 待细化 |
-| 1 | 任务创建/编辑 | `TaskDetailVO`、`CreateTaskRequest`、`UpdateTaskRequest` | `POST /api/tasks`、`PATCH /api/tasks/{taskId}` | 待细化 |
-| 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 待细化 |
-| 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 待细化 |
+| 1 | 任务列表 | `TaskVO`、`ListTasksRequest` | `GET /api/tasks` | 阶段 1.1 已实现 |
+| 1 | 任务创建/编辑 | `TaskDetailVO`、`CreateTaskRequest`、`UpdateTaskRequest` | `POST /api/tasks`、`PATCH /api/tasks/{taskId}` | 阶段 1.1 已实现 |
+| 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 阶段 1.1 已实现 |
+| 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 阶段 1.2 已实现 |
 | 1 | 题目预览与批量编辑 | `DatasetItemVO`、`BatchUpdateDatasetItemsRequest` | `GET /api/datasets/{datasetId}/items`、`PATCH /api/datasets/{datasetId}/items:batch` | 阶段 1.3 已实现 |
 | 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 阶段 1.4 已实现 |
-| 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 待细化 |
-| 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 待细化 |
+| 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 阶段 1.5 已实现 |
+| 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 阶段 1.1 已实现 |
 | 2 | 模板版本 | `TemplateVersionVO`、`TemplateSchemaVO` | `POST /api/tasks/{taskId}/template-versions` | 待细化 |
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
 | 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
@@ -202,6 +202,7 @@ export type DatasetItemStatus = "AVAILABLE" | "CLAIMED" | "DISABLED";
 export type ImportStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
 export type ReviewConfigVersionStatus = "ACTIVE" | "DISABLED";
 export type PublishBlockerCode =
+  | "INVALID_TASK_STATUS"
   | "MISSING_REQUIRED_FIELDS"
   | "MISSING_DATASET"
   | "MISSING_TEMPLATE_VERSION"
@@ -415,6 +416,54 @@ export interface PublishReviewConfigVersionRequest {
 - 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
 - 后端必须连接 MySQL；保存/发布后确认 `review_config_drafts`、`review_config_versions`、`tasks.current_review_config_version_id` 和 `audit_logs.REVIEW_CONFIG_*` 已落库。
 - Console 不应出现非预期 error/issue；Network 中审核配置接口状态码必须与契约一致。
+
+### 9.6 阶段 1.5 Owner 发布前检查抽屉
+
+阶段 1.5 在 Owner 任务列表、任务设置、数据集管理和审核配置页接入发布前检查抽屉。前端只展示后端阻塞项和发起受保护的发布动作，不自行绕过模板版本要求。
+
+页面范围：
+
+| 页面区域 | 行为 |
+| --- | --- |
+| 任务列表行操作 | 点击“发布检查”或草稿/暂停任务的“发布/恢复发布”时打开抽屉 |
+| 任务设置页顶部操作 | 可随时打开发布检查抽屉，检查基础信息、配额、截止时间和状态 |
+| 数据集管理页顶部操作 | 可检查 READY 数据集与可用题目是否满足发布前置 |
+| 审核配置页顶部操作 | 可检查审核配置版本是否已绑定 |
+| 发布前检查抽屉 | 展示任务状态、配额、截止时间、数据集、模板版本、审核配置六类检查；阻塞项展示后端原始 message |
+
+前端 Request/VO 对齐：
+
+```ts
+export type PublishBlockerCode =
+  | "INVALID_TASK_STATUS"
+  | "MISSING_REQUIRED_FIELDS"
+  | "MISSING_DATASET"
+  | "MISSING_TEMPLATE_VERSION"
+  | "MISSING_REVIEW_CONFIG"
+  | "INVALID_QUOTA"
+  | "INVALID_DEADLINE";
+
+export interface PublishCheckVO {
+  taskId: string;
+  canPublish: boolean;
+  blockers: PublishBlockerVO[];
+  checkedAt: string;
+}
+```
+
+交互规则：
+
+- 抽屉打开时并行读取 `GET /api/tasks/{taskId}` 和 `GET /api/tasks/{taskId}/publish-check`，保证检查项和值来自最新服务端状态。
+- `canPublish=false` 时，“发布任务”按钮禁用；阶段 1 的典型状态是 `MISSING_TEMPLATE_VERSION` 阻塞。
+- `canPublish=true` 且任务状态为 `DRAFT` 或 `PAUSED` 时，点击“发布任务”发起 `POST /api/tasks/{taskId}/state-transitions`，仍以后端最终返回为准。
+- 后端返回 `PUBLISH_BLOCKED` 或其他业务错误时，抽屉展示结构化错误并刷新检查结果。
+- 所有时间通过 `formatTaskTime` 以 `Asia/Shanghai` 展示，避免 MySQL DATETIME 丢时区造成 8 小时偏差。
+
+浏览器验收：
+
+- 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
+- 后端必须连接 MySQL；至少验证一个已具备数据集和审核配置但缺少模板版本的任务，抽屉清晰显示 `MISSING_TEMPLATE_VERSION` 并阻止发布。
+- Console 不应出现非预期 error/issue；Network 中 `publish-check` 返回 200，强制发布接口在缺模板时返回预期业务阻塞。
 
 ## 10. 前后端字段映射检查清单
 

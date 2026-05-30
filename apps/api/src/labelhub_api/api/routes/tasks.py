@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user
-from labelhub_api.api.routes._stage1_contract import raise_contract_only
 from labelhub_api.core.enums import TaskStatus
 from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
@@ -100,7 +99,7 @@ def transition_task_state(
 )
 def get_publish_check(
     taskId: str,
-    request: Request,
     user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> PublishCheckVO:
-    raise_contract_only(request, "发布前检查")
+    return TaskService(db).get_publish_check(task_id=taskId, user=user)

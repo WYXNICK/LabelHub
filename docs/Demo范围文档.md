@@ -41,7 +41,9 @@
 
 ## 5. 当前代码状态
 
-当前阶段代码尚未接入 Demo 数据导入。`demo_data` 目前仅作为后续阶段的本地验收数据源；阶段 1 开始才会将导入结果持久化到 MySQL。
+当前代码已经接入阶段 1 Demo 数据导入：Owner 可导入 `qa_quality` 和 `preference_compare` 的 JSON、JSONL、Excel 文件，导入结果、错误行、题目预览和批量编辑会持久化到 MySQL。发布前检查也能基于当前任务数据、审核配置和模板版本返回阻塞项。
+
+阶段 2 尚未实现动态模板，因此当前 Demo 演示应停在“缺少模板版本导致不能发布”的状态；不要为了演示领取任务而临时绕过 `MISSING_TEMPLATE_VERSION`。
 
 ## 6. 非 Demo 范围
 

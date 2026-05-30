@@ -2,7 +2,7 @@
 
 LabelHub 是一个前后端分离的 AI 数据标注平台，目标覆盖「任务创建 -> 数据导入 -> 动态模板搭建 -> 标注员作答 -> AI 自动预审 -> 人工审核 -> 多格式导出」完整链路。
 
-当前仓库已经初始化为 monorepo。阶段 0 已落地前端登录与角色入口、后端基础 API、Agent 契约骨架、OpenAPI、Alembic 迁移骨架和基础测试。阶段 0 仍不包含任务、模板、标注、AI 预审、人工审核和导出业务闭环。
+当前仓库已经初始化为 monorepo。阶段 0 工程底座与阶段 1 Owner 任务/数据/审核配置/发布前检查底座已落地；任务创建、数据导入、题目预览、批量编辑、审核配置版本和发布阻塞检查已经接入 MySQL。动态模板、Labeler 作答、AI 预审、人工审核和导出仍属于后续阶段。
 
 ## 目录结构
 
@@ -97,13 +97,17 @@ corepack pnpm install
 本地验收建议：
 
 ```bash
-# 确认 MySQL 可用并完成迁移；DATABASE_URL 必须指向 MySQL
+# 终端 1：在仓库根目录启动 MySQL / Redis
+cd E:/my-try/LabelHub
+docker compose -f infra/docker/compose.yaml up -d
+
+# 终端 2：进入后端目录，确认 DATABASE_URL 指向 MySQL 后执行迁移并启动 API
 cd apps/api
 uv run alembic upgrade head
 uv run python -m labelhub_api
 
-# 另开终端启动前端
-cd ../..
+# 终端 3：回到仓库根目录启动前端
+cd E:/my-try/LabelHub
 corepack pnpm dev:web
 ```
 
@@ -157,27 +161,26 @@ uv run python -m labelhub_agent
 ### 5. 本地 MySQL / Redis
 
 ```bash
-# 启动本地 MySQL 和 Redis
+# 以下命令在仓库根目录运行：启动本地 MySQL 和 Redis
 docker compose -f infra/docker/compose.yaml up -d
 
-# 停止本地 MySQL 和 Redis
+# 以下命令在仓库根目录运行：停止本地 MySQL 和 Redis
 docker compose -f infra/docker/compose.yaml down
 ```
 
-当前阶段如果只体验前端角色入口、登录、健康检查和 OpenAPI，可以先不启动 MySQL。
+如果只体验登录、健康检查和 OpenAPI，可以暂不启动 MySQL；从阶段 1 的任务、数据集、审核配置和发布前检查开始，必须启动 MySQL 并完成 Alembic 迁移。
 
 ## 当前 MySQL 使用状态
 
-MySQL 已经作为项目确定数据库，并且阶段 0 已准备好以下内容：
+MySQL 已经作为项目确定数据库，并且阶段 1 主链路已经开始使用 MySQL：
 
 - `.env.example` 中的 `DATABASE_URL=mysql+pymysql://labelhub:labelhub@localhost:3306/labelhub`。
 - `infra/docker/compose.yaml` 中的 MySQL 8 本地容器。
 - `apps/api/migrations/` 中的 Alembic 迁移骨架。
 - 首个迁移 `0001_create_users.py`，用于创建 `users` 表和 demo 用户记录。
+- 阶段 1 迁移 `0002_create_stage1_foundation.py`，用于任务、数据集、导入、审核配置、状态迁移和审计表。
 
-但阶段 0 的后端运行时接口还没有真正依赖 MySQL。当前 `GET /api/health`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` 使用的是内存 demo 用户和 Cookie Session，目的是先打通前后端契约与角色入口。
-
-MySQL 会从后续阶段开始成为主链路依赖：阶段 1 的任务创建、数据集导入、审核配置、发布前检查、状态迁移和审计日志都需要持久化到 MySQL；阶段 2 再接入模板草稿与模板版本。也就是说，当前 MySQL 处于“已选型、已配置、已具备迁移骨架，但尚未接入阶段 0 运行时业务接口”的状态。
+当前 `GET /api/health`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` 仍使用内存 demo 用户和 Cookie Session；除此之外，阶段 1 的任务创建、数据导入、题目批量编辑、审核配置版本、发布前检查依赖 MySQL 数据。阶段 2 将继续把模板草稿与模板版本接入 MySQL。
 
 ## 阶段 0 Demo 账号
 

@@ -4,6 +4,7 @@ import {
   CodeOutlined,
   DatabaseOutlined,
   DeleteOutlined,
+  FileProtectOutlined,
   PlusOutlined,
   ReloadOutlined,
   SaveOutlined,
@@ -55,6 +56,7 @@ import type { TaskDetailVO } from "../features/tasks/types";
 import { formatTaskTime, taskStatusMeta } from "../features/tasks/view";
 import { ApiClientError } from "../shared/api/client";
 import type { JsonObject, PaginationVO } from "../shared/types/api";
+import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 
 interface OwnerTaskReviewConfigPageProps {
   taskId: string;
@@ -155,6 +157,7 @@ export function OwnerTaskReviewConfigPage({ taskId }: OwnerTaskReviewConfigPageP
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishCheckOpen, setPublishCheckOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -320,6 +323,9 @@ export function OwnerTaskReviewConfigPage({ taskId }: OwnerTaskReviewConfigPageP
         <Button onClick={() => navigate(`/owner/tasks/${taskId}/settings`)}>任务设置</Button>
         <Button icon={<DatabaseOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/datasets`)}>
           数据集
+        </Button>
+        <Button icon={<FileProtectOutlined />} onClick={() => setPublishCheckOpen(true)}>
+          发布检查
         </Button>
         {task && <Tag color={taskStatusMeta[task.status].color}>{taskStatusMeta[task.status].label}</Tag>}
       </Space>
@@ -551,6 +557,13 @@ export function OwnerTaskReviewConfigPage({ taskId }: OwnerTaskReviewConfigPageP
           }}
         />
       </Card>
+
+      <OwnerPublishCheckDrawer
+        taskId={taskId}
+        open={publishCheckOpen}
+        onClose={() => setPublishCheckOpen(false)}
+        onPublished={setTask}
+      />
     </Space>
   );
 }

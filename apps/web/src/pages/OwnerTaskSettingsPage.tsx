@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, AuditOutlined, DatabaseOutlined, SaveOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, AuditOutlined, DatabaseOutlined, FileProtectOutlined, SaveOutlined } from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -21,6 +21,7 @@ import type { CreateTaskRequest, TaskDetailVO } from "../features/tasks/types";
 import { distributionStrategyOptions, formatTaskTime, parseApiDateTime, taskStatusMeta } from "../features/tasks/view";
 import { ApiClientError } from "../shared/api/client";
 import type { JsonObject } from "../shared/types/api";
+import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 
 interface OwnerTaskSettingsPageProps {
   taskId?: string;
@@ -103,6 +104,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
   const [task, setTask] = useState<TaskDetailVO | null>(null);
   const [loading, setLoading] = useState(!isCreateMode);
   const [submitting, setSubmitting] = useState(false);
+  const [publishCheckOpen, setPublishCheckOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -192,6 +194,11 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
         {taskId && (
           <Button icon={<AuditOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/review-config`)}>
             审核配置
+          </Button>
+        )}
+        {taskId && (
+          <Button icon={<FileProtectOutlined />} onClick={() => setPublishCheckOpen(true)}>
+            发布检查
           </Button>
         )}
         {statusTag}
@@ -296,6 +303,13 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
           </Form>
         </Card>
       </Spin>
+
+      <OwnerPublishCheckDrawer
+        taskId={taskId ?? null}
+        open={publishCheckOpen}
+        onClose={() => setPublishCheckOpen(false)}
+        onPublished={setTask}
+      />
     </Space>
   );
 }

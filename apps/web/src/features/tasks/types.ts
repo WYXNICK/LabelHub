@@ -4,6 +4,7 @@ export type TaskStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "ENDED";
 export type DistributionStrategy = "FIRST_COME_FIRST_SERVED" | "ASSIGNED" | "QUOTA_GRAB";
 
 export type PublishBlockerCode =
+  | "INVALID_TASK_STATUS"
   | "MISSING_REQUIRED_FIELDS"
   | "MISSING_DATASET"
   | "MISSING_TEMPLATE_VERSION"

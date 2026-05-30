@@ -29,7 +29,6 @@ import {
   Tag,
   Tooltip,
   Typography,
-  message,
 } from "antd";
 import { useMemo, useState } from "react";
 
@@ -99,14 +98,12 @@ export function LoginPage() {
   const status = useAuthStore((state) => state.status);
   const [selectedEmail, setSelectedEmail] = useState(demoProfiles[0].email);
   const screens = Grid.useBreakpoint();
-  const [messageApi, contextHolder] = message.useMessage();
 
   const brandWidth = useMemo(() => (screens.lg ? 14 : 0), [screens.lg]);
   const formWidth = useMemo(() => (screens.lg ? 10 : 24), [screens.lg]);
 
   async function submit(values: LoginRequest) {
     const user = await login(values);
-    messageApi.success(`已进入 ${user.name} 工作区`);
     navigate(roleHomePath[user.role]);
   }
 
@@ -119,7 +116,6 @@ export function LoginPage() {
 
   return (
     <Row className="labelhub-login">
-      {contextHolder}
       {screens.lg && (
         <Col span={brandWidth} className="labelhub-brand-panel">
           <Flex

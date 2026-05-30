@@ -143,6 +143,88 @@ def test_publish_is_blocked_until_dataset_template_and_review_config_are_ready(
     }.issubset(blocker_codes)
 
 
+def test_publish_check_reports_current_blockers(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    created = create_task(client)
+
+    response = client.get(f"/api/tasks/{created['id']}/publish-check")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["taskId"] == created["id"]
+    assert body["canPublish"] is False
+    assert body["checkedAt"]
+    blocker_codes = {blocker["code"] for blocker in body["blockers"]}
+    assert {
+        "MISSING_DATASET",
+        "MISSING_TEMPLATE_VERSION",
+        "MISSING_REVIEW_CONFIG",
+    }.issubset(blocker_codes)
+    assert "INVALID_TASK_STATUS" not in blocker_codes
+
+
+def test_publish_check_passes_when_dependencies_are_ready(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    login(client)
+    created = create_task(client)
+
+    with session_factory() as session:
+        task = session.get(TaskEntity, created["id"])
+        assert task is not None
+        task.current_template_version_id = "template_version_ready"
+        task.current_review_config_version_id = "review_config_version_ready"
+        session.add(
+            DatasetEntity(
+                id="dataset_ready_for_check",
+                task_id=task.id,
+                name="qa_quality",
+                dataset_type=DatasetType.QA_QUALITY.value,
+                source_format=DatasetSourceFormat.JSON.value,
+                item_count=30,
+                enabled_item_count=30,
+                disabled_item_count=0,
+                status=DatasetStatus.READY.value,
+                created_by="user_owner_demo",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+
+    response = client.get(f"/api/tasks/{created['id']}/publish-check")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["canPublish"] is True
+    assert body["blockers"] == []
+
+
+def test_publish_check_blocks_invalid_task_status(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    login(client)
+    created = create_task(client)
+
+    with session_factory() as session:
+        task = session.get(TaskEntity, created["id"])
+        assert task is not None
+        task.status = "ENDED"
+        session.commit()
+
+    response = client.get(f"/api/tasks/{created['id']}/publish-check")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["canPublish"] is False
+    assert body["blockers"][0]["code"] == "INVALID_TASK_STATUS"
+
+
 def test_valid_state_transitions_write_audit_logs(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

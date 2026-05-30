@@ -270,23 +270,23 @@ class LogoutResponseVO:
 
 | 阶段 | 接口 | Request | VO | 状态 |
 | --- | --- | --- | --- | --- |
-| 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 待细化 |
-| 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `POST /api/tasks/{taskId}/state-transitions` | `TaskStateTransitionRequest` | `TaskDetailVO` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/publish-check` | `GetPublishCheckRequest` | `PublishCheckVO` | 待细化 |
-| 1 | `POST /api/tasks/{taskId}/import-jobs` | `CreateImportJobRequest` | `ImportJobVO` | 待细化 |
-| 1 | `GET /api/import-jobs/{importJobId}` | `GetImportJobRequest` | `ImportJobVO` | 待细化 |
-| 1 | `GET /api/import-jobs/{importJobId}/errors` | `ListImportErrorsRequest` | `PageVO[ImportErrorRowVO]` | 待细化 |
-| 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 待细化 |
+| 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 阶段 1.1 已实现 |
+| 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `POST /api/tasks/{taskId}/state-transitions` | `TaskStateTransitionRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
+| 1 | `GET /api/tasks/{taskId}/publish-check` | `GetPublishCheckRequest` | `PublishCheckVO` | 阶段 1.5 已实现 |
+| 1 | `POST /api/tasks/{taskId}/import-jobs` | `CreateImportJobRequest` | `ImportJobVO` | 阶段 1.2 已实现 |
+| 1 | `GET /api/import-jobs/{importJobId}` | `GetImportJobRequest` | `ImportJobVO` | 阶段 1.2 已实现 |
+| 1 | `GET /api/import-jobs/{importJobId}/errors` | `ListImportErrorsRequest` | `PageVO[ImportErrorRowVO]` | 阶段 1.2 已实现 |
+| 1 | `GET /api/tasks/{taskId}/datasets` | `ListDatasetsRequest` | `PageVO[DatasetVO]` | 阶段 1.2 已实现 |
 | 1 | `GET /api/datasets/{datasetId}/items` | `ListDatasetItemsRequest` | `PageVO[DatasetItemVO]` | 阶段 1.3 已实现 |
 | 1 | `PATCH /api/datasets/{datasetId}/items:batch` | `BatchUpdateDatasetItemsRequest` | `BatchUpdateDatasetItemsVO` | 阶段 1.3 已实现 |
 | 1 | `GET /api/tasks/{taskId}/review-config-draft` | `GetReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 阶段 1.4 已实现 |
 | 1 | `PUT /api/tasks/{taskId}/review-config-draft` | `SaveReviewConfigDraftRequest` | `ReviewConfigDraftVO` | 阶段 1.4 已实现 |
 | 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 阶段 1.4 已实现 |
 | 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 阶段 1.4 已实现 |
-| 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 待细化 |
+| 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 阶段 1.1 已实现 |
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
 | 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
 | 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
@@ -352,6 +352,7 @@ class ReviewConfigVersionStatus(str, Enum):
 
 
 class PublishBlockerCode(str, Enum):
+    INVALID_TASK_STATUS = "INVALID_TASK_STATUS"
     MISSING_REQUIRED_FIELDS = "MISSING_REQUIRED_FIELDS"
     MISSING_DATASET = "MISSING_DATASET"
     MISSING_TEMPLATE_VERSION = "MISSING_TEMPLATE_VERSION"
@@ -553,6 +554,42 @@ class CreateFileObjectRequest:
 - 发布第二个版本时旧版本自动变为 `DISABLED`，新版本为 `ACTIVE`。
 - 重复维度 key、阈值顺序错误或阈值超过最高分时返回结构化 `422 INVALID_REVIEW_CONFIG`。
 - 非 Owner 访问返回 `403 FORBIDDEN`，不存在或不归属当前 Owner 的任务返回 `404 NOT_FOUND`。
+
+### 9.6 阶段 1.5 发布前检查契约
+
+阶段 1.5 将发布前检查从契约占位推进为可用能力。该接口不绕过阶段 2 模板要求；如果任务尚未绑定模板版本，必须返回 `MISSING_TEMPLATE_VERSION`，并且实际状态迁移仍由 `POST /api/tasks/{taskId}/state-transitions` 做最终保护。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/publish-check` | 已实现 | Owner 读取任务发布阻塞项，返回 `PublishCheckVO` |
+
+`PublishBlockerCode` 当前取值：
+
+| Code | 说明 |
+| --- | --- |
+| `INVALID_TASK_STATUS` | 任务不是 `DRAFT` 或 `PAUSED`，不能执行发布/恢复发布 |
+| `MISSING_REQUIRED_FIELDS` | 预留基础信息缺失兜底码 |
+| `INVALID_QUOTA` | `quota <= 0` |
+| `INVALID_DEADLINE` | `deadlineAt` 为空或不晚于当前时间 |
+| `MISSING_DATASET` | 当前任务没有 `READY` 数据集 |
+| `MISSING_TEMPLATE_VERSION` | 当前任务没有 `currentTemplateVersionId`；阶段 2 前这是预期阻塞 |
+| `MISSING_REVIEW_CONFIG` | 当前任务没有 `currentReviewConfigVersionId` |
+
+接口规则：
+
+- 仅 Owner 可访问；任务不存在或不归属当前 Owner 返回 `404 NOT_FOUND`。
+- `canPublish = blockers.length == 0`。
+- `checkedAt` 使用后端当前时间。
+- `GET /publish-check` 为只读检查，不写审计日志；真正发布成功时由状态迁移写入 `task_state_transitions` 与 `audit_logs.STATE_TRANSITION`。
+- `POST /state-transitions` 迁移到 `PUBLISHED` 时必须复用同一套阻塞规则，即使前端未先调用发布检查也不能绕过。
+
+验收标准：
+
+- 草稿任务缺少数据集、模板版本和审核配置时，接口返回 `200` 且 `canPublish=false`，阻塞项至少包含 `MISSING_DATASET`、`MISSING_TEMPLATE_VERSION`、`MISSING_REVIEW_CONFIG`。
+- 补齐 READY 数据集、模板版本 ID 和审核配置版本 ID 后，接口返回 `canPublish=true`。
+- 已结束任务返回 `INVALID_TASK_STATUS`，不得显示为可发布。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

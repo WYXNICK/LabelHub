@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getTaskTransitionActions, matchOwnerTaskSettingsPath, parseApiDateTime } from "./view";
+import {
+  getTaskTransitionActions,
+  isPublishCheckTargetStatus,
+  matchOwnerTaskSettingsPath,
+  parseApiDateTime,
+  sortPublishBlockers,
+} from "./view";
 
 describe("task view helpers", () => {
   it("maps task statuses to allowed owner actions", () => {
@@ -23,6 +29,23 @@ describe("task view helpers", () => {
     expect(matchOwnerTaskSettingsPath("/owner/tasks/task_123/settings")).toBe("task_123");
     expect(matchOwnerTaskSettingsPath("/owner/tasks/new")).toBeNull();
     expect(matchOwnerTaskSettingsPath("/owner/tasks/task_123/datasets")).toBeNull();
+  });
+
+  it("sorts publish blockers by owner remediation order", () => {
+    expect(
+      sortPublishBlockers([
+        { code: "MISSING_TEMPLATE_VERSION", message: "缺少模板", field: "currentTemplateVersionId" },
+        { code: "INVALID_QUOTA", message: "配额错误", field: "quota" },
+        { code: "MISSING_DATASET", message: "缺少数据集", field: "datasets" },
+      ]).map((blocker) => blocker.code),
+    ).toEqual(["INVALID_QUOTA", "MISSING_DATASET", "MISSING_TEMPLATE_VERSION"]);
+  });
+
+  it("marks draft and paused tasks as publish check targets", () => {
+    expect(isPublishCheckTargetStatus("DRAFT")).toBe(true);
+    expect(isPublishCheckTargetStatus("PAUSED")).toBe(true);
+    expect(isPublishCheckTargetStatus("PUBLISHED")).toBe(false);
+    expect(isPublishCheckTargetStatus("ENDED")).toBe(false);
   });
 
   it("treats database datetime without timezone as UTC", () => {

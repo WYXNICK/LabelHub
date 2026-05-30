@@ -1,4 +1,4 @@
-import type { TaskStatus, TaskVO } from "./types";
+import type { PublishBlockerCode, PublishBlockerVO, TaskStatus, TaskVO } from "./types";
 
 export const taskStatusMeta: Record<TaskStatus, { label: string; color: string }> = {
   DRAFT: { label: "草稿", color: "default" },
@@ -12,6 +12,19 @@ export const distributionStrategyOptions = [
   { label: "指派", value: "ASSIGNED" },
   { label: "配额抢单", value: "QUOTA_GRAB" },
 ];
+
+export const publishBlockerMeta: Record<
+  PublishBlockerCode,
+  { label: string; color: string; priority: number }
+> = {
+  INVALID_TASK_STATUS: { label: "任务状态", color: "red", priority: 0 },
+  MISSING_REQUIRED_FIELDS: { label: "基础信息", color: "red", priority: 1 },
+  INVALID_QUOTA: { label: "配额", color: "red", priority: 2 },
+  INVALID_DEADLINE: { label: "截止时间", color: "red", priority: 3 },
+  MISSING_DATASET: { label: "数据集", color: "orange", priority: 4 },
+  MISSING_TEMPLATE_VERSION: { label: "标注模板", color: "orange", priority: 5 },
+  MISSING_REVIEW_CONFIG: { label: "审核配置", color: "orange", priority: 6 },
+};
 
 export interface TaskTransitionAction {
   targetStatus: TaskStatus;
@@ -39,6 +52,18 @@ export function getTaskTransitionActions(task: Pick<TaskVO, "status">): TaskTran
     case "ENDED":
       return [];
   }
+}
+
+export function isPublishCheckTargetStatus(status: TaskStatus): boolean {
+  return status === "DRAFT" || status === "PAUSED";
+}
+
+export function sortPublishBlockers(blockers: PublishBlockerVO[]): PublishBlockerVO[] {
+  return [...blockers].sort((left, right) => {
+    const leftMeta = publishBlockerMeta[left.code];
+    const rightMeta = publishBlockerMeta[right.code];
+    return leftMeta.priority - rightMeta.priority || left.message.localeCompare(right.message, "zh-CN");
+  });
 }
 
 export function matchOwnerTaskSettingsPath(path: string): string | null {

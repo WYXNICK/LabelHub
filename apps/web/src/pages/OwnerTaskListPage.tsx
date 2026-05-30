@@ -4,6 +4,7 @@ import {
   DatabaseOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
+  FileProtectOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -34,6 +35,7 @@ import {
   taskStatusMeta,
 } from "../features/tasks/view";
 import type { PaginationVO } from "../shared/types/api";
+import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 
 const statusOptions = [
   { label: "全部状态", value: "ALL" },
@@ -75,6 +77,7 @@ export function OwnerTaskListPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState("");
   const [status, setStatus] = useState<TaskStatus | "ALL">("ALL");
   const [submittedStatus, setSubmittedStatus] = useState<TaskStatus | "ALL">("ALL");
+  const [publishCheckTaskId, setPublishCheckTaskId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +123,10 @@ export function OwnerTaskListPage() {
   }
 
   function handleTransition(task: TaskVO, targetStatus: TaskStatus, label: string) {
+    if (targetStatus === "PUBLISHED") {
+      setPublishCheckTaskId(task.id);
+      return;
+    }
     modal.confirm({
       title: `确认${label}任务？`,
       icon: <ExclamationCircleOutlined />,
@@ -236,6 +243,13 @@ export function OwnerTaskListPage() {
             >
               审核配置
             </Button>
+            <Button
+              size="small"
+              icon={<FileProtectOutlined />}
+              onClick={() => setPublishCheckTaskId(task.id)}
+            >
+              发布检查
+            </Button>
             {getTaskTransitionActions(task).map((action) => (
               <Button
                 key={action.targetStatus}
@@ -341,6 +355,13 @@ export function OwnerTaskListPage() {
           </Typography.Text>
         </Space>
       </Card>
+
+      <OwnerPublishCheckDrawer
+        taskId={publishCheckTaskId}
+        open={Boolean(publishCheckTaskId)}
+        onClose={() => setPublishCheckTaskId(null)}
+        onPublished={reloadCurrentPage}
+      />
     </Space>
   );
 }

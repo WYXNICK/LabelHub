@@ -67,28 +67,6 @@ def test_stage1_openapi_exposes_owner_foundation_contract() -> None:
         assert schema_name in schemas
 
 
-def test_stage1_contract_routes_are_auth_bound_and_business_not_implemented_yet() -> None:
-    with TestClient(create_app()) as client:
-        login_response = client.post(
-            "/api/auth/login",
-            json={"email": "owner@labelhub.dev", "password": "labelhub123"},
-        )
-        assert login_response.status_code == 200
-
-        response = client.get(
-            "/api/tasks/task_demo/publish-check",
-            headers={"X-Request-ID": "req_stage1_contract"},
-        )
-
-    assert response.status_code == 501
-    assert response.json()["error"] == {
-        "code": "NOT_IMPLEMENTED",
-        "message": "发布前检查业务实现将在后续粒度完成，阶段 1.0 仅暴露接口契约。",
-        "details": None,
-        "requestId": "req_stage1_contract",
-    }
-
-
 def test_stage1_entities_are_registered_in_sqlalchemy_metadata() -> None:
     assert STAGE1_TABLES.issubset(Base.metadata.tables.keys())
     assert {"title", "status", "distribution_strategy", "created_by"}.issubset(

@@ -5,6 +5,7 @@ import {
   EditOutlined,
   ExclamationCircleOutlined,
   FileProtectOutlined,
+  FormOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -242,6 +243,13 @@ export function OwnerTaskListPage() {
               onClick={() => navigate(`/owner/tasks/${task.id}/review-config`)}
             >
               审核配置
+            </Button>
+            <Button
+              size="small"
+              icon={<FormOutlined />}
+              onClick={() => navigate(`/owner/tasks/${task.id}/designer`)}
+            >
+              模板预览
             </Button>
             <Button
               size="small"

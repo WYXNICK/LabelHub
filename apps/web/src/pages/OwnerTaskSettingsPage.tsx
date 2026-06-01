@@ -1,4 +1,11 @@
-import { ArrowLeftOutlined, AuditOutlined, DatabaseOutlined, FileProtectOutlined, SaveOutlined } from "@ant-design/icons";
+import {
+  ArrowLeftOutlined,
+  AuditOutlined,
+  DatabaseOutlined,
+  FileProtectOutlined,
+  FormOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -194,6 +201,11 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
         {taskId && (
           <Button icon={<AuditOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/review-config`)}>
             审核配置
+          </Button>
+        )}
+        {taskId && (
+          <Button icon={<FormOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/designer`)}>
+            模板预览
           </Button>
         )}
         {taskId && (

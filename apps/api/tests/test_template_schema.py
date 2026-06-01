@@ -174,6 +174,81 @@ def test_validate_template_schema_returns_structured_errors(
     assert any("不存在的组件" in message for message in messages)
 
 
+def test_validate_template_schema_accepts_minimal_renderer_materials(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    schema = {
+        "schemaVersion": "labelhub-template/v1",
+        "components": [
+            {
+                "id": "show_prompt",
+                "type": "SHOW_ITEM",
+                "label": "Prompt",
+                "props": {"path": "$.prompt"},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "short_answer",
+                "type": "TEXT_INPUT",
+                "fieldKey": "shortAnswer",
+                "label": "Short answer",
+                "props": {},
+                "validation": {"required": True},
+                "visibility": {},
+            },
+            {
+                "id": "long_answer",
+                "type": "TEXTAREA",
+                "fieldKey": "longAnswer",
+                "label": "Long answer",
+                "props": {},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "quality",
+                "type": "RADIO",
+                "fieldKey": "quality",
+                "label": "Quality",
+                "props": {"options": [{"label": "Good", "value": "good"}]},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "issues",
+                "type": "CHECKBOX",
+                "fieldKey": "issues",
+                "label": "Issues",
+                "props": {"options": [{"label": "Fact error", "value": "fact_error"}]},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "tags",
+                "type": "TAG_SELECT",
+                "fieldKey": "tags",
+                "label": "Tags",
+                "props": {"options": [{"label": "Golden", "value": "golden"}]},
+                "validation": {},
+                "visibility": {},
+            },
+        ],
+        "layout": {
+            "root": ["show_prompt", "short_answer", "long_answer", "quality", "issues", "tags"]
+        },
+        "llmActions": [],
+        "showItems": [{"id": "show_prompt", "path": "$.prompt"}],
+    }
+
+    response = client.post("/api/template-schemas:validate", json={"schema": schema})
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": []}
+
+
 def test_save_template_schema_rejects_invalid_schema(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

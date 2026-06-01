@@ -70,3 +70,8 @@ export function summarizeTemplateValidation(validation: TemplateSchemaValidation
   }
   return validation.errors.map((error) => `${error.field}: ${error.message}`).join("\n");
 }
+
+export function matchOwnerTaskDesignerPath(path: string): string | null {
+  const match = path.match(/^\/owner\/tasks\/([^/]+)\/designer$/);
+  return match?.[1] ?? null;
+}

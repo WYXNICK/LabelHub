@@ -16,6 +16,8 @@ export type TemplateComponentType =
   | "TABS";
 
 export type TemplateVersionStatus = "ACTIVE" | "DISABLED";
+export type TemplateFieldValue = string | string[] | number | boolean | null;
+export type TemplateSubmissionValue = Record<string, TemplateFieldValue>;
 
 export interface TemplateComponentDTO {
   id: string;
@@ -25,6 +27,11 @@ export interface TemplateComponentDTO {
   props: JsonObject;
   validation: JsonObject;
   visibility: JsonObject;
+}
+
+export interface TemplateOptionDTO {
+  label: string;
+  value: string;
 }
 
 export interface TemplateLayoutTabDTO {

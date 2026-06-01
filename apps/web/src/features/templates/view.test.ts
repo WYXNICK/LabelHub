@@ -4,6 +4,7 @@ import {
   collectTemplateFieldKeys,
   createEmptyTemplateSchema,
   createTemplateComponent,
+  matchOwnerTaskDesignerPath,
   summarizeTemplateValidation,
 } from "./view";
 
@@ -42,5 +43,10 @@ describe("template view helpers", () => {
         errors: [{ field: "components", message: "fieldKey 重复：answer。" }],
       }),
     ).toBe("components: fieldKey 重复：answer。");
+  });
+
+  it("extracts task id from owner designer path", () => {
+    expect(matchOwnerTaskDesignerPath("/owner/tasks/task_123/designer")).toBe("task_123");
+    expect(matchOwnerTaskDesignerPath("/owner/tasks/task_123/settings")).toBeNull();
   });
 });

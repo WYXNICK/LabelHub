@@ -708,6 +708,34 @@ Request 与 VO 字段：
 - 非法物料、重复 `fieldKey`、重复布局引用、引用不存在组件、孤儿组件均能得到结构化错误。
 - MySQL 环境下可以真实创建任务、保存模板草稿，并在 `template_drafts` 中查询到 schema。
 
+### 9.9 阶段 2.2 Renderer 最小运行时契约
+
+阶段 2.2 不新增后端接口，也不改变模板版本发布语义。后端责任是继续保证 2.1 的 `TemplateSchemaVO` 可作为 Renderer 的唯一输入 schema；前端 Renderer 必须直接消费该 schema，不允许引入前端私有模板协议。
+
+Renderer 最小支持范围：
+
+| 物料类型 | Renderer 行为 |
+| --- | --- |
+| `SHOW_ITEM` | 从题目 payload 中按 `props.path` 读取并只读展示，不进入提交值 |
+| `TEXT_INPUT` | 渲染单行输入，值写入 `fieldKey` |
+| `TEXTAREA` | 渲染多行文本，值写入 `fieldKey` |
+| `RADIO` | 按 `props.options` 渲染单选，值写入 `fieldKey` |
+| `CHECKBOX` | 按 `props.options` 渲染多选，值写入 `fieldKey` 数组 |
+| `TAG_SELECT` | 按 `props.options` 渲染标签选择，允许多选，值写入 `fieldKey` 数组 |
+
+后端校验继续覆盖：
+
+- 上述采集物料必须有唯一 `fieldKey`。
+- `SHOW_ITEM` 不得配置 `fieldKey`。
+- `layout.root` 引用的组件必须存在，且不能重复。
+- 2.2 所用 demo schema 必须可通过 `POST /api/template-schemas:validate`。
+
+验收标准：
+
+- 后端测试覆盖包含 `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` 的最小 Renderer schema，并确认校验通过。
+- 保存到 `template_drafts.schema` 的同一份 schema 可被前端 Renderer 直接渲染。
+- 阶段 2.7 前 `template-versions` 相关接口仍保持占位，不解除 `MISSING_TEMPLATE_VERSION`。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

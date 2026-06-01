@@ -541,6 +541,47 @@ export interface TemplateSchemaVO {
 - `TemplateLayoutDTO` 以 `root` 数组作为基础布局；字符串节点表示组件 ID，对象节点为后续 `GROUP/TABS` 预留。
 - 前端只做轻量结构准备和校验结果展示，非法物料、重复字段和非法布局最终以后端校验为准。
 
+### 9.9 阶段 2.2 Renderer 最小运行时
+
+阶段 2.2 新增可复用 Renderer 和轻量预览壳，用于证明同一份 `TemplateSchemaVO` 既可以由 Owner 预览，也能在后续 Labeler 工作台直接复用。该阶段不实现拖拽、不实现属性面板、不保存 schema，也不发布模板版本。
+
+前端文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/TemplateRenderer.tsx` | 运行时渲染组件，消费 `TemplateSchemaVO`、题目 payload 和表单值 |
+| `src/features/templates/runtime.ts` | payload 路径读取、默认值、提交字段提取、值更新等纯函数 |
+| `src/features/templates/runtime.test.tsx` | 覆盖 ShowItem、基础物料渲染和值结构 |
+| `src/pages/OwnerTemplateRendererPreviewPage.tsx` | `/owner/tasks/:taskId/designer` 的阶段 2.2 预览壳 |
+
+Renderer Props：
+
+```ts
+interface TemplateRendererProps {
+  schema: TemplateSchemaVO;
+  itemPayload: JsonObject;
+  value: TemplateSubmissionValue;
+  onChange: (nextValue: TemplateSubmissionValue) => void;
+  readonly?: boolean;
+}
+```
+
+运行规则：
+
+- `SHOW_ITEM` 使用 `props.path` 读取 payload，例如 `$.prompt`，只展示不写入提交值。
+- `TEXT_INPUT`、`TEXTAREA` 写入字符串。
+- `RADIO` 写入单个字符串。
+- `CHECKBOX`、`TAG_SELECT` 写入字符串数组。
+- 物料顺序以 `layout.root` 为准；无效布局节点显示轻量错误，不阻断整个 Renderer。
+- `props.options` 仅接受 `{ label, value }` 数组；非法选项在 Renderer 侧降级为空列表，最终以后端 schema 校验为准。
+
+页面边界：
+
+- `/owner/tasks/:taskId/designer` 在 2.2 只展示“模板运行时预览”，加载当前任务、模板草稿，并用一个 demo payload 渲染。
+- 若模板草稿为空，显示空状态和后续 Designer 提示。
+- 页面提供返回任务列表、任务设置、发布检查入口，保持 Owner 工作流一致。
+- 浏览器验收必须覆盖 `1280x800` 和 `1920x1080`，Console 不应出现非预期 error。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：

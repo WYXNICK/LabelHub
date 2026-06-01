@@ -16,10 +16,12 @@ import type { UserRole, UserVO } from "../features/auth/types";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
 import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
+import { matchOwnerTaskDesignerPath } from "../features/templates/view";
 import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
 import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
+import { OwnerTemplateRendererPreviewPage } from "./OwnerTemplateRendererPreviewPage";
 import { RoleHomePage } from "./RoleHomePage";
 
 const roleName: Record<UserRole, string> = {
@@ -127,6 +129,10 @@ function renderRoleContent(user: UserVO, path: string) {
     const taskReviewConfigId = matchOwnerTaskReviewConfigPath(path);
     if (taskReviewConfigId) {
       return <OwnerTaskReviewConfigPage taskId={taskReviewConfigId} />;
+    }
+    const taskDesignerId = matchOwnerTaskDesignerPath(path);
+    if (taskDesignerId) {
+      return <OwnerTemplateRendererPreviewPage taskId={taskDesignerId} />;
     }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {

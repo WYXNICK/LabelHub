@@ -786,6 +786,80 @@ body {
   font-size: 12px;
 }
 
+.labelhub-renderer-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(460px, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-renderer-card .ant-card-body {
+  padding: 18px;
+}
+
+.labelhub-template-renderer {
+  display: grid;
+  gap: 14px;
+}
+
+.labelhub-template-field {
+  margin-bottom: 0;
+  padding: 14px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-template-field-label {
+  display: inline-flex;
+  margin-bottom: 10px;
+}
+
+.labelhub-template-show-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f5f8ff 100%);
+  border: 1px solid #d8e7ff;
+  border-radius: 8px;
+}
+
+.labelhub-template-path {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+}
+
+.labelhub-template-show-text {
+  margin-bottom: 0 !important;
+  line-height: 1.7;
+}
+
+.labelhub-template-show-block {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: #1f2329;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.labelhub-renderer-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.labelhub-renderer-summary > div {
+  padding: 12px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
 @media (max-width: 1280px) {
   .labelhub-showcase {
     grid-template-columns: 1fr;
@@ -914,6 +988,7 @@ body {
   .labelhub-import-stats,
   .labelhub-review-grid,
   .labelhub-review-threshold-grid,
+  .labelhub-renderer-preview-grid,
   .labelhub-batch-toolbar {
     grid-template-columns: 1fr;
   }

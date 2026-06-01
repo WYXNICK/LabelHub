@@ -1,11 +1,13 @@
 import {
   AuditOutlined,
   CheckCircleOutlined,
+  CloseCircleOutlined,
   DatabaseOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
   FileProtectOutlined,
   FormOutlined,
+  MoreOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -14,6 +16,7 @@ import {
   App as AntdApp,
   Button,
   Card,
+  Dropdown,
   Empty,
   Flex,
   Input,
@@ -23,6 +26,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import type { MenuProps } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 
@@ -64,6 +68,12 @@ function getPublishBlockerText(error: ApiClientError): string | null {
   const blockers = (details as { blockers?: Array<{ message?: string }> }).blockers ?? [];
   return blockers.map((blocker) => blocker.message).filter(Boolean).join("\n");
 }
+
+type TaskActionMenuKey =
+  | "review-config"
+  | "template-preview"
+  | "publish-check"
+  | `transition:${TaskStatus}`;
 
 export function OwnerTaskListPage() {
   const { modal, message } = AntdApp.useApp();
@@ -163,12 +173,105 @@ export function OwnerTaskListPage() {
     });
   }
 
+  function renderTaskActions(task: TaskVO) {
+    const transitionActions = getTaskTransitionActions(task);
+    const primaryTransition = transitionActions.find((action) => !action.danger);
+    const secondaryTransitions = transitionActions.filter((action) => action !== primaryTransition);
+    const menuItems: MenuProps["items"] = [
+      {
+        key: "template-preview",
+        icon: <FormOutlined />,
+        label: "模板预览",
+      },
+      {
+        key: "review-config",
+        icon: <AuditOutlined />,
+        label: "审核配置",
+      },
+      {
+        key: "publish-check",
+        icon: <FileProtectOutlined />,
+        label: "发布检查",
+      },
+    ];
+
+    if (secondaryTransitions.length > 0) {
+      menuItems.push({ type: "divider" });
+      for (const action of secondaryTransitions) {
+        menuItems.push({
+          key: `transition:${action.targetStatus}`,
+          danger: action.danger,
+          icon: action.danger ? <CloseCircleOutlined /> : undefined,
+          label: `${action.label}任务`,
+        });
+      }
+    }
+
+    const handleMenuClick: MenuProps["onClick"] = ({ key }) => {
+      const actionKey = key as TaskActionMenuKey;
+      if (actionKey === "template-preview") {
+        navigate(`/owner/tasks/${task.id}/designer`);
+        return;
+      }
+      if (actionKey === "review-config") {
+        navigate(`/owner/tasks/${task.id}/review-config`);
+        return;
+      }
+      if (actionKey === "publish-check") {
+        setPublishCheckTaskId(task.id);
+        return;
+      }
+      if (actionKey.startsWith("transition:")) {
+        const targetStatus = actionKey.replace("transition:", "") as TaskStatus;
+        const action = transitionActions.find((item) => item.targetStatus === targetStatus);
+        if (action) {
+          handleTransition(task, action.targetStatus, action.label);
+        }
+      }
+    };
+
+    return (
+      <Space size={6} className="labelhub-task-actions">
+        <Button
+          size="small"
+          type="link"
+          icon={<EditOutlined />}
+          onClick={() => navigate(`/owner/tasks/${task.id}/settings`)}
+        >
+          设置
+        </Button>
+        <Button
+          size="small"
+          type="link"
+          icon={<DatabaseOutlined />}
+          onClick={() => navigate(`/owner/tasks/${task.id}/datasets`)}
+        >
+          数据集
+        </Button>
+        {primaryTransition && (
+          <Button
+            size="small"
+            type="link"
+            onClick={() => handleTransition(task, primaryTransition.targetStatus, primaryTransition.label)}
+          >
+            {primaryTransition.label}
+          </Button>
+        )}
+        <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }} trigger={["click"]} placement="bottomRight">
+          <Button size="small" icon={<MoreOutlined />}>
+            更多
+          </Button>
+        </Dropdown>
+      </Space>
+    );
+  }
+
   const columns: TableColumnsType<TaskVO> = [
       {
         title: "任务",
         dataIndex: "title",
         key: "title",
-        minWidth: 260,
+        width: 340,
         render: (_, task) => (
           <Space direction="vertical" size={4}>
             <Typography.Text strong>{task.title}</Typography.Text>
@@ -220,56 +323,8 @@ export function OwnerTaskListPage() {
         title: "操作",
         key: "actions",
         fixed: "right",
-        width: 330,
-        render: (_, task) => (
-          <Space wrap>
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => navigate(`/owner/tasks/${task.id}/settings`)}
-            >
-              设置
-            </Button>
-            <Button
-              size="small"
-              icon={<DatabaseOutlined />}
-              onClick={() => navigate(`/owner/tasks/${task.id}/datasets`)}
-            >
-              数据集
-            </Button>
-            <Button
-              size="small"
-              icon={<AuditOutlined />}
-              onClick={() => navigate(`/owner/tasks/${task.id}/review-config`)}
-            >
-              审核配置
-            </Button>
-            <Button
-              size="small"
-              icon={<FormOutlined />}
-              onClick={() => navigate(`/owner/tasks/${task.id}/designer`)}
-            >
-              模板预览
-            </Button>
-            <Button
-              size="small"
-              icon={<FileProtectOutlined />}
-              onClick={() => setPublishCheckTaskId(task.id)}
-            >
-              发布检查
-            </Button>
-            {getTaskTransitionActions(task).map((action) => (
-              <Button
-                key={action.targetStatus}
-                size="small"
-                danger={action.danger}
-                onClick={() => handleTransition(task, action.targetStatus, action.label)}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </Space>
-        ),
+        width: 255,
+        render: (_, task) => renderTaskActions(task),
       },
     ];
 
@@ -330,7 +385,6 @@ export function OwnerTaskListPage() {
           loading={loading}
           columns={columns}
           dataSource={tasks}
-          scroll={{ x: 1180 }}
           locale={{
             emptyText: (
               <Empty

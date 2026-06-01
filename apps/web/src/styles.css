@@ -556,6 +556,15 @@ body {
   padding: 0;
 }
 
+.labelhub-task-actions {
+  white-space: nowrap;
+}
+
+.labelhub-task-actions .ant-btn-link {
+  height: 26px;
+  padding-inline: 2px;
+}
+
 .labelhub-table-description {
   display: -webkit-box;
   max-width: 520px;

@@ -736,6 +736,33 @@ Renderer 最小支持范围：
 - 保存到 `template_drafts.schema` 的同一份 schema 可被前端 Renderer 直接渲染。
 - 阶段 2.7 前 `template-versions` 相关接口仍保持占位，不解除 `MISSING_TEMPLATE_VERSION`。
 
+### 9.10 阶段 2.3/2.4 Designer 与基础物料校验契约
+
+阶段 2.3/2.4 不新增后端接口，继续复用阶段 2.1 已实现的模板草稿与校验接口：
+
+| 能力 | 接口 | 说明 |
+| --- | --- | --- |
+| 获取草稿 | `GET /api/tasks/{taskId}/template-draft` | Designer 初始化时读取同一份 `TemplateSchemaVO` |
+| 保存草稿 | `PUT /api/tasks/{taskId}/template-draft` | Designer 保存当前画布、物料属性、默认值与校验配置 |
+| 校验 schema | `POST /api/template-schemas:validate` | Designer 点击校验或保存前展示结构化错误 |
+
+基础物料后端语义校验：
+
+| 物料 | 必填契约 | props/validation 约束 |
+| --- | --- | --- |
+| `SHOW_ITEM` | `fieldKey=null` | `props.path` 为空或以 `$` 开头 |
+| `TEXT_INPUT` | 唯一 `fieldKey` | `props.placeholder/defaultValue` 为字符串；`validation.required` 为布尔值；`validation.maxLength` 为 1-500 |
+| `TEXTAREA` | 唯一 `fieldKey` | `props.placeholder/defaultValue` 为字符串；`validation.required` 为布尔值；`validation.maxLength` 为 1-5000 |
+| `RADIO` | 唯一 `fieldKey` | `props.options` 至少 1 项；每项包含非空 `label/value`；`props.defaultValue` 为空或存在于 options |
+| `CHECKBOX` | 唯一 `fieldKey` | `props.options` 至少 1 项；`props.defaultValue` 为空或为 options value 子集数组 |
+| `TAG_SELECT` | 唯一 `fieldKey` | 与 `CHECKBOX` 相同；运行时以多选标签渲染 |
+
+验收标准：
+
+- 保存 Designer 生成的基础物料 schema 时，后端不接受非法 options、非法默认值、非法最大长度或非法 ShowItem 路径。
+- `TemplateSchemaValidationVO.errors` 仍保持 `field + message` 结构，前端可直接映射到右侧属性或顶部错误提示。
+- 2.7 前模板版本接口仍保持占位；Designer 保存草稿不等于发布模板版本，不解除任务发布前检查中的 `MISSING_TEMPLATE_VERSION`。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

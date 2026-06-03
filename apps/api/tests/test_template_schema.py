@@ -249,6 +249,46 @@ def test_validate_template_schema_accepts_minimal_renderer_materials(
     assert response.json() == {"valid": True, "errors": []}
 
 
+def test_validate_template_schema_rejects_invalid_basic_material_props(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    schema = valid_schema()
+    schema["components"][0]["props"] = {"path": "prompt"}
+    schema["components"][1]["validation"] = {"required": True, "maxLength": 9999}
+    schema["components"][2]["props"] = {
+        "options": [{"label": "Good", "value": "good"}],
+        "defaultValue": "bad",
+    }
+    schema["components"].append(
+        {
+            "id": "issues",
+            "type": "CHECKBOX",
+            "fieldKey": "issues",
+            "label": "Issues",
+            "props": {
+                "options": [{"label": "Fact error", "value": "fact_error"}],
+                "defaultValue": ["missing"],
+            },
+            "validation": {},
+            "visibility": {},
+        }
+    )
+    schema["layout"]["root"].append("issues")
+
+    response = client.post("/api/template-schemas:validate", json={"schema": schema})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["valid"] is False
+    fields = {error["field"] for error in payload["errors"]}
+    assert "components.0.props.path" in fields
+    assert "components.1.validation.maxLength" in fields
+    assert "components.2.props.defaultValue" in fields
+    assert "components.3.props.defaultValue.0" in fields
+
+
 def test_save_template_schema_rejects_invalid_schema(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

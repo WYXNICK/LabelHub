@@ -582,6 +582,56 @@ interface TemplateRendererProps {
 - 页面提供返回任务列表、任务设置、发布检查入口，保持 Owner 工作流一致。
 - 浏览器验收必须覆盖 `1280x800` 和 `1920x1080`，Console 不应出现非预期 error。
 
+### 9.10 阶段 2.3/2.4 Designer 三栏布局与基础物料属性
+
+阶段 2.3/2.4 将 `/owner/tasks/:taskId/designer` 从只读预览壳升级为 Owner 模板搭建器。该页面仍只保存模板草稿，不发布模板版本；2.7 前不得在页面上承诺“发布后可领取”。
+
+入口策略：
+
+- 左侧导航新增 `/owner/templates`「模板搭建」工作台，用于集中筛选任务并进入对应任务的 Designer。
+- 任务列表仍保留行内「更多 -> 模板搭建」快捷入口，用于从具体任务上下文快速进入。
+- 真正编辑 schema 的页面保持 `/owner/tasks/:taskId/designer`，因为模板草稿、模板版本和发布检查都必须绑定具体任务。
+
+页面结构：
+
+| 区域 | 职责 |
+| --- | --- |
+| 顶部工具栏 | 返回模板工作台、进入任务设置、预览、校验、保存草稿、展示任务状态与草稿保存状态 |
+| 左侧物料栏 | 展示 `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT`，支持点击添加和拖拽到画布 |
+| 中间画布 | 按 `layout.root` 渲染组件卡片；支持拖拽排序、上移/下移、删除和选择 |
+| 右侧属性面板 | 编辑选中物料的 `label`、`fieldKey`、`props`、`validation`；ShowItem 不允许编辑 fieldKey |
+| 预览抽屉 | 使用阶段 2.2 `TemplateRenderer` 和同一份 schema 预览运行时效果 |
+
+基础物料属性：
+
+| 物料 | 属性面板能力 |
+| --- | --- |
+| `SHOW_ITEM` | 展示标题、payload 路径 `props.path` |
+| `TEXT_INPUT` | 字段名、标签、占位符、默认值、必填、最大长度 |
+| `TEXTAREA` | 字段名、标签、占位符、默认值、必填、最大长度 |
+| `RADIO` | 字段名、标签、选项增删改、默认选项、必填 |
+| `CHECKBOX` | 字段名、标签、选项增删改、默认多选、必填 |
+| `TAG_SELECT` | 字段名、标签、选项增删改、默认标签、必填、占位符 |
+
+交互与错误：
+
+- 点击或拖拽物料都会生成新的 `TemplateComponentDTO`，并追加到 `components` 与 `layout.root`。
+- 画布排序只调整 `layout.root`；不得改变组件 `id`、`fieldKey` 或属性。
+- 删除物料必须同步移除 `components` 与 `layout.root`。
+- 保存草稿调用 `saveTemplateDraft`；后端 `INVALID_TEMPLATE_SCHEMA` 的结构化错误必须展示。
+- 校验调用 `validateTemplateSchema`，成功显示通过提示，失败展示 `field + message`。
+- 预览抽屉必须直接消费当前未保存 schema，验证 Designer 与 Renderer 共享协议。
+- 浏览器验收覆盖 `1280x800` 与 `1920x1080`；三栏区域不得遮挡、横向溢出或出现不可见的主要操作。
+
+文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/designer.ts` | Designer schema 增删改排、默认物料与选项工具 |
+| `src/features/templates/designer.test.ts` | 覆盖添加、排序、删除、属性更新和基础物料默认值 |
+| `src/pages/OwnerTemplateDesignerPage.tsx` | `/owner/tasks/:taskId/designer` 三栏搭建器 |
+| `src/features/templates/TemplateRenderer.tsx` | 继续作为预览抽屉与后续 Labeler 运行时复用 |
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：

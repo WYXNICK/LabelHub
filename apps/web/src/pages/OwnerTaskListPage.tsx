@@ -181,7 +181,7 @@ export function OwnerTaskListPage() {
       {
         key: "template-preview",
         icon: <FormOutlined />,
-        label: "模板预览",
+        label: "模板搭建",
       },
       {
         key: "review-config",

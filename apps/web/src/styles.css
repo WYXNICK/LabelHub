@@ -579,6 +579,16 @@ body {
   background: #fff7f6;
 }
 
+.labelhub-template-hub-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.labelhub-template-hub-summary h3 {
+  margin: 6px 0 0 !important;
+}
+
 .labelhub-stage-note {
   color: #245bdb;
   background: #f2f7ff;
@@ -869,6 +879,299 @@ body {
   border-radius: 8px;
 }
 
+.labelhub-designer-topbar {
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-designer-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.labelhub-designer-title-row h2 {
+  margin: 0 0 6px !important;
+}
+
+.labelhub-designer-meta {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  text-align: right;
+}
+
+.labelhub-designer-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 220px) minmax(360px, 1fr) minmax(280px, 320px);
+  gap: 16px;
+  min-height: 560px;
+}
+
+.labelhub-designer-panel {
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-panel-heading,
+.labelhub-canvas-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eff0f1;
+}
+
+.labelhub-panel-heading {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.labelhub-designer-palette,
+.labelhub-property-panel {
+  position: sticky;
+  top: 16px;
+  height: calc(100vh - 150px);
+  min-height: 560px;
+}
+
+.labelhub-designer-palette {
+  padding-bottom: 12px;
+}
+
+.labelhub-designer-palette > .ant-space {
+  padding: 12px;
+}
+
+.labelhub-palette-item {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  color: #1f2329;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  cursor: grab;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.labelhub-palette-item:hover,
+.labelhub-palette-item:focus-visible {
+  background: #f8fbff;
+  border-color: #a8c5ff;
+  box-shadow: 0 6px 18px rgba(51, 112, 255, 0.08);
+  outline: none;
+}
+
+.labelhub-palette-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.labelhub-palette-icon,
+.labelhub-canvas-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #3370ff;
+  background: #f2f7ff;
+  border-radius: 8px;
+}
+
+.labelhub-palette-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.labelhub-palette-copy small {
+  overflow: hidden;
+  color: #8f959e;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-designer-canvas {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.labelhub-canvas-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.labelhub-canvas-dropzone {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 480px;
+  padding: 16px;
+  overflow: auto;
+  background:
+    linear-gradient(rgba(51, 112, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 112, 255, 0.035) 1px, transparent 1px),
+    #fbfcff;
+  background-size: 28px 28px;
+}
+
+.labelhub-canvas-dropzone[data-over="true"] {
+  background-color: #f2f7ff;
+}
+
+.labelhub-canvas-item {
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e6e8eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(31, 35, 41, 0.04);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.labelhub-canvas-item[data-selected="true"] {
+  border-color: #3370ff;
+  box-shadow: 0 0 0 2px rgba(51, 112, 255, 0.1);
+}
+
+.labelhub-canvas-item[data-over="true"] {
+  border-color: #00b96b;
+}
+
+.labelhub-canvas-item[data-dragging="true"] {
+  opacity: 0.66;
+}
+
+.labelhub-canvas-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.labelhub-drag-handle {
+  display: inline-grid;
+  width: 24px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  color: #8f959e;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+}
+
+.labelhub-drag-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.labelhub-canvas-meta {
+  margin-top: 2px;
+  color: #8f959e;
+  font-size: 12px;
+}
+
+.labelhub-canvas-preview {
+  margin-top: 12px;
+  padding: 10px 12px;
+  color: #646a73;
+  background: #f7f8fa;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  line-height: 1.6;
+}
+
+.labelhub-canvas-show-preview {
+  display: grid;
+  gap: 4px;
+  background: #f8fbff;
+  border-color: #d8e7ff;
+}
+
+.labelhub-canvas-textarea-preview {
+  min-height: 70px;
+}
+
+.labelhub-option-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.labelhub-property-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.labelhub-property-panel > .ant-form,
+.labelhub-property-panel > .ant-alert,
+.labelhub-property-panel > .ant-empty {
+  margin: 0 14px;
+}
+
+.labelhub-property-panel > .ant-alert {
+  white-space: pre-line;
+}
+
+.labelhub-property-panel .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.labelhub-property-static-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 12px;
+}
+
+.labelhub-option-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+
+.labelhub-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+  gap: 8px;
+}
+
+.labelhub-drag-overlay {
+  padding: 9px 12px;
+  color: #1f2329;
+  background: #fff;
+  border: 1px solid #a8c5ff;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(31, 35, 41, 0.14);
+}
+
 @media (max-width: 1280px) {
   .labelhub-showcase {
     grid-template-columns: 1fr;
@@ -886,6 +1189,29 @@ body {
   .labelhub-showcase-title {
     max-width: 680px;
     font-size: 38px !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .labelhub-designer-title-row,
+  .labelhub-designer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-designer-meta {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .labelhub-template-hub-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-designer-palette,
+  .labelhub-property-panel {
+    position: static;
+    height: auto;
+    min-height: 0;
   }
 }
 

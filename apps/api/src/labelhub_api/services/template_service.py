@@ -157,6 +157,14 @@ class TemplateService:
                 if field_key in field_keys:
                     duplicate_field_keys.add(field_key)
                 field_keys.add(field_key)
+            errors.extend(
+                self._validate_component_properties(
+                    field_prefix=field_prefix,
+                    component_type=component_type,
+                    props=component.props,
+                    validation=component.validation,
+                )
+            )
 
         for component_id in sorted(duplicate_component_ids):
             errors.append(self._error("components", f"component.id 重复：{component_id}。"))
@@ -165,6 +173,133 @@ class TemplateService:
 
         errors.extend(self._validate_layout(schema.layout, component_ids, {c.id: c.type for c in schema.components}))
         return errors
+
+    def _validate_component_properties(
+        self,
+        *,
+        field_prefix: str,
+        component_type: str,
+        props: dict[str, Any],
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        # Designer 保存的是后续 Renderer 的唯一契约，这里把基础物料的语义错误提前拦住。
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        if component_type == TemplateComponentType.SHOW_ITEM.value:
+            path = props.get("path")
+            if path is not None and path != "" and (not isinstance(path, str) or not path.startswith("$")):
+                errors.append(self._error(f"{field_prefix}.props.path", "ShowItem path 必须为空或以 $ 开头。"))
+            return errors
+
+        if component_type in {TemplateComponentType.TEXT_INPUT.value, TemplateComponentType.TEXTAREA.value}:
+            errors.extend(self._validate_text_component(field_prefix, component_type, props, validation))
+            return errors
+
+        if component_type in {
+            TemplateComponentType.RADIO.value,
+            TemplateComponentType.CHECKBOX.value,
+            TemplateComponentType.TAG_SELECT.value,
+        }:
+            errors.extend(self._validate_option_component(field_prefix, component_type, props, validation))
+        return errors
+
+    def _validate_text_component(
+        self,
+        field_prefix: str,
+        component_type: str,
+        props: dict[str, Any],
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        for prop_key in ("placeholder", "defaultValue"):
+            prop_value = props.get(prop_key)
+            if prop_value is not None and not isinstance(prop_value, str):
+                errors.append(self._error(f"{field_prefix}.props.{prop_key}", f"{prop_key} 必须是字符串。"))
+        errors.extend(self._validate_required_and_max_length(field_prefix, component_type, validation))
+        return errors
+
+    def _validate_option_component(
+        self,
+        field_prefix: str,
+        component_type: str,
+        props: dict[str, Any],
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        option_values, option_errors = self._validate_options(field_prefix, props)
+        errors.extend(option_errors)
+        errors.extend(self._validate_required_and_max_length(field_prefix, component_type, validation))
+        default_value = props.get("defaultValue")
+        if component_type == TemplateComponentType.RADIO.value:
+            if default_value not in (None, ""):
+                if not isinstance(default_value, str):
+                    errors.append(self._error(f"{field_prefix}.props.defaultValue", "单选默认值必须是字符串。"))
+                elif default_value not in option_values:
+                    errors.append(self._error(f"{field_prefix}.props.defaultValue", "单选默认值必须来自 options。"))
+            return errors
+
+        if default_value in (None, ""):
+            return errors
+        if not isinstance(default_value, list):
+            errors.append(self._error(f"{field_prefix}.props.defaultValue", "多选默认值必须是字符串数组。"))
+            return errors
+        for index, item in enumerate(default_value):
+            if not isinstance(item, str):
+                errors.append(self._error(f"{field_prefix}.props.defaultValue.{index}", "多选默认值必须是字符串数组。"))
+            elif item not in option_values:
+                errors.append(self._error(f"{field_prefix}.props.defaultValue.{index}", "多选默认值必须来自 options。"))
+        return errors
+
+    def _validate_required_and_max_length(
+        self,
+        field_prefix: str,
+        component_type: str,
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        required = validation.get("required")
+        if required is not None and not isinstance(required, bool):
+            errors.append(self._error(f"{field_prefix}.validation.required", "required 必须是布尔值。"))
+
+        max_length = validation.get("maxLength")
+        if max_length is None:
+            return errors
+        max_allowed = 5000 if component_type == TemplateComponentType.TEXTAREA.value else 500
+        if not isinstance(max_length, int) or isinstance(max_length, bool):
+            errors.append(self._error(f"{field_prefix}.validation.maxLength", "maxLength 必须是整数。"))
+        elif max_length < 1 or max_length > max_allowed:
+            errors.append(self._error(f"{field_prefix}.validation.maxLength", f"maxLength 必须在 1-{max_allowed} 之间。"))
+        return errors
+
+    def _validate_options(
+        self,
+        field_prefix: str,
+        props: dict[str, Any],
+    ) -> tuple[set[str], list[TemplateSchemaValidationErrorVO]]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        raw_options = props.get("options")
+        if not isinstance(raw_options, list) or len(raw_options) == 0:
+            return set(), [self._error(f"{field_prefix}.props.options", "options 必须至少包含 1 个选项。")]
+
+        option_values: set[str] = set()
+        duplicated_values: set[str] = set()
+        for index, option in enumerate(raw_options):
+            if not isinstance(option, dict):
+                errors.append(self._error(f"{field_prefix}.props.options.{index}", "选项必须是对象。"))
+                continue
+            label = option.get("label")
+            value = option.get("value")
+            if not isinstance(label, str) or not label.strip():
+                errors.append(self._error(f"{field_prefix}.props.options.{index}.label", "选项 label 不能为空。"))
+            if not isinstance(value, str) or not value.strip():
+                errors.append(self._error(f"{field_prefix}.props.options.{index}.value", "选项 value 不能为空。"))
+                continue
+            if value in option_values:
+                duplicated_values.add(value)
+            option_values.add(value)
+
+        for value in sorted(duplicated_values):
+            errors.append(self._error(f"{field_prefix}.props.options", f"选项 value 重复：{value}。"))
+        return option_values, errors
 
     def _validate_layout(
         self,

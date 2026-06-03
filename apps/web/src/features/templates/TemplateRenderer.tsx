@@ -1,7 +1,7 @@
 import { Alert, Checkbox, Empty, Form, Input, Radio, Select, Typography } from "antd";
 
 import type { JsonObject } from "../../shared/types/api";
-import type { TemplateComponentDTO, TemplateSubmissionValue } from "./types";
+import type { TemplateComponentDTO, TemplateSchemaVO, TemplateSubmissionValue } from "./types";
 import {
   formatPayloadValue,
   getRenderableComponents,
@@ -9,7 +9,6 @@ import {
   readPayloadPath,
   updateTemplateSubmissionValue,
 } from "./runtime";
-import type { TemplateSchemaVO } from "./types";
 
 interface TemplateRendererProps {
   schema: TemplateSchemaVO;
@@ -28,12 +27,7 @@ export function TemplateRenderer({
 }: TemplateRendererProps) {
   const renderableComponents = getRenderableComponents(schema);
   if (renderableComponents.length === 0) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="当前模板草稿还没有可渲染物料"
-      />
-    );
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前模板草稿还没有可渲染物料" />;
   }
 
   return (
@@ -79,7 +73,7 @@ function RendererField({
   }
 
   if (!component.fieldKey) {
-    return <Alert type="warning" showIcon message={`${component.label} 缺少 fieldKey，暂无法提交。`} />;
+    return <Alert type="warning" showIcon message={`${component.label} 缺少 fieldKey，暂时无法提交。`} />;
   }
 
   const required = component.validation.required === true;
@@ -91,11 +85,7 @@ function RendererField({
 
   return (
     <Form.Item className="labelhub-template-field">
-      <FieldLabel
-        label={component.label}
-        required={required}
-        htmlFor={canUseNativeLabel ? inputId : undefined}
-      />
+      <FieldLabel label={component.label} required={required} htmlFor={canUseNativeLabel ? inputId : undefined} />
       {renderInput(component, fieldValue, setValue, readonly, inputId)}
     </Form.Item>
   );

@@ -10,7 +10,7 @@ import { collectTemplateFieldKeys, collectableTemplateComponentTypes } from "./v
 
 const pathTokenPattern = /([^[.\]]+)|\[(\d+)\]/g;
 
-// 阶段 2.2 只支持 Renderer 预览所需的安全 JSONPath 子集。
+// 只实现 ShowItem 预览所需的安全 JSONPath 子集，避免运行任意表达式。
 export function readPayloadPath(payload: unknown, path: string | null | undefined): unknown {
   if (!path || path === "$") {
     return payload;

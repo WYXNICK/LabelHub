@@ -205,7 +205,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
         )}
         {taskId && (
           <Button icon={<FormOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/designer`)}>
-            模板预览
+            模板搭建
           </Button>
         )}
         {taskId && (

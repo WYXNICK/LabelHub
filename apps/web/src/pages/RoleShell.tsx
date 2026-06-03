@@ -3,6 +3,7 @@ import {
   BuildOutlined,
   DatabaseOutlined,
   FileDoneOutlined,
+  FormOutlined,
   LogoutOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
@@ -21,7 +22,8 @@ import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
 import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
-import { OwnerTemplateRendererPreviewPage } from "./OwnerTemplateRendererPreviewPage";
+import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
+import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
 import { RoleHomePage } from "./RoleHomePage";
 
 const roleName: Record<UserRole, string> = {
@@ -35,6 +37,7 @@ const menuItems: Record<Exclude<UserRole, "SYSTEM">, MenuProps["items"]> = {
   OWNER: [
     { key: "/owner/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
     { key: "/owner/tasks", icon: <DatabaseOutlined />, label: "任务管理" },
+    { key: "/owner/templates", icon: <FormOutlined />, label: "模板搭建" },
     { key: "/owner/contracts", icon: <BuildOutlined />, label: "契约中心" },
   ],
   LABELER: [
@@ -57,7 +60,11 @@ interface RoleShellProps {
 export function RoleShell({ user, path }: RoleShellProps) {
   const logout = useAuthStore((state) => state.logout);
   const role = user.role === "SYSTEM" ? "OWNER" : user.role;
-  const selectedMenuKey = path.startsWith("/owner/tasks") ? "/owner/tasks" : path;
+  const selectedMenuKey = matchOwnerTaskDesignerPath(path)
+    ? "/owner/templates"
+    : path.startsWith("/owner/tasks")
+      ? "/owner/tasks"
+      : path;
 
   async function handleLogout() {
     await logout();
@@ -119,6 +126,9 @@ function renderRoleContent(user: UserVO, path: string) {
     if (path === "/owner/tasks") {
       return <OwnerTaskListPage />;
     }
+    if (path === "/owner/templates") {
+      return <OwnerTemplateHubPage />;
+    }
     if (path === "/owner/tasks/new") {
       return <OwnerTaskSettingsPage />;
     }
@@ -132,7 +142,7 @@ function renderRoleContent(user: UserVO, path: string) {
     }
     const taskDesignerId = matchOwnerTaskDesignerPath(path);
     if (taskDesignerId) {
-      return <OwnerTemplateRendererPreviewPage taskId={taskDesignerId} />;
+      return <OwnerTemplateDesignerPage taskId={taskDesignerId} />;
     }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {

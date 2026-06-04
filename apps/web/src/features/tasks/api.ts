@@ -6,6 +6,7 @@ import type {
   PublishCheckVO,
   TaskDetailVO,
   TaskStateTransitionRequest,
+  TaskSummaryVO,
   TaskVO,
   UpdateTaskRequest,
 } from "./types";
@@ -19,6 +20,10 @@ export function listTasks(request: ListTasksRequest = {}): Promise<PageVO<TaskVO
       keyword: request.keyword,
     }),
   );
+}
+
+export function getTaskSummary(): Promise<TaskSummaryVO> {
+  return apiRequest<TaskSummaryVO>("/api/tasks/summary");
 }
 
 export function createTask(request: CreateTaskRequest): Promise<TaskDetailVO> {

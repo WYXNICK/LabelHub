@@ -19,6 +19,22 @@ export interface TaskStatsVO {
   reviewConfigVersionCount: number;
 }
 
+export interface TaskSummaryVO {
+  totalTaskCount: number;
+  draftTaskCount: number;
+  publishedTaskCount: number;
+  pausedTaskCount: number;
+  endedTaskCount: number;
+  totalQuota: number;
+  totalClaimedCount: number;
+  totalSubmittedCount: number;
+  totalApprovedCount: number;
+  readyDatasetCount: number;
+  enabledItemCount: number;
+  templateReadyTaskCount: number;
+  reviewConfigReadyTaskCount: number;
+}
+
 export interface TaskVO {
   id: string;
   title: string;

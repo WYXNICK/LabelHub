@@ -32,8 +32,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { navigate } from "../app/routes";
 import { ApiClientError } from "../shared/api/client";
-import { getTask, listTasks, transitionTaskState } from "../features/tasks/api";
-import type { TaskStatus, TaskVO } from "../features/tasks/types";
+import { getTask, getTaskSummary, listTasks, transitionTaskState } from "../features/tasks/api";
+import type { TaskStatus, TaskSummaryVO, TaskVO } from "../features/tasks/types";
 import {
   formatTaskTime,
   getTaskTransitionActions,
@@ -49,6 +49,26 @@ const statusOptions = [
   { label: "已暂停", value: "PAUSED" },
   { label: "已结束", value: "ENDED" },
 ];
+
+const emptyTaskSummary: TaskSummaryVO = {
+  totalTaskCount: 0,
+  draftTaskCount: 0,
+  publishedTaskCount: 0,
+  pausedTaskCount: 0,
+  endedTaskCount: 0,
+  totalQuota: 0,
+  totalClaimedCount: 0,
+  totalSubmittedCount: 0,
+  totalApprovedCount: 0,
+  readyDatasetCount: 0,
+  enabledItemCount: 0,
+  templateReadyTaskCount: 0,
+  reviewConfigReadyTaskCount: 0,
+};
+
+function formatMetric(value: number): string {
+  return new Intl.NumberFormat("zh-CN").format(value);
+}
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
@@ -89,7 +109,9 @@ export function OwnerTaskListPage() {
   const [status, setStatus] = useState<TaskStatus | "ALL">("ALL");
   const [submittedStatus, setSubmittedStatus] = useState<TaskStatus | "ALL">("ALL");
   const [publishCheckTaskId, setPublishCheckTaskId] = useState<string | null>(null);
+  const [summary, setSummary] = useState<TaskSummaryVO>(emptyTaskSummary);
   const [loading, setLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTasks = useCallback(
@@ -114,14 +136,25 @@ export function OwnerTaskListPage() {
     [submittedKeyword, submittedStatus],
   );
 
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      setSummary(await getTaskSummary());
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, []);
+
   const [queryState, setQueryState] = useState({ page: 1, pageSize: 10, requestId: 0 });
 
   useEffect(() => {
     const loadTasks = async () => {
-      await fetchTasks(queryState.page, queryState.pageSize);
+      await Promise.all([fetchTasks(queryState.page, queryState.pageSize), fetchSummary()]);
     };
     void loadTasks();
-  }, [fetchTasks, queryState]);
+  }, [fetchSummary, fetchTasks, queryState]);
 
   function submitQuery() {
     setSubmittedKeyword(keyword);
@@ -343,6 +376,31 @@ export function OwnerTaskListPage() {
           新建任务
         </Button>
       </Flex>
+
+      <div className="labelhub-task-summary-grid" aria-busy={summaryLoading}>
+        <Card>
+          <Typography.Text type="secondary">发布中任务</Typography.Text>
+          <Typography.Title level={3}>{formatMetric(summary.publishedTaskCount)}</Typography.Title>
+          <Typography.Text type="secondary">当前可进入标注市场的任务</Typography.Text>
+        </Card>
+        <Card>
+          <Typography.Text type="secondary">草稿任务</Typography.Text>
+          <Typography.Title level={3}>{formatMetric(summary.draftTaskCount)}</Typography.Title>
+          <Typography.Text type="secondary">待补齐数据集、模板或审核配置</Typography.Text>
+        </Card>
+        <Card>
+          <Typography.Text type="secondary">可用题目</Typography.Text>
+          <Typography.Title level={3}>{formatMetric(summary.enabledItemCount)}</Typography.Title>
+          <Typography.Text type="secondary">{formatMetric(summary.readyDatasetCount)} 个可用数据集</Typography.Text>
+        </Card>
+        <Card>
+          <Typography.Text type="secondary">累计提交</Typography.Text>
+          <Typography.Title level={3}>{formatMetric(summary.totalSubmittedCount)}</Typography.Title>
+          <Typography.Text type="secondary">
+            通过 {formatMetric(summary.totalApprovedCount)} / 领取 {formatMetric(summary.totalClaimedCount)}
+          </Typography.Text>
+        </Card>
+      </div>
 
       <Card>
         <Flex justify="space-between" align="center" gap={12} wrap="wrap">

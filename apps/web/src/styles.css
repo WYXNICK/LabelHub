@@ -552,6 +552,17 @@ body {
   gap: 16px;
 }
 
+.labelhub-task-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.labelhub-task-summary-grid h3 {
+  margin: 6px 0 2px !important;
+  color: #245bdb;
+}
+
 .labelhub-table-card .ant-card-body {
   padding: 0;
 }
@@ -1207,6 +1218,10 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .labelhub-task-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .labelhub-designer-palette,
   .labelhub-property-panel {
     position: static;
@@ -1317,6 +1332,10 @@ body {
   .labelhub-form-grid {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+
+  .labelhub-task-summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .labelhub-dataset-grid,

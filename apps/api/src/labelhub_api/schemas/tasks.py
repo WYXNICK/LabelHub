@@ -20,6 +20,22 @@ class TaskStatsVO(CamelModel):
     review_config_version_count: int = 0
 
 
+class TaskSummaryVO(CamelModel):
+    total_task_count: int = 0
+    draft_task_count: int = 0
+    published_task_count: int = 0
+    paused_task_count: int = 0
+    ended_task_count: int = 0
+    total_quota: int = 0
+    total_claimed_count: int = 0
+    total_submitted_count: int = 0
+    total_approved_count: int = 0
+    ready_dataset_count: int = 0
+    enabled_item_count: int = 0
+    template_ready_task_count: int = 0
+    review_config_ready_task_count: int = 0
+
+
 class TaskVO(CamelModel):
     id: str
     title: str

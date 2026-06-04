@@ -13,6 +13,7 @@ from labelhub_api.schemas.tasks import (
     PublishCheckVO,
     TaskDetailVO,
     TaskStateTransitionRequest,
+    TaskSummaryVO,
     TaskVO,
     UpdateTaskRequest,
 )
@@ -37,6 +38,14 @@ def list_tasks(
         status=status,
         keyword=keyword,
     )
+
+
+@router.get("/summary", response_model=TaskSummaryVO, response_model_by_alias=True)
+def get_task_summary(
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> TaskSummaryVO:
+    return TaskService(db).get_task_summary(user=user)
 
 
 @router.post("", response_model=TaskDetailVO, response_model_by_alias=True, status_code=201)

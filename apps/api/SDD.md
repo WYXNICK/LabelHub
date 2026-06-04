@@ -271,6 +271,7 @@ class LogoutResponseVO:
 | 阶段 | 接口 | Request | VO | 状态 |
 | --- | --- | --- | --- | --- |
 | 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 阶段 1.1 已实现 |
+| 1 | `GET /api/tasks/summary` | `GetTaskSummaryRequest` | `TaskSummaryVO` | 阶段 1.1 已实现 |
 | 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
 | 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
 | 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
@@ -372,6 +373,7 @@ class PublishBlockerCode(str, Enum):
 | --- | --- |
 | `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
 | `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `TaskSummaryVO` | `totalTaskCount`、`draftTaskCount`、`publishedTaskCount`、`pausedTaskCount`、`endedTaskCount`、`totalQuota`、`totalClaimedCount`、`totalSubmittedCount`、`totalApprovedCount`、`readyDatasetCount`、`enabledItemCount`、`templateReadyTaskCount`、`reviewConfigReadyTaskCount` |
 | `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
 | `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
 | `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
@@ -391,7 +393,7 @@ class PublishBlockerCode(str, Enum):
 
 ### 9.2 阶段 1.1 任务 CRUD 与状态机
 
-阶段 1.1 将 `GET/POST/PATCH /api/tasks`、`GET /api/tasks/{taskId}`、`POST /api/tasks/{taskId}/state-transitions` 和 `GET /api/audit-logs` 从契约占位推进为可用业务能力。
+阶段 1.1 将 `GET/POST/PATCH /api/tasks`、`GET /api/tasks/summary`、`GET /api/tasks/{taskId}`、`POST /api/tasks/{taskId}/state-transitions` 和 `GET /api/audit-logs` 从契约占位推进为可用业务能力。`GET /api/tasks/summary` 返回当前 Owner 全量任务聚合，不受任务列表分页和筛选影响，用于任务管理页顶部总览卡片。
 
 状态迁移规则：
 

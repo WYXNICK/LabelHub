@@ -32,6 +32,7 @@ from labelhub_api.schemas.tasks import (
     TaskDetailVO,
     TaskStateTransitionRequest,
     TaskStatsVO,
+    TaskSummaryVO,
     TaskVO,
     UpdateTaskRequest,
 )
@@ -72,6 +73,43 @@ class TaskService:
                 total_items=total_items,
                 total_pages=ceil(total_items / page_size) if total_items else 0,
             ),
+        )
+
+    def get_task_summary(self, *, user: UserVO) -> TaskSummaryVO:
+        self._require_owner(user)
+        task_scope = select(TaskEntity.id).where(TaskEntity.created_by == user.id)
+        sum_fields = self._db.execute(
+            select(
+                func.count(TaskEntity.id),
+                func.coalesce(func.sum(TaskEntity.quota), 0),
+                func.coalesce(func.sum(TaskEntity.claimed_count), 0),
+                func.coalesce(func.sum(TaskEntity.submitted_count), 0),
+                func.coalesce(func.sum(TaskEntity.approved_count), 0),
+            ).where(TaskEntity.created_by == user.id)
+        ).one()
+        dataset_summary = self._db.execute(
+            select(
+                func.count(DatasetEntity.id),
+                func.coalesce(func.sum(DatasetEntity.enabled_item_count), 0),
+            ).where(
+                DatasetEntity.task_id.in_(task_scope),
+                DatasetEntity.status == DatasetStatus.READY.value,
+            )
+        ).one()
+        return TaskSummaryVO(
+            total_task_count=int(sum_fields[0] or 0),
+            draft_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.DRAFT),
+            published_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.PUBLISHED),
+            paused_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.PAUSED),
+            ended_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.ENDED),
+            total_quota=int(sum_fields[1] or 0),
+            total_claimed_count=int(sum_fields[2] or 0),
+            total_submitted_count=int(sum_fields[3] or 0),
+            total_approved_count=int(sum_fields[4] or 0),
+            ready_dataset_count=int(dataset_summary[0] or 0),
+            enabled_item_count=int(dataset_summary[1] or 0),
+            template_ready_task_count=self._count_tasks_with_field(user=user, field_name="current_template_version_id"),
+            review_config_ready_task_count=self._count_tasks_with_field(user=user, field_name="current_review_config_version_id"),
         )
 
     def create_task(self, *, user: UserVO, request: CreateTaskRequest, request_id: str) -> TaskDetailVO:
@@ -293,6 +331,29 @@ class TaskService:
             task.deadline_at = updates["deadline_at"]
         if "distribution_strategy" in updates and updates["distribution_strategy"] is not None:
             task.distribution_strategy = updates["distribution_strategy"].value
+
+    def _count_tasks_by_status(self, *, user: UserVO, status: TaskStatus) -> int:
+        return int(
+            self._db.scalar(
+                select(func.count()).select_from(TaskEntity).where(
+                    TaskEntity.created_by == user.id,
+                    TaskEntity.status == status.value,
+                )
+            )
+            or 0
+        )
+
+    def _count_tasks_with_field(self, *, user: UserVO, field_name: str) -> int:
+        field = getattr(TaskEntity, field_name)
+        return int(
+            self._db.scalar(
+                select(func.count()).select_from(TaskEntity).where(
+                    TaskEntity.created_by == user.id,
+                    field.is_not(None),
+                )
+            )
+            or 0
+        )
 
     def _get_owned_task(self, task_id: str, user: UserVO) -> TaskEntity:
         task = self._db.get(TaskEntity, task_id)

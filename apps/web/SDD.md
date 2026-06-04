@@ -173,6 +173,7 @@ export interface LogoutResponseVO {
 | 阶段 | 页面/模块 | 前端 VO / Request | 后端接口 | 状态 |
 | --- | --- | --- | --- | --- |
 | 1 | 任务列表 | `TaskVO`、`ListTasksRequest` | `GET /api/tasks` | 阶段 1.1 已实现 |
+| 1 | 任务总览 | `TaskSummaryVO` | `GET /api/tasks/summary` | 阶段 1.1 已实现 |
 | 1 | 任务创建/编辑 | `TaskDetailVO`、`CreateTaskRequest`、`UpdateTaskRequest` | `POST /api/tasks`、`PATCH /api/tasks/{taskId}` | 阶段 1.1 已实现 |
 | 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 阶段 1.1 已实现 |
 | 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 阶段 1.2 已实现 |
@@ -219,6 +220,7 @@ export type PublishBlockerCode =
 | --- | --- |
 | `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
 | `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `TaskSummaryVO` | `totalTaskCount`、`draftTaskCount`、`publishedTaskCount`、`pausedTaskCount`、`endedTaskCount`、`totalQuota`、`totalClaimedCount`、`totalSubmittedCount`、`totalApprovedCount`、`readyDatasetCount`、`enabledItemCount`、`templateReadyTaskCount`、`reviewConfigReadyTaskCount` |
 | `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
 | `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
 | `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
@@ -244,13 +246,14 @@ export type PublishBlockerCode =
 
 | 页面 | 路由 | 行为 |
 | --- | --- | --- |
-| 任务列表 | `/owner/tasks` | 搜索、状态筛选、分页、任务状态标签、数据量摘要、创建入口、编辑入口、发布/暂停/恢复/结束入口 |
+| 任务列表 | `/owner/tasks` | 顶部任务总览卡、搜索、状态筛选、分页、任务状态标签、数据量摘要、创建入口、编辑入口、发布/暂停/恢复/结束入口 |
 | 任务创建 | `/owner/tasks/new` | 创建 `DRAFT` 任务，字段包含标题、描述、富文本说明、标签、奖励规则、截止时间、配额和分发策略 |
 | 任务设置 | `/owner/tasks/:taskId/settings` | 加载任务详情，只允许编辑 `DRAFT` 任务；提交时携带 `version` 做乐观锁 |
 
 交互规则：
 
 - 状态迁移由后端决定最终结果；前端只发起 `TaskStateTransitionRequest`。
+- 顶部总览读取 `GET /api/tasks/summary`，展示 Owner 全量发布中任务、草稿任务、可用题目和累计提交；搜索/状态筛选只影响下方列表。
 - 发布失败时展示后端 `PUBLISH_BLOCKED` 的阻塞项，例如缺少数据集、模板版本或审核配置。
 - 列表和详情页都必须处理 loading、empty、error 和成功反馈。
 - 阶段 1.1 不在前端实现数据导入、审核配置保存、模板搭建或完整发布检查抽屉。

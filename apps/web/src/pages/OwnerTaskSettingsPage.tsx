@@ -26,6 +26,7 @@ import { navigate } from "../app/routes";
 import { createTask, getTask, updateTask } from "../features/tasks/api";
 import type { CreateTaskRequest, TaskDetailVO } from "../features/tasks/types";
 import { distributionStrategyOptions, formatTaskTime, parseApiDateTime, taskStatusMeta } from "../features/tasks/view";
+import { buildOwnerTaskDesignerPath } from "../features/templates/view";
 import { ApiClientError } from "../shared/api/client";
 import type { JsonObject } from "../shared/types/api";
 import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
@@ -204,7 +205,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
           </Button>
         )}
         {taskId && (
-          <Button icon={<FormOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/designer`)}>
+          <Button icon={<FormOutlined />} onClick={() => navigate(buildOwnerTaskDesignerPath(taskId, "settings"))}>
             模板搭建
           </Button>
         )}

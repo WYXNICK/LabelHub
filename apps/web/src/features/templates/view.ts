@@ -71,7 +71,36 @@ export function summarizeTemplateValidation(validation: TemplateSchemaValidation
   return validation.errors.map((error) => `${error.field}: ${error.message}`).join("\n");
 }
 
+export type TemplateDesignerEntry = "tasks" | "templates" | "settings";
+
+export interface TemplateDesignerReturnTarget {
+  label: string;
+  path: string;
+}
+
+export function buildOwnerTaskDesignerPath(taskId: string, entry: TemplateDesignerEntry): string {
+  return `/owner/tasks/${taskId}/designer?from=${entry}`;
+}
+
+export function getTemplateDesignerEntry(search: string): TemplateDesignerEntry | null {
+  const entry = new URLSearchParams(search).get("from");
+  return entry === "tasks" || entry === "templates" || entry === "settings" ? entry : null;
+}
+
+export function getTemplateDesignerReturnTarget(
+  taskId: string,
+  entry: TemplateDesignerEntry | null,
+): TemplateDesignerReturnTarget {
+  if (entry === "tasks") {
+    return { label: "返回任务管理", path: "/owner/tasks" };
+  }
+  if (entry === "settings") {
+    return { label: "返回任务设置", path: `/owner/tasks/${taskId}/settings` };
+  }
+  return { label: "返回模板工作台", path: "/owner/templates" };
+}
+
 export function matchOwnerTaskDesignerPath(path: string): string | null {
-  const match = path.match(/^\/owner\/tasks\/([^/]+)\/designer$/);
+  const match = path.match(/^\/owner\/tasks\/([^/]+)\/designer(?:\?.*)?$/);
   return match?.[1] ?? null;
 }

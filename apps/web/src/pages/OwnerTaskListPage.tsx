@@ -39,6 +39,7 @@ import {
   getTaskTransitionActions,
   taskStatusMeta,
 } from "../features/tasks/view";
+import { buildOwnerTaskDesignerPath } from "../features/templates/view";
 import type { PaginationVO } from "../shared/types/api";
 import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 
@@ -214,7 +215,7 @@ export function OwnerTaskListPage() {
       {
         key: "template-preview",
         icon: <FormOutlined />,
-        label: "模板搭建",
+        label: "搭建模板",
       },
       {
         key: "review-config",
@@ -243,7 +244,7 @@ export function OwnerTaskListPage() {
     const handleMenuClick: MenuProps["onClick"] = ({ key }) => {
       const actionKey = key as TaskActionMenuKey;
       if (actionKey === "template-preview") {
-        navigate(`/owner/tasks/${task.id}/designer`);
+        navigate(buildOwnerTaskDesignerPath(task.id, "tasks"));
         return;
       }
       if (actionKey === "review-config") {

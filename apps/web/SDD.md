@@ -591,15 +591,16 @@ interface TemplateRendererProps {
 
 入口策略：
 
-- 左侧导航新增 `/owner/templates`「模板搭建」工作台，用于集中筛选任务并进入对应任务的 Designer。
-- 任务列表仍保留行内「更多 -> 模板搭建」快捷入口，用于从具体任务上下文快速进入。
+- 左侧导航新增 `/owner/templates`「模板工作台」，用于集中筛选任务、查看模板准备状态并进入对应任务的 Designer。
+- 任务列表仍保留行内「更多 -> 搭建模板」快捷入口，用于从具体任务上下文快速进入。
 - 真正编辑 schema 的页面保持 `/owner/tasks/:taskId/designer`，因为模板草稿、模板版本和发布检查都必须绑定具体任务。
+- 进入 Designer 时使用 `?from=templates|tasks|settings` 标记来源；顶部返回按钮按来源返回「模板工作台」「任务管理」或「任务设置」，直接打开 Designer 时默认返回模板工作台。
 
 页面结构：
 
 | 区域 | 职责 |
 | --- | --- |
-| 顶部工具栏 | 返回模板工作台、进入任务设置、预览、校验、保存草稿、展示任务状态与草稿保存状态 |
+| 顶部工具栏 | 来源感知返回、进入任务设置、预览、校验、保存草稿、展示任务状态与草稿保存状态 |
 | 左侧物料栏 | 展示 `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT`，支持点击添加和拖拽到画布 |
 | 中间画布 | 按 `layout.root` 渲染组件卡片；支持拖拽排序、上移/下移、删除和选择 |
 | 右侧属性面板 | 编辑选中物料的 `label`、`fieldKey`、`props`、`validation`；ShowItem 不允许编辑 fieldKey |

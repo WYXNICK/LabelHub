@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   collectTemplateFieldKeys,
+  buildOwnerTaskDesignerPath,
   createEmptyTemplateSchema,
   createTemplateComponent,
+  getTemplateDesignerEntry,
+  getTemplateDesignerReturnTarget,
   matchOwnerTaskDesignerPath,
   summarizeTemplateValidation,
 } from "./view";
@@ -47,6 +50,25 @@ describe("template view helpers", () => {
 
   it("extracts task id from owner designer path", () => {
     expect(matchOwnerTaskDesignerPath("/owner/tasks/task_123/designer")).toBe("task_123");
+    expect(matchOwnerTaskDesignerPath("/owner/tasks/task_123/designer?from=tasks")).toBe("task_123");
     expect(matchOwnerTaskDesignerPath("/owner/tasks/task_123/settings")).toBeNull();
+  });
+
+  it("builds source-aware designer paths and return targets", () => {
+    expect(buildOwnerTaskDesignerPath("task_123", "tasks")).toBe("/owner/tasks/task_123/designer?from=tasks");
+    expect(getTemplateDesignerEntry("?from=templates")).toBe("templates");
+    expect(getTemplateDesignerEntry("?from=unknown")).toBeNull();
+    expect(getTemplateDesignerReturnTarget("task_123", "tasks")).toEqual({
+      label: "返回任务管理",
+      path: "/owner/tasks",
+    });
+    expect(getTemplateDesignerReturnTarget("task_123", "settings")).toEqual({
+      label: "返回任务设置",
+      path: "/owner/tasks/task_123/settings",
+    });
+    expect(getTemplateDesignerReturnTarget("task_123", null)).toEqual({
+      label: "返回模板工作台",
+      path: "/owner/templates",
+    });
   });
 });

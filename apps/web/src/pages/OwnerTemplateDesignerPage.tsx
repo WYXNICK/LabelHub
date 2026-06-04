@@ -23,7 +23,12 @@ import type {
   TemplateSchemaVO,
   TemplateSubmissionValue,
 } from "../features/templates/types";
-import { createEmptyTemplateSchema, summarizeTemplateValidation } from "../features/templates/view";
+import {
+  createEmptyTemplateSchema,
+  getTemplateDesignerEntry,
+  getTemplateDesignerReturnTarget,
+  summarizeTemplateValidation,
+} from "../features/templates/view";
 import { ApiClientError } from "../shared/api/client";
 import type { JsonObject } from "../shared/types/api";
 
@@ -88,6 +93,7 @@ export function OwnerTemplateDesignerPage({ taskId }: OwnerTemplateDesignerPageP
   const [validating, setValidating] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const returnTarget = getTemplateDesignerReturnTarget(taskId, getTemplateDesignerEntry(window.location.search));
 
   useEffect(() => {
     let ignore = false;
@@ -177,8 +183,8 @@ export function OwnerTemplateDesignerPage({ taskId }: OwnerTemplateDesignerPageP
       <div className="labelhub-designer-topbar">
         <Flex align="center" justify="space-between" gap={16} wrap="wrap">
           <Space size={12} wrap>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/owner/templates")}>
-              返回模板工作台
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(returnTarget.path)}>
+              {returnTarget.label}
             </Button>
             <Button icon={<SettingOutlined />} onClick={() => navigate(`/owner/tasks/${taskId}/settings`)}>
               任务设置

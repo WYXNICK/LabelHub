@@ -37,7 +37,7 @@ const menuItems: Record<Exclude<UserRole, "SYSTEM">, MenuProps["items"]> = {
   OWNER: [
     { key: "/owner/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
     { key: "/owner/tasks", icon: <DatabaseOutlined />, label: "任务管理" },
-    { key: "/owner/templates", icon: <FormOutlined />, label: "模板搭建" },
+    { key: "/owner/templates", icon: <FormOutlined />, label: "模板工作台" },
     { key: "/owner/contracts", icon: <BuildOutlined />, label: "契约中心" },
   ],
   LABELER: [

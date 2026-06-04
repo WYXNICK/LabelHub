@@ -15,6 +15,7 @@ import { navigate } from "../app/routes";
 import { listTasks } from "../features/tasks/api";
 import type { TaskStatus, TaskVO } from "../features/tasks/types";
 import { formatTaskTime, taskStatusMeta } from "../features/tasks/view";
+import { buildOwnerTaskDesignerPath } from "../features/templates/view";
 import type { PaginationVO } from "../shared/types/api";
 
 const statusOptions = [
@@ -154,9 +155,9 @@ export function OwnerTemplateHubPage() {
             size="small"
             type="primary"
             icon={<FormOutlined />}
-            onClick={() => navigate(`/owner/tasks/${task.id}/designer`)}
+            onClick={() => navigate(buildOwnerTaskDesignerPath(task.id, "templates"))}
           >
-            进入搭建
+            搭建模板
           </Button>
           <Button size="small" icon={<SettingOutlined />} onClick={() => navigate(`/owner/tasks/${task.id}/settings`)}>
             任务设置
@@ -171,10 +172,10 @@ export function OwnerTemplateHubPage() {
       <Flex justify="space-between" align="flex-start" gap={16} wrap="wrap">
         <div>
           <Typography.Title level={2} style={{ marginBottom: 8 }}>
-            模板搭建
+            模板工作台
           </Typography.Title>
           <Typography.Text type="secondary">
-            先选择任务，再进入 Designer 搭建标注页面；模板草稿、预览与版本发布都绑定到具体任务。
+            集中查看各任务的模板准备状态；选择任务后进入唯一的 Designer 搭建器。
           </Typography.Text>
         </div>
         <Space wrap>
@@ -197,7 +198,7 @@ export function OwnerTemplateHubPage() {
           <Typography.Title level={3}>{draftCount}</Typography.Title>
         </Card>
         <Card>
-          <Typography.Text type="secondary">可编辑模板</Typography.Text>
+          <Typography.Text type="secondary">可搭建模板</Typography.Text>
           <Typography.Title level={3}>{editableCount}</Typography.Title>
         </Card>
       </div>
@@ -206,8 +207,8 @@ export function OwnerTemplateHubPage() {
         type="info"
         showIcon
         icon={<AuditOutlined />}
-        message="为什么模板搭建仍然绑定任务？"
-        description="官方链路要求任务发布前必须绑定可运行模板版本；模板 schema 还会影响数据集预览、Labeler 作答、AI 辅助和导出字段。因此左侧入口负责集中发现，具体搭建仍在任务上下文中完成。"
+        message="为什么模板工作台仍然先选择任务？"
+        description="当前不是全局模板库模型。官方链路要求任务发布前绑定可运行模板版本；模板 schema 还会影响数据集预览、Labeler 作答、AI 辅助和导出字段。因此这里负责集中发现和筛选，真正搭建仍在具体任务上下文中完成。"
       />
 
       <Card>

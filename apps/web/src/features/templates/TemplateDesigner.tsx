@@ -4,12 +4,17 @@ import {
   ArrowDownOutlined,
   ArrowUpOutlined,
   CheckCircleOutlined,
+  CodeOutlined,
   DeleteOutlined,
   EyeOutlined,
+  FileImageOutlined,
+  FileTextOutlined,
   FontSizeOutlined,
   HolderOutlined,
   PlusOutlined,
   TagsOutlined,
+  ThunderboltOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -44,6 +49,7 @@ import {
   createDesignerComponent,
   createDesignerComponentId,
   designerMaterialDescriptions,
+  designerMaterialGroups,
   designerMaterialTypes,
   getComponentById,
   getOrderedDesignerComponents,
@@ -54,7 +60,7 @@ import {
   removeComponentFromSchema,
   updateTemplateComponent,
 } from "./designer";
-import { templateComponentTypeLabels } from "./view";
+import { collectTemplateFieldKeys, collectableTemplateComponentTypes, templateComponentTypeLabels } from "./view";
 
 interface TemplateDesignerProps {
   schema: TemplateSchemaVO;
@@ -74,6 +80,11 @@ const materialIcons = {
   RADIO: <CheckCircleOutlined />,
   CHECKBOX: <AppstoreAddOutlined />,
   TAG_SELECT: <TagsOutlined />,
+  RICH_TEXT: <FileTextOutlined />,
+  FILE_UPLOAD: <UploadOutlined />,
+  IMAGE_UPLOAD: <FileImageOutlined />,
+  JSON_EDITOR: <CodeOutlined />,
+  LLM_ACTION: <ThunderboltOutlined />,
 };
 
 export function TemplateDesigner({
@@ -181,13 +192,23 @@ function DesignerPalette({
     <aside className="labelhub-designer-panel labelhub-designer-palette">
       <div className="labelhub-panel-heading">
         <Typography.Text strong>物料</Typography.Text>
-        <Typography.Text type="secondary">基础搭建</Typography.Text>
+        <Typography.Text type="secondary">基础与高级搭建</Typography.Text>
       </div>
-      <Space direction="vertical" size={8} style={{ width: "100%" }}>
-        {designerMaterialTypes.map((type) => (
-          <PaletteItem key={type} type={type} readOnly={readOnly} onAdd={() => onAddMaterial(type)} />
+      <div className="labelhub-palette-groups">
+        {designerMaterialGroups.map((group) => (
+          <section key={group.title} className="labelhub-palette-group">
+            <div className="labelhub-palette-group-head">
+              <Typography.Text strong>{group.title}</Typography.Text>
+              <Typography.Text type="secondary">{group.description}</Typography.Text>
+            </div>
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              {group.types.map((type) => (
+                <PaletteItem key={type} type={type} readOnly={readOnly} onAdd={() => onAddMaterial(type)} />
+              ))}
+            </Space>
+          </section>
         ))}
-      </Space>
+      </div>
     </aside>
   );
 }
@@ -402,6 +423,9 @@ function CanvasItem({
 
 function CanvasItemPreview({ component }: { component: TemplateComponentDTO }) {
   const options = normalizeDesignerOptions(component);
+  const accept = getStringArrayProp(component.props.accept);
+  const maxFiles = getNumberProp(component.props.maxFiles, component.type === "IMAGE_UPLOAD" ? 6 : 3);
+  const maxSizeMb = getNumberProp(component.props.maxSizeMb, component.type === "IMAGE_UPLOAD" ? 10 : 20);
   if (component.type === "SHOW_ITEM") {
     return (
       <div className="labelhub-canvas-preview labelhub-canvas-show-preview">
@@ -416,6 +440,54 @@ function CanvasItemPreview({ component }: { component: TemplateComponentDTO }) {
   if (component.type === "TEXT_INPUT") {
     return <div className="labelhub-canvas-preview">单行输入：{String(component.props.placeholder ?? "请输入")}</div>;
   }
+  if (component.type === "RICH_TEXT") {
+    return (
+      <div className="labelhub-canvas-preview labelhub-rich-preview">
+        <div className="labelhub-rich-toolbar">
+          <Tag>B</Tag>
+          <Tag>I</Tag>
+          <Tag>列表</Tag>
+          <Tag>链接</Tag>
+        </div>
+        <Typography.Text type="secondary">{String(component.props.placeholder ?? "请输入富文本内容")}</Typography.Text>
+      </div>
+    );
+  }
+  if (component.type === "FILE_UPLOAD" || component.type === "IMAGE_UPLOAD") {
+    return (
+      <div className="labelhub-canvas-preview labelhub-upload-preview">
+        <span className="labelhub-upload-preview-icon">
+          {component.type === "IMAGE_UPLOAD" ? <FileImageOutlined /> : <UploadOutlined />}
+        </span>
+        <div>
+          <Typography.Text strong>{component.type === "IMAGE_UPLOAD" ? "图片上传区域" : "文件上传区域"}</Typography.Text>
+          <Typography.Text type="secondary">
+            {maxFiles} 个以内 · 单个 {maxSizeMb} MB · {accept.join(", ") || "不限类型"}
+          </Typography.Text>
+        </div>
+      </div>
+    );
+  }
+  if (component.type === "JSON_EDITOR") {
+    return (
+      <pre className="labelhub-canvas-preview labelhub-json-mini-preview">
+        {formatDesignerJson(component.props.defaultValue ?? { key: "value" })}
+      </pre>
+    );
+  }
+  if (component.type === "LLM_ACTION") {
+    const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
+    return (
+      <div className="labelhub-canvas-preview labelhub-llm-preview">
+        <Tag color="purple">LLM</Tag>
+        <Typography.Text strong>{String(component.props.actionLabel ?? "生成参考建议")}</Typography.Text>
+        <Typography.Text type="secondary">
+          输入 {inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"} · 输出{" "}
+          {String(component.props.outputFieldKey ?? "") || "未配置"}
+        </Typography.Text>
+      </div>
+    );
+  }
   return (
     <div className="labelhub-canvas-preview labelhub-option-preview">
       {options.map((option) => (
@@ -424,6 +496,22 @@ function CanvasItemPreview({ component }: { component: TemplateComponentDTO }) {
       {options.length === 0 && <Typography.Text type="secondary">暂无选项</Typography.Text>}
     </div>
   );
+}
+
+function getStringArrayProp(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function getNumberProp(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function formatDesignerJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return "{}";
+  }
 }
 
 function PropertyPanel({
@@ -449,6 +537,12 @@ function PropertyPanel({
 
   const errors = validation?.errors.filter((error) => error.field.includes(component.id) || error.field.startsWith("components")) ?? [];
   const controlId = (name: string) => `template-designer-${component.id}-${name}`;
+  const isCollectable = collectableTemplateComponentTypes.has(component.type);
+  const acceptsPlaceholder = new Set(["TEXT_INPUT", "TEXTAREA", "RICH_TEXT", "TAG_SELECT", "JSON_EDITOR"]).has(
+    component.type,
+  );
+  const acceptsDefaultText = component.type === "TEXT_INPUT" || component.type === "TEXTAREA" || component.type === "RICH_TEXT";
+  const acceptsMaxLength = component.type === "TEXT_INPUT" || component.type === "TEXTAREA" || component.type === "RICH_TEXT";
   const patchComponent = (updater: (component: TemplateComponentDTO) => TemplateComponentDTO) =>
     onSchemaChange(updateTemplateComponent(schema, component.id, updater));
   const patchProps = (nextProps: Record<string, unknown>) =>
@@ -484,7 +578,7 @@ function PropertyPanel({
             onChange={(event) => patchComponent((current) => ({ ...current, label: event.target.value }))}
           />
         </Form.Item>
-        {component.type !== "SHOW_ITEM" && (
+        {isCollectable && (
           <Form.Item label="字段名 fieldKey" htmlFor={controlId("field-key")}>
             <Input
               id={controlId("field-key")}
@@ -495,7 +589,7 @@ function PropertyPanel({
             />
           </Form.Item>
         )}
-        {component.type === "SHOW_ITEM" ? (
+        {component.type === "SHOW_ITEM" && (
           <Form.Item label="展示路径" htmlFor={controlId("path")}>
             <Input
               id={controlId("path")}
@@ -505,26 +599,27 @@ function PropertyPanel({
               onChange={(event) => patchProps({ path: event.target.value })}
             />
           </Form.Item>
-        ) : (
-          <>
-            <Form.Item label="占位符" htmlFor={controlId("placeholder")}>
-              <Input
-                id={controlId("placeholder")}
-                name={controlId("placeholder")}
-                value={typeof component.props.placeholder === "string" ? component.props.placeholder : ""}
-                onChange={(event) => patchProps({ placeholder: event.target.value })}
-              />
-            </Form.Item>
-            <Form.Item label="必填" htmlFor={controlId("required")}>
-              <Switch
-                id={controlId("required")}
-                checked={component.validation.required === true}
-                onChange={(checked) => patchValidation({ required: checked })}
-              />
-            </Form.Item>
-          </>
         )}
-        {(component.type === "TEXT_INPUT" || component.type === "TEXTAREA") && (
+        {acceptsPlaceholder && (
+          <Form.Item label="占位符" htmlFor={controlId("placeholder")}>
+            <Input
+              id={controlId("placeholder")}
+              name={controlId("placeholder")}
+              value={typeof component.props.placeholder === "string" ? component.props.placeholder : ""}
+              onChange={(event) => patchProps({ placeholder: event.target.value })}
+            />
+          </Form.Item>
+        )}
+        {isCollectable && (
+          <Form.Item label="必填" htmlFor={controlId("required")}>
+            <Switch
+              id={controlId("required")}
+              checked={component.validation.required === true}
+              onChange={(checked) => patchValidation({ required: checked })}
+            />
+          </Form.Item>
+        )}
+        {acceptsDefaultText && (
           <>
             <Form.Item label="默认值" htmlFor={controlId("default-value")}>
               <Input.TextArea
@@ -535,21 +630,30 @@ function PropertyPanel({
                 onChange={(event) => patchProps({ defaultValue: event.target.value })}
               />
             </Form.Item>
-            <Form.Item label="最大长度" htmlFor={controlId("max-length")}>
-              <InputNumber
-                id={controlId("max-length")}
-                name={controlId("max-length")}
-                min={1}
-                max={component.type === "TEXTAREA" ? 5000 : 500}
-                value={typeof component.validation.maxLength === "number" ? component.validation.maxLength : undefined}
-                style={{ width: "100%" }}
-                onChange={(value) => patchValidation({ maxLength: value ?? undefined })}
-              />
-            </Form.Item>
           </>
+        )}
+        {acceptsMaxLength && (
+          <Form.Item label="最大长度" htmlFor={controlId("max-length")}>
+            <InputNumber
+              id={controlId("max-length")}
+              name={controlId("max-length")}
+              min={1}
+              max={component.type === "RICH_TEXT" ? 10000 : component.type === "TEXTAREA" ? 5000 : 500}
+              value={typeof component.validation.maxLength === "number" ? component.validation.maxLength : undefined}
+              style={{ width: "100%" }}
+              onChange={(value) => patchValidation({ maxLength: value ?? undefined })}
+            />
+          </Form.Item>
         )}
         {optionMaterialTypes.has(component.type) && (
           <OptionPropertyEditor component={component} patchProps={patchProps} />
+        )}
+        {(component.type === "FILE_UPLOAD" || component.type === "IMAGE_UPLOAD") && (
+          <UploadPropertyEditor component={component} patchProps={patchProps} />
+        )}
+        {component.type === "JSON_EDITOR" && <JsonDefaultValueEditor component={component} patchProps={patchProps} />}
+        {component.type === "LLM_ACTION" && (
+          <LlmActionPropertyEditor component={component} schema={schema} patchProps={patchProps} />
         )}
       </Form>
     </aside>
@@ -648,4 +752,158 @@ function OptionPropertyEditor({
       </Form.Item>
     </>
   );
+}
+
+function UploadPropertyEditor({
+  component,
+  patchProps,
+}: {
+  component: TemplateComponentDTO;
+  patchProps: (nextProps: Record<string, unknown>) => void;
+}) {
+  const accept = getStringArrayProp(component.props.accept);
+  const maxFiles = getNumberProp(component.props.maxFiles, component.type === "IMAGE_UPLOAD" ? 6 : 3);
+  const maxSizeMb = getNumberProp(component.props.maxSizeMb, component.type === "IMAGE_UPLOAD" ? 10 : 20);
+
+  return (
+    <>
+      <Form.Item label="允许类型" htmlFor={`template-upload-${component.id}-accept`}>
+        <Input.TextArea
+          id={`template-upload-${component.id}-accept`}
+          name={`template-upload-${component.id}-accept`}
+          rows={3}
+          value={accept.join(", ")}
+          placeholder={component.type === "IMAGE_UPLOAD" ? "image/png, image/jpeg" : ".pdf, .docx, .xlsx"}
+          onChange={(event) => patchProps({ accept: splitStringList(event.target.value) })}
+        />
+      </Form.Item>
+      <Form.Item label="最多文件数" htmlFor={`template-upload-${component.id}-max-files`}>
+        <InputNumber
+          id={`template-upload-${component.id}-max-files`}
+          name={`template-upload-${component.id}-max-files`}
+          min={1}
+          max={20}
+          value={maxFiles}
+          style={{ width: "100%" }}
+          onChange={(value) => patchProps({ maxFiles: value ?? 1 })}
+        />
+      </Form.Item>
+      <Form.Item label="单个文件大小上限（MB）" htmlFor={`template-upload-${component.id}-max-size`}>
+        <InputNumber
+          id={`template-upload-${component.id}-max-size`}
+          name={`template-upload-${component.id}-max-size`}
+          min={1}
+          max={100}
+          value={maxSizeMb}
+          style={{ width: "100%" }}
+          onChange={(value) => patchProps({ maxSizeMb: value ?? 1 })}
+        />
+      </Form.Item>
+    </>
+  );
+}
+
+function JsonDefaultValueEditor({
+  component,
+  patchProps,
+}: {
+  component: TemplateComponentDTO;
+  patchProps: (nextProps: Record<string, unknown>) => void;
+}) {
+  const defaultValue = component.props.defaultValue;
+  const defaultValueText = typeof defaultValue === "string" ? defaultValue : formatDesignerJson(defaultValue ?? {});
+  return (
+    <Form.Item label="JSON 默认值" htmlFor={`template-json-${component.id}-default`}>
+      <Input.TextArea
+        id={`template-json-${component.id}-default`}
+        name={`template-json-${component.id}-default`}
+        className="labelhub-schema-editor"
+        rows={6}
+        value={defaultValueText}
+        onChange={(event) => patchProps({ defaultValue: parseJsonObjectOrDraft(event.target.value) })}
+      />
+      <Typography.Text type="secondary">默认值需为 JSON Object 或 Array；保存时后端会做最终校验。</Typography.Text>
+    </Form.Item>
+  );
+}
+
+function LlmActionPropertyEditor({
+  component,
+  schema,
+  patchProps,
+}: {
+  component: TemplateComponentDTO;
+  schema: TemplateSchemaVO;
+  patchProps: (nextProps: Record<string, unknown>) => void;
+}) {
+  const fieldOptions = collectTemplateFieldKeys(schema).map((fieldKey) => ({ label: fieldKey, value: fieldKey }));
+  const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
+  const outputFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : "";
+
+  return (
+    <>
+      <Form.Item label="按钮文案" htmlFor={`template-llm-${component.id}-action-label`}>
+        <Input
+          id={`template-llm-${component.id}-action-label`}
+          name={`template-llm-${component.id}-action-label`}
+          value={typeof component.props.actionLabel === "string" ? component.props.actionLabel : ""}
+          onChange={(event) => patchProps({ actionLabel: event.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="Prompt 模板" htmlFor={`template-llm-${component.id}-prompt`}>
+        <Input.TextArea
+          id={`template-llm-${component.id}-prompt`}
+          name={`template-llm-${component.id}-prompt`}
+          rows={5}
+          value={typeof component.props.promptTemplate === "string" ? component.props.promptTemplate : ""}
+          onChange={(event) => patchProps({ promptTemplate: event.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="输入字段" htmlFor={`template-llm-${component.id}-inputs`}>
+        <Select
+          id={`template-llm-${component.id}-inputs`}
+          mode="multiple"
+          options={fieldOptions}
+          value={inputFieldKeys}
+          placeholder="选择提交字段作为模型输入"
+          onChange={(nextValue) => patchProps({ inputFieldKeys: nextValue })}
+        />
+      </Form.Item>
+      <Form.Item label="输出写入字段" htmlFor={`template-llm-${component.id}-output`}>
+        <Select
+          id={`template-llm-${component.id}-output`}
+          allowClear
+          options={fieldOptions}
+          value={outputFieldKey || undefined}
+          placeholder="可选：用于预填的字段"
+          onChange={(nextValue) => patchProps({ outputFieldKey: nextValue ?? "" })}
+        />
+      </Form.Item>
+      <Form.Item label="说明文案" htmlFor={`template-llm-${component.id}-helper`}>
+        <Input.TextArea
+          id={`template-llm-${component.id}-helper`}
+          name={`template-llm-${component.id}-helper`}
+          rows={3}
+          value={typeof component.props.helperText === "string" ? component.props.helperText : ""}
+          onChange={(event) => patchProps({ helperText: event.target.value })}
+        />
+      </Form.Item>
+    </>
+  );
+}
+
+function splitStringList(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseJsonObjectOrDraft(value: string): unknown {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : value;
+  } catch {
+    return value;
+  }
 }

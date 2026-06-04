@@ -4,6 +4,7 @@ import {
   appendComponentToSchema,
   createDesignerComponent,
   createDesignerComponentId,
+  designerMaterialGroups,
   getOrderedDesignerComponents,
   moveComponentByOffset,
   moveComponentInSchema,
@@ -25,6 +26,33 @@ describe("template designer helpers", () => {
       validation: { required: true, maxLength: 120 },
     });
     expect(createDesignerComponent({ type: "TAG_SELECT", id: "tags" }).props.defaultValue).toEqual([]);
+  });
+
+  it("creates stage 2.5 advanced materials with serializable defaults", () => {
+    expect(designerMaterialGroups.map((group) => group.title)).toEqual(["基础物料", "高级物料"]);
+    expect(createDesignerComponent({ type: "RICH_TEXT", id: "rich", index: 4 })).toMatchObject({
+      fieldKey: "rich_text_4",
+      props: { placeholder: "请输入富文本内容", defaultValue: "", toolbarPreset: "basic" },
+      validation: { required: false, maxLength: 5000 },
+    });
+    expect(createDesignerComponent({ type: "FILE_UPLOAD", id: "file" })).toMatchObject({
+      props: { accept: [".pdf", ".docx", ".xlsx", ".json"], maxFiles: 3, maxSizeMb: 20 },
+      validation: { required: false },
+    });
+    expect(createDesignerComponent({ type: "IMAGE_UPLOAD", id: "image" }).props.accept).toEqual([
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ]);
+    expect(createDesignerComponent({ type: "JSON_EDITOR", id: "json" }).props.defaultValue).toEqual({});
+    expect(createDesignerComponent({ type: "LLM_ACTION", id: "llm" })).toMatchObject({
+      fieldKey: null,
+      props: {
+        actionLabel: "生成参考建议",
+        inputFieldKeys: [],
+        outputFieldKey: "",
+      },
+    });
   });
 
   it("appends and orders components through layout.root", () => {
@@ -80,6 +108,7 @@ describe("template designer helpers", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.12345);
 
     expect(createDesignerComponentId("TEXTAREA", 3)).toContain("textarea_");
+    expect(createDesignerComponentId("JSON_EDITOR", 4)).toContain("json_editor_");
 
     vi.restoreAllMocks();
   });

@@ -72,6 +72,18 @@ export function getTemplateInitialValue(schema: TemplateSchemaVO): TemplateSubmi
         : [];
       continue;
     }
+    if (component.type === "FILE_UPLOAD" || component.type === "IMAGE_UPLOAD") {
+      initialValue[component.fieldKey] = Array.isArray(component.props.defaultValue)
+        ? component.props.defaultValue.map(String)
+        : [];
+      continue;
+    }
+    if (component.type === "JSON_EDITOR") {
+      const defaultValue = component.props.defaultValue;
+      initialValue[component.fieldKey] =
+        defaultValue && typeof defaultValue === "object" ? (defaultValue as TemplateFieldValue) : {};
+      continue;
+    }
     const defaultValue = component.props.defaultValue;
     initialValue[component.fieldKey] = typeof defaultValue === "string" ? defaultValue : "";
   }

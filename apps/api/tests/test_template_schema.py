@@ -249,6 +249,76 @@ def test_validate_template_schema_accepts_minimal_renderer_materials(
     assert response.json() == {"valid": True, "errors": []}
 
 
+def test_validate_template_schema_accepts_stage25_advanced_materials(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    schema = {
+        "schemaVersion": "labelhub-template/v1",
+        "components": [
+            {
+                "id": "rich",
+                "type": "RICH_TEXT",
+                "fieldKey": "richText",
+                "label": "Rich answer",
+                "props": {"placeholder": "Write rich text", "defaultValue": "", "toolbarPreset": "basic"},
+                "validation": {"required": False, "maxLength": 5000},
+                "visibility": {},
+            },
+            {
+                "id": "file",
+                "type": "FILE_UPLOAD",
+                "fieldKey": "attachments",
+                "label": "Attachments",
+                "props": {"accept": [".pdf", ".docx"], "maxFiles": 3, "maxSizeMb": 20},
+                "validation": {"required": False},
+                "visibility": {},
+            },
+            {
+                "id": "image",
+                "type": "IMAGE_UPLOAD",
+                "fieldKey": "screenshots",
+                "label": "Screenshots",
+                "props": {"accept": ["image/png", "image/jpeg"], "maxFiles": 6, "maxSizeMb": 10},
+                "validation": {"required": False},
+                "visibility": {},
+            },
+            {
+                "id": "json",
+                "type": "JSON_EDITOR",
+                "fieldKey": "metadata",
+                "label": "Metadata",
+                "props": {"placeholder": "{\"quality\":\"good\"}", "defaultValue": {"source": "demo"}},
+                "validation": {"required": False},
+                "visibility": {},
+            },
+            {
+                "id": "llm",
+                "type": "LLM_ACTION",
+                "label": "LLM suggestion",
+                "props": {
+                    "actionLabel": "Generate suggestion",
+                    "promptTemplate": "Use the item and fields to produce a suggestion.",
+                    "inputFieldKeys": ["richText", "metadata"],
+                    "outputFieldKey": "richText",
+                    "helperText": "Reference only.",
+                },
+                "validation": {},
+                "visibility": {},
+            },
+        ],
+        "layout": {"root": ["rich", "file", "image", "json", "llm"]},
+        "llmActions": [],
+        "showItems": [],
+    }
+
+    response = client.post("/api/template-schemas:validate", json={"schema": schema})
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": []}
+
+
 def test_validate_template_schema_rejects_invalid_basic_material_props(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
@@ -287,6 +357,70 @@ def test_validate_template_schema_rejects_invalid_basic_material_props(
     assert "components.1.validation.maxLength" in fields
     assert "components.2.props.defaultValue" in fields
     assert "components.3.props.defaultValue.0" in fields
+
+
+def test_validate_template_schema_rejects_invalid_stage25_advanced_material_props(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    schema = {
+        "schemaVersion": "labelhub-template/v1",
+        "components": [
+            {
+                "id": "file",
+                "type": "FILE_UPLOAD",
+                "fieldKey": "attachments",
+                "label": "Attachments",
+                "props": {"accept": [".pdf"], "maxFiles": 0, "maxSizeMb": 20},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "image",
+                "type": "IMAGE_UPLOAD",
+                "fieldKey": "screenshots",
+                "label": "Screenshots",
+                "props": {"accept": [".pdf"], "maxFiles": 2, "maxSizeMb": 10},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "json",
+                "type": "JSON_EDITOR",
+                "fieldKey": "metadata",
+                "label": "Metadata",
+                "props": {"defaultValue": "not-object"},
+                "validation": {"required": "yes"},
+                "visibility": {},
+            },
+            {
+                "id": "llm",
+                "type": "LLM_ACTION",
+                "label": "LLM suggestion",
+                "props": {"promptTemplate": " ", "inputFieldKeys": ["missing"], "outputFieldKey": "missing"},
+                "validation": {},
+                "visibility": {},
+            },
+        ],
+        "layout": {"root": ["file", "image", "json", "llm"]},
+        "llmActions": [],
+        "showItems": [],
+    }
+
+    response = client.post("/api/template-schemas:validate", json={"schema": schema})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["valid"] is False
+    fields = {error["field"] for error in payload["errors"]}
+    assert "components.0.props.maxFiles" in fields
+    assert "components.1.props.accept.0" in fields
+    assert "components.2.props.defaultValue" in fields
+    assert "components.2.validation.required" in fields
+    assert "components.3.props.promptTemplate" in fields
+    assert "components.3.props.inputFieldKeys.0" in fields
+    assert "components.3.props.outputFieldKey" in fields
 
 
 def test_save_template_schema_rejects_invalid_schema(

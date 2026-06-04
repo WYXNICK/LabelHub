@@ -171,6 +171,7 @@ class TemplateService:
         for field_key in sorted(duplicate_field_keys):
             errors.append(self._error("components", f"fieldKey 重复：{field_key}。"))
 
+        errors.extend(self._validate_llm_field_references(schema.components, field_keys))
         errors.extend(self._validate_layout(schema.layout, component_ids, {c.id: c.type for c in schema.components}))
         return errors
 
@@ -192,6 +193,25 @@ class TemplateService:
 
         if component_type in {TemplateComponentType.TEXT_INPUT.value, TemplateComponentType.TEXTAREA.value}:
             errors.extend(self._validate_text_component(field_prefix, component_type, props, validation))
+            return errors
+
+        if component_type == TemplateComponentType.RICH_TEXT.value:
+            errors.extend(self._validate_text_component(field_prefix, component_type, props, validation))
+            toolbar_preset = props.get("toolbarPreset")
+            if toolbar_preset is not None and not isinstance(toolbar_preset, str):
+                errors.append(self._error(f"{field_prefix}.props.toolbarPreset", "toolbarPreset 必须是字符串。"))
+            return errors
+
+        if component_type in {TemplateComponentType.FILE_UPLOAD.value, TemplateComponentType.IMAGE_UPLOAD.value}:
+            errors.extend(self._validate_upload_component(field_prefix, component_type, props, validation))
+            return errors
+
+        if component_type == TemplateComponentType.JSON_EDITOR.value:
+            errors.extend(self._validate_json_editor_component(field_prefix, props, validation))
+            return errors
+
+        if component_type == TemplateComponentType.LLM_ACTION.value:
+            errors.extend(self._validate_llm_action_component(field_prefix, props))
             return errors
 
         if component_type in {
@@ -263,12 +283,173 @@ class TemplateService:
         max_length = validation.get("maxLength")
         if max_length is None:
             return errors
-        max_allowed = 5000 if component_type == TemplateComponentType.TEXTAREA.value else 500
+        if component_type == TemplateComponentType.RICH_TEXT.value:
+            max_allowed = 10000
+        elif component_type == TemplateComponentType.TEXTAREA.value:
+            max_allowed = 5000
+        else:
+            max_allowed = 500
         if not isinstance(max_length, int) or isinstance(max_length, bool):
             errors.append(self._error(f"{field_prefix}.validation.maxLength", "maxLength 必须是整数。"))
         elif max_length < 1 or max_length > max_allowed:
             errors.append(self._error(f"{field_prefix}.validation.maxLength", f"maxLength 必须在 1-{max_allowed} 之间。"))
         return errors
+
+    def _validate_required_only(
+        self,
+        field_prefix: str,
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        required = validation.get("required")
+        if required is not None and not isinstance(required, bool):
+            return [self._error(f"{field_prefix}.validation.required", "required 必须是布尔值。")]
+        return []
+
+    def _validate_upload_component(
+        self,
+        field_prefix: str,
+        component_type: str,
+        props: dict[str, Any],
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors = self._validate_required_only(field_prefix, validation)
+        errors.extend(self._validate_upload_accept(field_prefix, component_type, props))
+        errors.extend(self._validate_bounded_int_prop(field_prefix, props, "maxFiles", 1, 20))
+        errors.extend(self._validate_bounded_int_prop(field_prefix, props, "maxSizeMb", 1, 100))
+
+        default_value = props.get("defaultValue")
+        if default_value is not None and default_value != "":
+            if not isinstance(default_value, list):
+                errors.append(self._error(f"{field_prefix}.props.defaultValue", "上传默认值必须是字符串数组。"))
+            else:
+                for index, item in enumerate(default_value):
+                    if not isinstance(item, str):
+                        errors.append(self._error(f"{field_prefix}.props.defaultValue.{index}", "上传默认值必须是字符串数组。"))
+        return errors
+
+    def _validate_upload_accept(
+        self,
+        field_prefix: str,
+        component_type: str,
+        props: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        raw_accept = props.get("accept")
+        if raw_accept in (None, ""):
+            return []
+        if not isinstance(raw_accept, list) or len(raw_accept) == 0:
+            return [self._error(f"{field_prefix}.props.accept", "accept 必须是非空字符串数组。")]
+
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        for index, item in enumerate(raw_accept):
+            if not isinstance(item, str) or not item.strip():
+                errors.append(self._error(f"{field_prefix}.props.accept.{index}", "accept 项必须是非空字符串。"))
+                continue
+            if component_type == TemplateComponentType.IMAGE_UPLOAD.value and not self._is_image_accept_value(item.strip()):
+                errors.append(self._error(f"{field_prefix}.props.accept.{index}", "图片上传只允许图片 MIME 或图片扩展名。"))
+        return errors
+
+    def _validate_bounded_int_prop(
+        self,
+        field_prefix: str,
+        props: dict[str, Any],
+        prop_key: str,
+        minimum: int,
+        maximum: int,
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        value = props.get(prop_key)
+        if value is None:
+            return []
+        if not isinstance(value, int) or isinstance(value, bool):
+            return [self._error(f"{field_prefix}.props.{prop_key}", f"{prop_key} 必须是整数。")]
+        if value < minimum or value > maximum:
+            return [self._error(f"{field_prefix}.props.{prop_key}", f"{prop_key} 必须在 {minimum}-{maximum} 之间。")]
+        return []
+
+    def _validate_json_editor_component(
+        self,
+        field_prefix: str,
+        props: dict[str, Any],
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors = self._validate_required_only(field_prefix, validation)
+        placeholder = props.get("placeholder")
+        if placeholder is not None and not isinstance(placeholder, str):
+            errors.append(self._error(f"{field_prefix}.props.placeholder", "placeholder 必须是字符串。"))
+
+        default_value = props.get("defaultValue")
+        if default_value is not None and not isinstance(default_value, (dict, list)):
+            errors.append(self._error(f"{field_prefix}.props.defaultValue", "JSON 默认值必须是 Object 或 Array。"))
+        return errors
+
+    def _validate_llm_action_component(
+        self,
+        field_prefix: str,
+        props: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        prompt_template = props.get("promptTemplate")
+        if not isinstance(prompt_template, str) or not prompt_template.strip():
+            errors.append(self._error(f"{field_prefix}.props.promptTemplate", "LLM promptTemplate 不能为空。"))
+        elif len(prompt_template) > 8000:
+            errors.append(self._error(f"{field_prefix}.props.promptTemplate", "LLM promptTemplate 不能超过 8000 字符。"))
+
+        for prop_key, max_length in (("actionLabel", 80), ("helperText", 500), ("outputFieldKey", 128)):
+            value = props.get(prop_key)
+            if value is not None and not isinstance(value, str):
+                errors.append(self._error(f"{field_prefix}.props.{prop_key}", f"{prop_key} 必须是字符串。"))
+            elif isinstance(value, str) and len(value) > max_length:
+                errors.append(self._error(f"{field_prefix}.props.{prop_key}", f"{prop_key} 不能超过 {max_length} 字符。"))
+
+        input_field_keys = props.get("inputFieldKeys")
+        if input_field_keys is not None:
+            if not isinstance(input_field_keys, list):
+                errors.append(self._error(f"{field_prefix}.props.inputFieldKeys", "inputFieldKeys 必须是字符串数组。"))
+            else:
+                for index, item in enumerate(input_field_keys):
+                    if not isinstance(item, str) or not item.strip():
+                        errors.append(self._error(f"{field_prefix}.props.inputFieldKeys.{index}", "inputFieldKeys 项不能为空。"))
+        return errors
+
+    def _validate_llm_field_references(
+        self,
+        components: list[Any],
+        field_keys: set[str],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        for index, component in enumerate(components):
+            if component.type != TemplateComponentType.LLM_ACTION.value:
+                continue
+            input_field_keys = component.props.get("inputFieldKeys")
+            if isinstance(input_field_keys, list):
+                for item_index, item in enumerate(input_field_keys):
+                    if isinstance(item, str) and item.strip() and item not in field_keys:
+                        errors.append(
+                            self._error(
+                                f"components.{index}.props.inputFieldKeys.{item_index}",
+                                f"LLM 输入字段不存在：{item}。",
+                            )
+                        )
+            output_field_key = component.props.get("outputFieldKey")
+            if isinstance(output_field_key, str) and output_field_key.strip() and output_field_key not in field_keys:
+                errors.append(
+                    self._error(
+                        f"components.{index}.props.outputFieldKey",
+                        f"LLM 输出字段不存在：{output_field_key}。",
+                    )
+                )
+        return errors
+
+    def _is_image_accept_value(self, value: str) -> bool:
+        normalized = value.lower()
+        return normalized == "image/*" or normalized.startswith("image/") or normalized in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".gif",
+            ".bmp",
+            ".svg",
+        }
 
     def _validate_options(
         self,

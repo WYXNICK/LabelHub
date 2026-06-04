@@ -636,6 +636,46 @@ interface TemplateRendererProps {
 | `src/pages/OwnerTemplateDesignerPage.tsx` | `/owner/tasks/:taskId/designer` 三栏搭建器 |
 | `src/features/templates/TemplateRenderer.tsx` | 继续作为预览抽屉与后续 Labeler 运行时复用 |
 
+### 9.11 阶段 2.5 高级物料
+
+阶段 2.5 不新增后端接口，继续复用 `GET/PUT /api/tasks/{taskId}/template-draft` 与 `POST /api/template-schemas:validate`。本阶段目标是把官方要求中的高级物料纳入同一份 `TemplateSchemaVO`，并让 Designer 与 Renderer 同时识别这些物料。
+
+Designer 物料分组：
+
+| 分组 | 物料 |
+| --- | --- |
+| 基础物料 | `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` |
+| 高级物料 | `RICH_TEXT`、`FILE_UPLOAD`、`IMAGE_UPLOAD`、`JSON_EDITOR`、`LLM_ACTION` |
+
+高级物料属性：
+
+| 物料 | fieldKey | props | validation |
+| --- | --- | --- | --- |
+| `RICH_TEXT` | 必填且唯一 | `placeholder`、`defaultValue`、`toolbarPreset` | `required`、`maxLength` |
+| `FILE_UPLOAD` | 必填且唯一 | `accept` 字符串数组、`maxFiles`、`maxSizeMb` | `required` |
+| `IMAGE_UPLOAD` | 必填且唯一 | `accept` 图片 MIME/扩展名数组、`maxFiles`、`maxSizeMb` | `required` |
+| `JSON_EDITOR` | 必填且唯一 | `placeholder`、`defaultValue` JSON Object/Array | `required` |
+| `LLM_ACTION` | 不配置 | `actionLabel`、`promptTemplate`、`inputFieldKeys`、`outputFieldKey`、`helperText` | 不参与提交 |
+
+Renderer 行为：
+
+- `RICH_TEXT` 渲染轻量富文本编辑区，提交值为字符串；本阶段不引入额外富文本依赖。
+- `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域，阶段 2.5 只在预览中记录本地文件名，真实证据文件上传在阶段 3 作答链路接入。
+- `JSON_EDITOR` 渲染等宽 JSON 编辑区，默认值可以是 JSON Object/Array；输入过程允许暂存字符串，最终提交校验放在阶段 3。
+- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；真实调用由阶段 3.6 `POST /api/llm-actions/{actionId}/runs` 接入。
+
+交互规则：
+
+- 高级物料同样支持点击/拖拽添加、排序、删除、右侧属性编辑、预览和保存草稿。
+- Designer 生成的 schema 必须可被后端校验接口直接验证，不出现前端私有字段。
+- `LLM_ACTION.props.inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段；后端负责最终校验。
+- 预览抽屉必须用当前未保存 schema 渲染高级物料，验证 Designer/Renderer 共用契约。
+
+验收标准：
+
+- 前端测试覆盖高级物料默认 schema、初始提交值和 Renderer 静态渲染。
+- 浏览器验收覆盖添加高级物料、编辑关键属性、预览抽屉渲染和布局在 `1280×800`、`1920×1080` 下无横向溢出。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：

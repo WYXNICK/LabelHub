@@ -765,6 +765,32 @@ Renderer 最小支持范围：
 - `TemplateSchemaValidationVO.errors` 仍保持 `field + message` 结构，前端可直接映射到右侧属性或顶部错误提示。
 - 2.7 前模板版本接口仍保持占位；Designer 保存草稿不等于发布模板版本，不解除任务发布前检查中的 `MISSING_TEMPLATE_VERSION`。
 
+### 9.11 阶段 2.5 高级物料校验契约
+
+阶段 2.5 不新增 API，也不新增数据库表。后端继续用 `TemplateSchemaVO` 作为唯一模板协议，在 `POST /api/template-schemas:validate` 与 `PUT /api/tasks/{taskId}/template-draft` 中补齐高级物料的语义校验。
+
+高级物料规则：
+
+| 物料 | fieldKey | props/validation 约束 |
+| --- | --- | --- |
+| `RICH_TEXT` | 唯一且非空 | `props.placeholder/defaultValue` 为字符串；`props.toolbarPreset` 为空或字符串；`validation.required` 为布尔值；`validation.maxLength` 为 1-10000 |
+| `FILE_UPLOAD` | 唯一且非空 | `props.accept` 为空或非空字符串数组；`props.maxFiles` 为 1-20 整数；`props.maxSizeMb` 为 1-100 整数；`props.defaultValue` 为空或字符串数组 |
+| `IMAGE_UPLOAD` | 唯一且非空 | 与 `FILE_UPLOAD` 相同，但 `accept` 只能使用 `image/*`、图片 MIME 或图片扩展名 |
+| `JSON_EDITOR` | 唯一且非空 | `props.placeholder` 为空或字符串；`props.defaultValue` 为空或 JSON Object/Array；`validation.required` 为布尔值 |
+| `LLM_ACTION` | 必须为空 | `props.promptTemplate` 必填且长度不超过 8000；`props.actionLabel/helperText` 为空或字符串；`props.inputFieldKeys` 为空或采集字段数组；`props.outputFieldKey` 为空或引用已存在采集字段 |
+
+LLM 边界：
+
+- 阶段 2.5 的 `LLM_ACTION` 只保存配置，不调用模型、不生成结果、不写预审记录。
+- `inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
+- 真实题目级调用接口仍在阶段 3.6 细化，必须继续使用 OpenAI API 格式和结构化输出模型。
+
+验收标准：
+
+- 合法高级物料 schema 可以通过校验并保存到 `template_drafts.schema`。
+- 非法上传限制、非法 JSON 默认值、缺失 LLM prompt、引用不存在字段的 LLM 映射都返回结构化 `TemplateSchemaValidationVO.errors`。
+- 保存草稿仍只允许草稿任务，且继续写入 `audit_logs.action=TEMPLATE_SAVE`。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

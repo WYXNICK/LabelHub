@@ -7,6 +7,8 @@ import {
   createTemplateComponent,
   getTemplateDesignerEntry,
   getTemplateDesignerReturnTarget,
+  getTemplatePublishState,
+  isTemplateEditableStatus,
   matchOwnerTaskDesignerPath,
   summarizeTemplateValidation,
 } from "./view";
@@ -70,5 +72,25 @@ describe("template view helpers", () => {
       label: "返回模板工作台",
       path: "/owner/templates",
     });
+  });
+
+  it("describes task-bound template publish state", () => {
+    expect(getTemplatePublishState({ status: "DRAFT", currentTemplateVersionId: "tv_1" })).toMatchObject({
+      label: "已发布",
+      color: "green",
+    });
+    expect(getTemplatePublishState({ status: "DRAFT", currentTemplateVersionId: null })).toMatchObject({
+      label: "草稿待发布",
+      color: "blue",
+    });
+    expect(getTemplatePublishState({ status: "ENDED", currentTemplateVersionId: null })).toMatchObject({
+      label: "未绑定版本",
+      color: "orange",
+    });
+  });
+
+  it("allows template edits only for draft tasks", () => {
+    expect(isTemplateEditableStatus("DRAFT")).toBe(true);
+    expect(isTemplateEditableStatus("PUBLISHED")).toBe(false);
   });
 });

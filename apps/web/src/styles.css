@@ -592,12 +592,17 @@ body {
 
 .labelhub-template-hub-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
 }
 
 .labelhub-template-hub-summary h3 {
   margin: 6px 0 0 !important;
+}
+
+.labelhub-mono-id {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
 }
 
 .labelhub-stage-note {
@@ -1043,6 +1048,21 @@ body {
   gap: 3px;
   justify-items: end;
   text-align: right;
+}
+
+.labelhub-template-version-publish {
+  padding: 14px;
+  background: #f7faff;
+  border: 1px solid #d8e7ff;
+  border-radius: 8px;
+}
+
+.labelhub-template-version-item {
+  padding: 14px !important;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  margin-bottom: 10px;
 }
 
 .labelhub-designer-grid {

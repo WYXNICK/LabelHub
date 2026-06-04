@@ -77,6 +77,7 @@ def test_owner_can_create_list_get_and_update_draft_task(
         "datasetCount": 0,
         "itemCount": 0,
         "enabledItemCount": 0,
+        "templateVersionCount": 0,
         "reviewConfigVersionCount": 0,
     }
 
@@ -126,7 +127,7 @@ def test_owner_task_summary_reports_full_scope_metrics(
     client, session_factory = client_with_db
     login(client)
     draft = create_task(client, "草稿任务")
-    published = create_task(client, "发布中任务")
+    published = create_task(client, "已发布任务")
 
     with session_factory() as session:
         draft_task = session.get(TaskEntity, draft["id"])

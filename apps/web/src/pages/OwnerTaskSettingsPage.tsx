@@ -235,7 +235,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
           type="info"
           showIcon
           message="当前任务不可编辑"
-          description="阶段 1.1 仅允许编辑草稿任务。发布中、暂停或已结束任务需要通过状态流转控制。"
+          description="阶段 1.1 仅允许编辑草稿任务。已发布、暂停或已结束任务需要通过状态流转控制。"
         />
       )}
 

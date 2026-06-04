@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from math import ceil
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from labelhub_api.core.enums import (
@@ -13,19 +14,23 @@ from labelhub_api.core.enums import (
     AuditEntityType,
     TaskStatus,
     TemplateComponentType,
+    TemplateVersionStatus,
     UserRole,
 )
 from labelhub_api.core.errors import ApiException
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.task import TaskEntity
-from labelhub_api.models.template import TemplateDraftEntity
+from labelhub_api.models.template import TemplateDraftEntity, TemplateVersionEntity
 from labelhub_api.schemas.auth import UserVO
+from labelhub_api.schemas.common import PageVO, PaginationVO
 from labelhub_api.schemas.templates import (
+    PublishTemplateVersionRequest,
     SaveTemplateDraftRequest,
     TemplateDraftVO,
     TemplateSchemaValidationErrorVO,
     TemplateSchemaValidationVO,
     TemplateSchemaVO,
+    TemplateVersionVO,
     ValidateTemplateSchemaRequest,
 )
 
@@ -104,6 +109,7 @@ class TemplateService:
         self._append_audit(
             entity_id=draft.id,
             actor=user,
+            action=AuditAction.TEMPLATE_SAVE,
             request_id=request_id,
             metadata={
                 "taskId": task.id,
@@ -118,6 +124,129 @@ class TemplateService:
     def validate_schema(self, *, body: ValidateTemplateSchemaRequest, user: UserVO) -> TemplateSchemaValidationVO:
         self._require_owner(user)
         return self._validate_request(body=body)
+
+    def publish_version(
+        self,
+        *,
+        task_id: str,
+        user: UserVO,
+        request_id: str,
+        body: PublishTemplateVersionRequest,
+    ) -> TemplateVersionVO:
+        self._require_owner(user)
+        task = self._get_owned_task(task_id, user)
+        self._ensure_editable(task)
+        draft = self._get_draft_entity(task.id)
+        if draft is None or draft.id != body.draft_id:
+            raise ApiException(
+                status_code=404,
+                code="NOT_FOUND",
+                message="模板草稿不存在。",
+                request_id=request_id,
+            )
+
+        schema = TemplateSchemaVO.model_validate(draft.schema_json)
+        validation = self._validate_request(body=ValidateTemplateSchemaRequest(schema=schema))
+        publish_errors = self._validate_publishable_schema(schema)
+        if not validation.valid or publish_errors:
+            errors = [*validation.errors, *publish_errors]
+            raise ApiException(
+                status_code=422,
+                code="INVALID_TEMPLATE_SCHEMA",
+                message="模板 schema 校验失败。",
+                details={"errors": [error.model_dump(by_alias=True) for error in errors]},
+                request_id=request_id,
+            )
+
+        now = datetime.now(UTC)
+        next_version_no = (
+            self._db.scalar(
+                select(func.max(TemplateVersionEntity.version_no)).where(TemplateVersionEntity.task_id == task.id)
+            )
+            or 0
+        ) + 1
+        version_note = body.version_note.strip() if body.version_note else None
+        version_note = version_note or None
+        self._db.execute(
+            update(TemplateVersionEntity)
+            .where(
+                TemplateVersionEntity.task_id == task.id,
+                TemplateVersionEntity.status == TemplateVersionStatus.ACTIVE.value,
+            )
+            .values(status=TemplateVersionStatus.DISABLED.value, updated_at=now)
+        )
+        version = TemplateVersionEntity(
+            id=self._new_id("template_version"),
+            task_id=task.id,
+            version_no=next_version_no,
+            schema_json=self._dump_schema(schema),
+            status=TemplateVersionStatus.ACTIVE.value,
+            version_note=version_note,
+            published_by=user.id,
+            published_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        task.current_template_version_id = version.id
+        task.version += 1
+        task.updated_at = now
+        self._db.add(version)
+        self._append_audit(
+            entity_id=version.id,
+            actor=user,
+            action=AuditAction.TEMPLATE_PUBLISH,
+            request_id=request_id,
+            reason=version_note,
+            metadata={
+                "taskId": task.id,
+                "draftId": draft.id,
+                "versionNo": next_version_no,
+                "componentCount": len(schema.components),
+                "fieldKeys": self._collect_field_keys(schema),
+            },
+        )
+        self._db.commit()
+        self._db.refresh(version)
+        return self._to_version_vo(version)
+
+    def list_versions(
+        self,
+        *,
+        task_id: str,
+        user: UserVO,
+        page: int,
+        page_size: int,
+    ) -> PageVO[TemplateVersionVO]:
+        self._require_owner(user)
+        task = self._get_owned_task(task_id, user)
+        query = select(TemplateVersionEntity).where(TemplateVersionEntity.task_id == task.id)
+        total_items = self._db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
+        versions = list(
+            self._db.scalars(
+                query.order_by(TemplateVersionEntity.version_no.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return PageVO(
+            data=[self._to_version_vo(version) for version in versions],
+            pagination=PaginationVO(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=ceil(total_items / page_size) if total_items else 0,
+            ),
+        )
+
+    def get_version(self, *, template_version_id: str, user: UserVO) -> TemplateVersionVO:
+        self._require_owner(user)
+        version = self._db.get(TemplateVersionEntity, template_version_id)
+        if version is None:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="模板版本不存在。")
+        task = self._db.get(TaskEntity, version.task_id)
+        if task is None or task.created_by != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="模板版本不存在。")
+        return self._to_version_vo(version)
 
     def _validate_request(self, *, body: ValidateTemplateSchemaRequest) -> TemplateSchemaValidationVO:
         errors = self._validate_schema(body.template_schema)
@@ -190,6 +319,16 @@ class TemplateService:
                 component_index_by_id,
             )
         )
+        return errors
+
+    def _validate_publishable_schema(self, schema: TemplateSchemaVO) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        if not schema.components:
+            errors.append(self._error("components", "发布模板至少需要 1 个物料。"))
+        if not schema.layout.get("root"):
+            errors.append(self._error("layout.root", "发布模板布局不能为空。"))
+        if not self._collect_field_keys(schema):
+            errors.append(self._error("components", "发布模板至少需要 1 个可提交字段。"))
         return errors
 
     def _validate_component_properties(
@@ -867,8 +1006,10 @@ class TemplateService:
         *,
         entity_id: str,
         actor: UserVO,
+        action: AuditAction,
         request_id: str,
         metadata: dict[str, Any],
+        reason: str | None = None,
     ) -> None:
         self._db.add(
             AuditLogEntity(
@@ -877,10 +1018,10 @@ class TemplateService:
                 entity_id=entity_id,
                 actor_id=actor.id,
                 actor_role=actor.role,
-                action=AuditAction.TEMPLATE_SAVE.value,
+                action=action.value,
                 from_state=None,
                 to_state=None,
-                reason=None,
+                reason=reason,
                 metadata_json=metadata,
                 request_id=request_id,
                 created_at=datetime.now(UTC),
@@ -896,6 +1037,27 @@ class TemplateService:
             created_at=draft.created_at,
             updated_at=draft.updated_at,
         )
+
+    def _to_version_vo(self, version: TemplateVersionEntity) -> TemplateVersionVO:
+        return TemplateVersionVO(
+            id=version.id,
+            task_id=version.task_id,
+            version_no=version.version_no,
+            schema=TemplateSchemaVO.model_validate(version.schema_json),
+            status=TemplateVersionStatus(version.status),
+            version_note=version.version_note,
+            published_by=version.published_by,
+            published_at=version.published_at,
+            created_at=version.created_at,
+            updated_at=version.updated_at,
+        )
+
+    def _collect_field_keys(self, schema: TemplateSchemaVO) -> list[str]:
+        return [
+            component.field_key
+            for component in schema.components
+            if component.type in COLLECTABLE_TYPES and component.field_key
+        ]
 
     def _dump_schema(self, schema: TemplateSchemaVO) -> dict[str, Any]:
         return schema.model_dump(by_alias=True)

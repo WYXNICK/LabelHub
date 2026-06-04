@@ -46,7 +46,7 @@ import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 const statusOptions = [
   { label: "全部状态", value: "ALL" },
   { label: "草稿", value: "DRAFT" },
-  { label: "发布中", value: "PUBLISHED" },
+  { label: "已发布", value: "PUBLISHED" },
   { label: "已暂停", value: "PAUSED" },
   { label: "已结束", value: "ENDED" },
 ];
@@ -380,7 +380,7 @@ export function OwnerTaskListPage() {
 
       <div className="labelhub-task-summary-grid" aria-busy={summaryLoading}>
         <Card>
-          <Typography.Text type="secondary">发布中任务</Typography.Text>
+          <Typography.Text type="secondary">已发布任务</Typography.Text>
           <Typography.Title level={3}>{formatMetric(summary.publishedTaskCount)}</Typography.Title>
           <Typography.Text type="secondary">当前可进入标注市场的任务</Typography.Text>
         </Card>

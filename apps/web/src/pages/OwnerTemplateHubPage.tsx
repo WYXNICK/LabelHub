@@ -15,31 +15,16 @@ import { navigate } from "../app/routes";
 import { listTasks } from "../features/tasks/api";
 import type { TaskStatus, TaskVO } from "../features/tasks/types";
 import { formatTaskTime, taskStatusMeta } from "../features/tasks/view";
-import { buildOwnerTaskDesignerPath } from "../features/templates/view";
+import { buildOwnerTaskDesignerPath, getTemplatePublishState, isTemplateEditableStatus } from "../features/templates/view";
 import type { PaginationVO } from "../shared/types/api";
 
 const statusOptions = [
   { label: "全部状态", value: "ALL" },
   { label: "草稿", value: "DRAFT" },
-  { label: "发布中", value: "PUBLISHED" },
+  { label: "已发布", value: "PUBLISHED" },
   { label: "已暂停", value: "PAUSED" },
   { label: "已结束", value: "ENDED" },
 ];
-
-function getTemplateWorkMode(task: TaskVO): { label: string; color: string; description: string } {
-  if (task.status === "DRAFT") {
-    return {
-      label: "可编辑",
-      color: "blue",
-      description: "可继续搭建、校验并保存模板草稿",
-    };
-  }
-  return {
-    label: "只读",
-    color: "default",
-    description: "非草稿任务暂以只读方式查看模板",
-  };
-}
 
 export function OwnerTemplateHubPage() {
   const [tasks, setTasks] = useState<TaskVO[]>([]);
@@ -58,7 +43,11 @@ export function OwnerTemplateHubPage() {
   const [queryState, setQueryState] = useState({ page: 1, pageSize: 10, requestId: 0 });
 
   const draftCount = useMemo(() => tasks.filter((task) => task.status === "DRAFT").length, [tasks]);
-  const editableCount = useMemo(() => tasks.filter((task) => getTemplateWorkMode(task).label === "可编辑").length, [tasks]);
+  const publishedTemplateCount = useMemo(
+    () => tasks.filter((task) => Boolean(task.currentTemplateVersionId)).length,
+    [tasks],
+  );
+  const editableCount = useMemo(() => tasks.filter((task) => isTemplateEditableStatus(task.status)).length, [tasks]);
 
   const fetchTasks = useCallback(
     async (page: number, pageSize: number) => {
@@ -129,11 +118,16 @@ export function OwnerTemplateHubPage() {
       key: "workMode",
       width: 220,
       render: (_, task) => {
-        const mode = getTemplateWorkMode(task);
+        const mode = getTemplatePublishState(task);
         return (
           <Space direction="vertical" size={2}>
             <Tag color={mode.color}>{mode.label}</Tag>
             <Typography.Text type="secondary">{mode.description}</Typography.Text>
+            {task.currentTemplateVersionId && (
+              <Typography.Text type="secondary" className="labelhub-mono-id">
+                {task.currentTemplateVersionId}
+              </Typography.Text>
+            )}
           </Space>
         );
       },
@@ -200,6 +194,10 @@ export function OwnerTemplateHubPage() {
         <Card>
           <Typography.Text type="secondary">可搭建模板</Typography.Text>
           <Typography.Title level={3}>{editableCount}</Typography.Title>
+        </Card>
+        <Card>
+          <Typography.Text type="secondary">已发布模板</Typography.Text>
+          <Typography.Title level={3}>{publishedTemplateCount}</Typography.Title>
         </Card>
       </div>
 

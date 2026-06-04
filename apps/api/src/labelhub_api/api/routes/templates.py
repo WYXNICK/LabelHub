@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user
-from labelhub_api.api.routes._stage1_contract import raise_contract_only
 from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
@@ -74,9 +73,11 @@ def publish_template_version(
     taskId: str,
     body: PublishTemplateVersionRequest,
     request: Request,
-    _user: UserVO = Depends(get_current_user),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> TemplateVersionVO:
-    return raise_contract_only(request, "Stage 2.7 template version publish")
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return TemplateService(db).publish_version(task_id=taskId, user=user, request_id=request_id, body=body)
 
 
 @task_router.get(
@@ -86,12 +87,12 @@ def publish_template_version(
 )
 def list_template_versions(
     taskId: str,
-    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
-    _user: UserVO = Depends(get_current_user),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> PageVO[TemplateVersionVO]:
-    return raise_contract_only(request, "Stage 2.7 template version list")
+    return TemplateService(db).list_versions(task_id=taskId, user=user, page=page, page_size=page_size)
 
 
 @schema_router.get(
@@ -101,7 +102,7 @@ def list_template_versions(
 )
 def get_template_version(
     templateVersionId: str,
-    request: Request,
-    _user: UserVO = Depends(get_current_user),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
 ) -> TemplateVersionVO:
-    return raise_contract_only(request, "Stage 2.7 template version detail")
+    return TemplateService(db).get_version(template_version_id=templateVersionId, user=user)

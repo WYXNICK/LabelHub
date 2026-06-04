@@ -291,9 +291,9 @@ class LogoutResponseVO:
 | 2 | `GET /api/tasks/{taskId}/template-draft` | `GetTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.1 已实现 |
 | 2 | `PUT /api/tasks/{taskId}/template-draft` | `SaveTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.1 已实现 |
 | 2 | `POST /api/template-schemas:validate` | `ValidateTemplateSchemaRequest` | `TemplateSchemaValidationVO` | 阶段 2.1 已实现 |
-| 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.0 契约已暴露，业务占位 |
-| 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.0 契约已暴露，业务占位 |
-| 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.0 契约已暴露，业务占位 |
+| 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
+| 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.7 已实现 |
+| 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
 | 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
 | 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
@@ -400,7 +400,7 @@ class PublishBlockerCode(str, Enum):
 | 当前状态 | 允许目标状态 | 说明 |
 | --- | --- | --- |
 | `DRAFT` | `PUBLISHED`、`ENDED` | 发布前必须通过最小发布保护；结束后不可恢复 |
-| `PUBLISHED` | `PAUSED`、`ENDED` | 发布中任务可暂停或结束 |
+| `PUBLISHED` | `PAUSED`、`ENDED` | 已发布任务可暂停或结束；该状态对应官方“发布中”，表示可领取/运行，不表示异步发布仍在处理中 |
 | `PAUSED` | `PUBLISHED`、`ENDED` | 重新发布仍需通过最小发布保护 |
 | `ENDED` | 无 | 终态，不允许继续迁移 |
 
@@ -600,7 +600,7 @@ class CreateFileObjectRequest:
 
 ### 9.7 阶段 2.0 动态模板契约与数据底座
 
-阶段 2.0 只交付动态模板的契约、OpenAPI 可见性、Entity 和 Alembic 迁移，不实现真实保存、校验、Designer 拖拽或模板版本发布业务。所有模板接口当前返回 `501 NOT_IMPLEMENTED`，后续 2.1、2.2、2.3-2.7 分粒度推进。
+阶段 2.0 只交付动态模板的契约、OpenAPI 可见性、Entity 和 Alembic 迁移，不实现真实保存、校验、Designer 拖拽或模板版本发布业务。模板接口按 2.1、2.2、2.3-2.7 分粒度推进，当前阶段 2.7 已完成模板版本发布能力。
 
 接口范围：
 
@@ -609,9 +609,9 @@ class CreateFileObjectRequest:
 | `GET /api/tasks/{taskId}/template-draft` | 契约已暴露 | 获取任务模板草稿，2.1 实现 |
 | `PUT /api/tasks/{taskId}/template-draft` | 契约已暴露 | 保存任务模板草稿，2.1 实现 |
 | `POST /api/template-schemas:validate` | 契约已暴露 | 校验模板 schema，2.1 实现 |
-| `POST /api/tasks/{taskId}/template-versions` | 契约已暴露 | 发布不可变模板版本，2.7 实现 |
-| `GET /api/tasks/{taskId}/template-versions` | 契约已暴露 | 查询任务模板版本列表，2.7 实现 |
-| `GET /api/template-versions/{templateVersionId}` | 契约已暴露 | 获取单个模板版本详情，2.7 实现 |
+| `POST /api/tasks/{taskId}/template-versions` | 阶段 2.7 已实现 | 发布不可变模板版本 |
+| `GET /api/tasks/{taskId}/template-versions` | 阶段 2.7 已实现 | 查询任务模板版本列表 |
+| `GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 | 获取单个模板版本详情 |
 
 阶段 2.0 枚举：
 
@@ -664,7 +664,7 @@ Request 与 VO 字段：
 - `/api/openapi.json` 包含阶段 2 模板接口与 `Template*` schema。
 - SQLAlchemy metadata 注册 `template_drafts`、`template_versions`。
 - Alembic `0003_create_template_foundation` 可在 MySQL 上执行。
-- 阶段 2.0 的接口登录后返回 `501 NOT_IMPLEMENTED`，提醒调用方这只是契约底座，不是可用业务能力。
+- 阶段 2.0 的版本接口在当时仅作为契约底座；阶段 2.7 完成后不得再返回 `501 NOT_IMPLEMENTED`。
 
 ### 9.8 阶段 2.1 模板 schema 基础结构与后端校验
 
@@ -677,8 +677,8 @@ Request 与 VO 字段：
 | `GET /api/tasks/{taskId}/template-draft` | 已实现 | Owner 获取任务模板草稿；不存在时创建默认空 schema 草稿 |
 | `PUT /api/tasks/{taskId}/template-draft` | 已实现 | Owner 保存模板草稿；非法 schema 返回结构化错误 |
 | `POST /api/template-schemas:validate` | 已实现 | Owner 校验模板 schema；返回 `valid=false` 与错误列表，不写库 |
-| `POST/GET /api/tasks/{taskId}/template-versions` | 仍占位 | 2.7 实现版本发布与列表 |
-| `GET /api/template-versions/{templateVersionId}` | 仍占位 | 2.7 实现版本详情 |
+| `POST/GET /api/tasks/{taskId}/template-versions` | 阶段 2.7 已实现 | 发布版本与版本列表 |
+| `GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 | 版本详情 |
 
 基础校验规则：
 
@@ -736,7 +736,7 @@ Renderer 最小支持范围：
 
 - 后端测试覆盖包含 `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` 的最小 Renderer schema，并确认校验通过。
 - 保存到 `template_drafts.schema` 的同一份 schema 可被前端 Renderer 直接渲染。
-- 阶段 2.7 前 `template-versions` 相关接口仍保持占位，不解除 `MISSING_TEMPLATE_VERSION`。
+- 阶段 2.7 完成后 `template-versions` 相关接口必须解除占位；只有任务尚未绑定当前模板版本时才返回 `MISSING_TEMPLATE_VERSION`。
 
 ### 9.10 阶段 2.3/2.4 Designer 与基础物料校验契约
 
@@ -763,7 +763,7 @@ Renderer 最小支持范围：
 
 - 保存 Designer 生成的基础物料 schema 时，后端不接受非法 options、非法默认值、非法最大长度或非法 ShowItem 路径。
 - `TemplateSchemaValidationVO.errors` 仍保持 `field + message` 结构，前端可直接映射到右侧属性或顶部错误提示。
-- 2.7 前模板版本接口仍保持占位；Designer 保存草稿不等于发布模板版本，不解除任务发布前检查中的 `MISSING_TEMPLATE_VERSION`。
+- Designer 保存草稿不等于发布模板版本；只有阶段 2.7 发布成功并更新 `tasks.current_template_version_id` 后，才解除任务发布前检查中的 `MISSING_TEMPLATE_VERSION`。
 
 ### 9.11 阶段 2.5 高级物料校验契约
 
@@ -864,6 +864,50 @@ LLM 边界：
 
 - 阶段 2.6 只校验规则定义和 Owner 预览运行时效果，不新增 Labeler 提交接口。
 - 真正提交时的后端字段级校验将在阶段 3.4 复用同一套规则语义接入。
+
+### 9.13 阶段 2.7 模板版本发布与发布检查联动契约
+
+阶段 2.7 将模板版本接口从契约占位推进为可用业务能力。模板版本是任务级不可变快照：一个任务拥有一份 `template_drafts`，可以发布多个 `template_versions`，但任意时刻只有一个 `ACTIVE` 版本绑定到 `tasks.current_template_version_id`。
+
+接口契约：
+
+| 接口 | 权限 | 行为 |
+| --- | --- | --- |
+| `POST /api/tasks/{taskId}/template-versions` | Owner 且只能操作自己创建的草稿任务 | 校验并发布当前草稿快照，返回 `TemplateVersionVO` |
+| `GET /api/tasks/{taskId}/template-versions?page&pageSize` | Owner 且只能查看自己创建的任务 | 按 `versionNo` 倒序返回版本分页 |
+| `GET /api/template-versions/{templateVersionId}` | Owner 且只能查看自己任务下的版本 | 返回单个不可变版本详情 |
+
+`PublishTemplateVersionRequest`：
+
+```json
+{
+  "draftId": "draft_xxx",
+  "versionNote": "补齐商品清洗标签"
+}
+```
+
+发布规则：
+
+- 任务必须处于 `DRAFT`，已发布、暂停或结束任务不得继续改写模板版本。
+- `draftId` 必须等于当前任务草稿 ID，避免跨任务或旧草稿误发布。
+- 发布前必须复用 `POST /api/template-schemas:validate` 的完整校验，并追加发布级校验：`components` 至少 1 个、`layout.root` 非空、至少存在 1 个可提交字段。
+- 发布成功后写入新的 `TemplateVersionEntity`，`versionNo=max+1`，`schema` 为发布时的完整 JSON 快照，后续草稿修改不得改变历史版本。
+- 发布新版本时将同任务旧 `ACTIVE` 版本更新为 `DISABLED`，新版本为 `ACTIVE`。
+- 同一事务内更新 `tasks.current_template_version_id`、递增 `tasks.version` 并写入 `audit_logs.action=TEMPLATE_PUBLISH`。
+- 发布失败返回统一错误结构；schema 不可发布时使用 `422 INVALID_TEMPLATE_SCHEMA` 并返回字段级 `errors`。
+
+发布检查联动：
+
+- `GET /api/tasks/{taskId}/publish-check` 以 `tasks.currentTemplateVersionId` 判断模板是否就绪。
+- 成功发布模板版本后，同一任务的发布检查不再返回 `MISSING_TEMPLATE_VERSION`；是否可发布仍取决于数据集、审核配置、配额、截止时间和任务状态。
+- `TaskVO` 与 `TaskDetailVO` 必须返回 `currentTemplateVersionId`、`currentReviewConfigVersionId`；`TaskStatsVO` 返回 `templateVersionCount`，用于前端展示模板准备状态。
+
+验收标准：
+
+- 发布合法草稿后返回 `TemplateVersionVO.status=ACTIVE`，版本列表按版本号倒序展示。
+- 连续发布两次时，新版本为 `ACTIVE`，旧版本为 `DISABLED`，旧版本 schema 保持不可变。
+- 发布空默认草稿返回 `422 INVALID_TEMPLATE_SCHEMA`，错误中至少包含 `components` 和 `layout.root`。
+- 发布模板版本后发布检查不再出现 `MISSING_TEMPLATE_VERSION`。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

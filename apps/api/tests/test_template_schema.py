@@ -14,7 +14,8 @@ from labelhub_api.db.base import Base
 from labelhub_api.db.session import get_db_session
 from labelhub_api.main import create_app
 from labelhub_api.models.audit import AuditLogEntity
-from labelhub_api.models.template import TemplateDraftEntity
+from labelhub_api.models.task import TaskEntity
+from labelhub_api.models.template import TemplateDraftEntity, TemplateVersionEntity
 
 
 @pytest.fixture()
@@ -141,6 +142,99 @@ def test_owner_can_get_default_draft_save_valid_schema_and_audit(
         )
         assert audit_log is not None
         assert audit_log.metadata_json["componentCount"] == 3
+
+
+def test_owner_can_publish_template_versions_and_unblock_publish_check(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    login(client)
+    task = create_task(client)
+
+    save_response = client.put(f"/api/tasks/{task['id']}/template-draft", json={"schema": valid_schema()})
+    assert save_response.status_code == 200
+    draft = save_response.json()
+
+    publish_response = client.post(
+        f"/api/tasks/{task['id']}/template-versions",
+        json={"draftId": draft["id"], "versionNote": "首版标注模板"},
+        headers={"X-Request-ID": "req_template_publish_1"},
+    )
+    assert publish_response.status_code == 201
+    first_version = publish_response.json()
+    assert first_version["versionNo"] == 1
+    assert first_version["status"] == "ACTIVE"
+    assert first_version["schema"]["components"][1]["fieldKey"] == "answer"
+
+    schema_v2 = valid_schema()
+    schema_v2["components"][1]["label"] = "Answer v2"
+    second_save_response = client.put(f"/api/tasks/{task['id']}/template-draft", json={"schema": schema_v2})
+    assert second_save_response.status_code == 200
+    second_publish_response = client.post(
+        f"/api/tasks/{task['id']}/template-versions",
+        json={"draftId": draft["id"], "versionNote": "第二版"},
+    )
+    assert second_publish_response.status_code == 201
+    second_version = second_publish_response.json()
+    assert second_version["versionNo"] == 2
+    assert second_version["status"] == "ACTIVE"
+
+    list_response = client.get(f"/api/tasks/{task['id']}/template-versions?page=1&pageSize=10")
+    assert list_response.status_code == 200
+    listed_versions = list_response.json()["data"]
+    assert [version["versionNo"] for version in listed_versions] == [2, 1]
+    assert listed_versions[0]["status"] == "ACTIVE"
+    assert listed_versions[1]["status"] == "DISABLED"
+
+    detail_response = client.get(f"/api/template-versions/{first_version['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["schema"]["components"][1]["label"] == "Answer"
+
+    publish_check_response = client.get(f"/api/tasks/{task['id']}/publish-check")
+    assert publish_check_response.status_code == 200
+    blocker_codes = {blocker["code"] for blocker in publish_check_response.json()["blockers"]}
+    assert "MISSING_TEMPLATE_VERSION" not in blocker_codes
+
+    with session_factory() as session:
+        stored_task = session.get(TaskEntity, task["id"])
+        assert stored_task is not None
+        assert stored_task.current_template_version_id == second_version["id"]
+        assert stored_task.version == 2
+
+        stored_versions = list(
+            session.scalars(select(TemplateVersionEntity).order_by(TemplateVersionEntity.version_no.asc()))
+        )
+        assert [version.status for version in stored_versions] == ["DISABLED", "ACTIVE"]
+
+        audit_actions = [
+            log.action
+            for log in session.scalars(
+                select(AuditLogEntity).where(AuditLogEntity.entity_type == AuditEntityType.TEMPLATE.value)
+            )
+        ]
+        assert AuditAction.TEMPLATE_SAVE.value in audit_actions
+        assert AuditAction.TEMPLATE_PUBLISH.value in audit_actions
+
+
+def test_publish_template_version_rejects_empty_default_draft(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    task = create_task(client)
+    draft_response = client.get(f"/api/tasks/{task['id']}/template-draft")
+    assert draft_response.status_code == 200
+
+    response = client.post(
+        f"/api/tasks/{task['id']}/template-versions",
+        json={"draftId": draft_response.json()["id"], "versionNote": "空模板"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_TEMPLATE_SCHEMA"
+    fields = {error["field"] for error in response.json()["error"]["details"]["errors"]}
+    assert "components" in fields
+    assert "layout.root" in fields
 
 
 def test_validate_template_schema_returns_structured_errors(

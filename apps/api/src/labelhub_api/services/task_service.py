@@ -22,6 +22,7 @@ from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.dataset import DatasetEntity, DatasetItemEntity
 from labelhub_api.models.review_config import ReviewConfigVersionEntity
 from labelhub_api.models.task import TaskEntity, TaskStateTransitionEntity
+from labelhub_api.models.template import TemplateVersionEntity
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.audit import AuditLogVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
@@ -424,7 +425,7 @@ class TaskService:
         status = TaskStatus(task.status)
         if status in {TaskStatus.DRAFT, TaskStatus.PAUSED}:
             return []
-        message = "任务已处于发布中，无需再次发布。" if status == TaskStatus.PUBLISHED else "已结束任务不可恢复发布。"
+        message = "任务已处于已发布状态，无需再次发布。" if status == TaskStatus.PUBLISHED else "已结束任务不可恢复发布。"
         return [
             PublishBlockerVO(
                 code=PublishBlockerCode.INVALID_TASK_STATUS,
@@ -454,6 +455,8 @@ class TaskService:
             deadline_at=task.deadline_at,
             distribution_strategy=task.distribution_strategy,
             status=task.status,
+            current_template_version_id=task.current_template_version_id,
+            current_review_config_version_id=task.current_review_config_version_id,
             created_by=task.created_by,
             created_at=task.created_at,
             updated_at=task.updated_at,
@@ -464,8 +467,6 @@ class TaskService:
             **self._to_task_vo(task).model_dump(),
             instruction_rich_text=task.instruction_rich_text,
             reward_rule=task.reward_rule,
-            current_template_version_id=task.current_template_version_id,
-            current_review_config_version_id=task.current_review_config_version_id,
             version=task.version,
             stats=self._build_stats(task.id),
         )
@@ -488,10 +489,14 @@ class TaskService:
                 ReviewConfigVersionEntity.task_id == task_id
             )
         ) or 0
+        template_version_count = self._db.scalar(
+            select(func.count()).select_from(TemplateVersionEntity).where(TemplateVersionEntity.task_id == task_id)
+        ) or 0
         return TaskStatsVO(
             dataset_count=dataset_count,
             item_count=item_count,
             enabled_item_count=enabled_item_count,
+            template_version_count=template_version_count,
             review_config_version_count=review_config_version_count,
         )
 

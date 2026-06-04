@@ -1,3 +1,4 @@
+import type { TaskStatus, TaskVO } from "../tasks/types";
 import type { TemplateComponentDTO, TemplateComponentType, TemplateSchemaValidationVO, TemplateSchemaVO } from "./types";
 
 export const TEMPLATE_SCHEMA_VERSION = "labelhub-template/v1";
@@ -76,6 +77,40 @@ export type TemplateDesignerEntry = "tasks" | "templates" | "settings";
 export interface TemplateDesignerReturnTarget {
   label: string;
   path: string;
+}
+
+export interface TemplatePublishState {
+  label: string;
+  color: string;
+  description: string;
+}
+
+export function getTemplatePublishState(
+  task: Pick<TaskVO, "status" | "currentTemplateVersionId">,
+): TemplatePublishState {
+  if (task.currentTemplateVersionId) {
+    return {
+      label: "已发布",
+      color: "green",
+      description: "当前任务已绑定模板版本，可进入发布检查",
+    };
+  }
+  if (task.status === "DRAFT") {
+    return {
+      label: "草稿待发布",
+      color: "blue",
+      description: "可继续搭建、校验并发布模板版本",
+    };
+  }
+  return {
+    label: "未绑定版本",
+    color: "orange",
+    description: "非草稿任务当前无法发布新的模板版本",
+  };
+}
+
+export function isTemplateEditableStatus(status: TaskStatus): boolean {
+  return status === "DRAFT";
 }
 
 export function buildOwnerTaskDesignerPath(taskId: string, entry: TemplateDesignerEntry): string {

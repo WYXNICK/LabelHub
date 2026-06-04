@@ -5,11 +5,14 @@ import {
   createDesignerComponent,
   createDesignerComponentId,
   designerMaterialGroups,
+  getDesignerLayoutItems,
+  getLayoutTabs,
   getOrderedDesignerComponents,
   moveComponentByOffset,
   moveComponentInSchema,
   normalizeDesignerOptions,
   removeComponentFromSchema,
+  updateLayoutTabs,
   updateTemplateComponent,
 } from "./designer";
 import { createEmptyTemplateSchema } from "./view";
@@ -29,7 +32,7 @@ describe("template designer helpers", () => {
   });
 
   it("creates stage 2.5 advanced materials with serializable defaults", () => {
-    expect(designerMaterialGroups.map((group) => group.title)).toEqual(["基础物料", "高级物料"]);
+    expect(designerMaterialGroups.map((group) => group.title)).toEqual(["基础物料", "高级物料", "布局物料"]);
     expect(createDesignerComponent({ type: "RICH_TEXT", id: "rich", index: 4 })).toMatchObject({
       fieldKey: "rich_text_4",
       props: { placeholder: "请输入富文本内容", defaultValue: "", toolbarPreset: "basic" },
@@ -53,6 +56,35 @@ describe("template designer helpers", () => {
         outputFieldKey: "",
       },
     });
+  });
+
+  it("creates stage 2.6 layout materials and nested layout targets", () => {
+    let schema = createEmptyTemplateSchema();
+    const group = createDesignerComponent({ type: "GROUP", id: "group" });
+    const tabs = createDesignerComponent({ type: "TABS", id: "tabs" });
+    const answer = createDesignerComponent({ type: "TEXT_INPUT", id: "answer" });
+    const reason = createDesignerComponent({ type: "TEXTAREA", id: "reason" });
+
+    expect(group).toMatchObject({ fieldKey: null, props: { collapsible: false } });
+    expect(tabs).toMatchObject({ fieldKey: null, props: { defaultTabId: "basic" } });
+
+    schema = appendComponentToSchema(schema, group);
+    schema = appendComponentToSchema(schema, answer, null, { containerId: "group" });
+    schema = appendComponentToSchema(schema, tabs);
+    schema = appendComponentToSchema(schema, reason, null, { containerId: "tabs", tabId: "extra" });
+
+    const layoutItems = getDesignerLayoutItems(schema);
+    expect(layoutItems[0].children?.map((item) => item.component.id)).toEqual(["answer"]);
+    expect(getLayoutTabs(schema, "tabs")[1].children).toEqual(["reason"]);
+    expect(getOrderedDesignerComponents(schema).map((component) => component.id)).toEqual(["group", "answer", "tabs", "reason"]);
+
+    schema = updateLayoutTabs(schema, "tabs", (currentTabs) =>
+      currentTabs.map((tab) => (tab.id === "basic" ? { ...tab, label: "基础" } : tab)),
+    );
+    expect(getLayoutTabs(schema, "tabs")[0].label).toBe("基础");
+
+    schema = removeComponentFromSchema(schema, "group");
+    expect(schema.components.map((component) => component.id)).toEqual(["tabs", "reason"]);
   });
 
   it("appends and orders components through layout.root", () => {

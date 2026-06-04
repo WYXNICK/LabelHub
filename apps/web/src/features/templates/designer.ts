@@ -1,4 +1,11 @@
-import type { TemplateComponentDTO, TemplateComponentType, TemplateOptionDTO, TemplateSchemaVO } from "./types";
+import type {
+  TemplateComponentDTO,
+  TemplateComponentType,
+  TemplateLayoutNodeDTO,
+  TemplateLayoutTabDTO,
+  TemplateOptionDTO,
+  TemplateSchemaVO,
+} from "./types";
 import { createTemplateComponent, templateComponentTypeLabels } from "./view";
 
 export type DesignerMaterialType =
@@ -12,7 +19,20 @@ export type DesignerMaterialType =
   | "FILE_UPLOAD"
   | "IMAGE_UPLOAD"
   | "JSON_EDITOR"
-  | "LLM_ACTION";
+  | "LLM_ACTION"
+  | "GROUP"
+  | "TABS";
+
+export interface DesignerLayoutItem {
+  component: TemplateComponentDTO;
+  children?: DesignerLayoutItem[];
+  tabs?: Array<{ id: string; label: string; children: DesignerLayoutItem[] }>;
+}
+
+export interface DesignerLayoutTarget {
+  containerId?: string;
+  tabId?: string;
+}
 
 export interface DesignerMaterialGroup {
   title: string;
@@ -31,6 +51,11 @@ export const designerMaterialGroups: DesignerMaterialGroup[] = [
     description: "覆盖多媒体、结构化数据与模型动作",
     types: ["RICH_TEXT", "FILE_UPLOAD", "IMAGE_UPLOAD", "JSON_EDITOR", "LLM_ACTION"],
   },
+  {
+    title: "布局物料",
+    description: "组织分组、多 Tab 与进阶规则",
+    types: ["GROUP", "TABS"],
+  },
 ];
 
 export const designerMaterialTypes: DesignerMaterialType[] = designerMaterialGroups.flatMap((group) => group.types);
@@ -47,6 +72,8 @@ export const designerMaterialDescriptions: Record<DesignerMaterialType, string> 
   IMAGE_UPLOAD: "图片证据、截图和多图材料",
   JSON_EDITOR: "结构化对象或数组字段",
   LLM_ACTION: "配置题目级模型辅助动作",
+  GROUP: "把相关字段组织为一个逻辑区块",
+  TABS: "将复杂模板拆成多个可切换页面",
 };
 
 const materialFieldPrefix: Record<DesignerMaterialType, string> = {
@@ -61,6 +88,8 @@ const materialFieldPrefix: Record<DesignerMaterialType, string> = {
   IMAGE_UPLOAD: "image_upload",
   JSON_EDITOR: "json_editor",
   LLM_ACTION: "llm_action",
+  GROUP: "group",
+  TABS: "tabs",
 };
 
 const defaultOptions: TemplateOptionDTO[] = [
@@ -75,19 +104,16 @@ export function createDesignerComponent(input: {
 }): TemplateComponentDTO {
   const index = input.index ?? 1;
   const label = templateComponentTypeLabels[input.type];
+  const isNonCollectable = input.type === "SHOW_ITEM" || input.type === "LLM_ACTION" || input.type === "GROUP" || input.type === "TABS";
   const base = createTemplateComponent({
     id: input.id,
     type: input.type,
     label,
-    fieldKey: input.type === "SHOW_ITEM" || input.type === "LLM_ACTION" ? null : `${materialFieldPrefix[input.type]}_${index}`,
+    fieldKey: isNonCollectable ? null : `${materialFieldPrefix[input.type]}_${index}`,
   });
 
   if (input.type === "SHOW_ITEM") {
-    return {
-      ...base,
-      props: { path: "$.prompt" },
-      validation: {},
-    };
+    return { ...base, props: { path: "$.prompt" }, validation: {} };
   }
 
   if (input.type === "TEXT_INPUT") {
@@ -152,6 +178,22 @@ export function createDesignerComponent(input: {
     };
   }
 
+  if (input.type === "GROUP") {
+    return {
+      ...base,
+      props: { description: "用于组织相关字段", collapsible: false },
+      validation: {},
+    };
+  }
+
+  if (input.type === "TABS") {
+    return {
+      ...base,
+      props: { defaultTabId: "basic" },
+      validation: {},
+    };
+  }
+
   if (input.type === "RADIO") {
     return {
       ...base,
@@ -180,19 +222,33 @@ export function appendComponentToSchema(
   schema: TemplateSchemaVO,
   component: TemplateComponentDTO,
   beforeComponentId?: string | null,
+  target?: DesignerLayoutTarget | null,
 ): TemplateSchemaVO {
-  const root = [...schema.layout.root];
-  const insertIndex = beforeComponentId ? root.findIndex((node) => node === beforeComponentId) : -1;
-  if (insertIndex >= 0) {
-    root.splice(insertIndex, 0, component.id);
-  } else {
-    root.push(component.id);
-  }
+  const layoutNode = createLayoutNodeForComponent(component);
+  const root = target?.containerId
+    ? insertLayoutNodeIntoContainer(schema.layout.root, layoutNode, target)
+    : insertLayoutNodeBefore(schema.layout.root, layoutNode, beforeComponentId);
   return {
     ...schema,
     components: [...schema.components, component],
     layout: { ...schema.layout, root },
   };
+}
+
+export function createLayoutNodeForComponent(component: TemplateComponentDTO): TemplateLayoutNodeDTO {
+  if (component.type === "GROUP") {
+    return { componentId: component.id, children: [] };
+  }
+  if (component.type === "TABS") {
+    return {
+      componentId: component.id,
+      tabs: [
+        { id: "basic", label: "基础信息", children: [] },
+        { id: "extra", label: "补充信息", children: [] },
+      ],
+    };
+  }
+  return component.id;
 }
 
 export function moveComponentInSchema(
@@ -203,40 +259,25 @@ export function moveComponentInSchema(
   if (activeComponentId === overComponentId) {
     return schema;
   }
-  // 阶段 2.5 仍只排序 root 平铺物料；分组与 Tab 嵌套布局留到阶段 2.6。
-  const root = schema.layout.root.filter((node): node is string => typeof node === "string");
-  const fromIndex = root.indexOf(activeComponentId);
-  const toIndex = root.indexOf(overComponentId);
-  if (fromIndex < 0 || toIndex < 0) {
-    return schema;
-  }
-  const nextRoot = [...root];
-  const [moved] = nextRoot.splice(fromIndex, 1);
-  nextRoot.splice(toIndex, 0, moved);
-  return { ...schema, layout: { ...schema.layout, root: nextRoot } };
+  return {
+    ...schema,
+    layout: { ...schema.layout, root: moveLayoutNodeBefore(schema.layout.root, activeComponentId, overComponentId) },
+  };
 }
 
 export function moveComponentByOffset(schema: TemplateSchemaVO, componentId: string, offset: -1 | 1): TemplateSchemaVO {
-  const root = schema.layout.root.filter((node): node is string => typeof node === "string");
-  const index = root.indexOf(componentId);
-  const nextIndex = index + offset;
-  if (index < 0 || nextIndex < 0 || nextIndex >= root.length) {
-    return schema;
-  }
-  const nextRoot = [...root];
-  const [moved] = nextRoot.splice(index, 1);
-  nextRoot.splice(nextIndex, 0, moved);
-  return { ...schema, layout: { ...schema.layout, root: nextRoot } };
+  return {
+    ...schema,
+    layout: { ...schema.layout, root: moveLayoutNodeByOffset(schema.layout.root, componentId, offset) },
+  };
 }
 
 export function removeComponentFromSchema(schema: TemplateSchemaVO, componentId: string): TemplateSchemaVO {
+  const removal = removeLayoutNode(schema.layout.root, componentId);
   return {
     ...schema,
-    components: schema.components.filter((component) => component.id !== componentId),
-    layout: {
-      ...schema.layout,
-      root: schema.layout.root.filter((node) => node !== componentId),
-    },
+    components: schema.components.filter((component) => !removal.removedIds.has(component.id)),
+    layout: { ...schema.layout, root: removal.nodes },
   };
 }
 
@@ -259,14 +300,33 @@ export function getComponentById(schema: TemplateSchemaVO, componentId: string |
 }
 
 export function getOrderedDesignerComponents(schema: TemplateSchemaVO): TemplateComponentDTO[] {
+  return flattenDesignerLayoutItems(getDesignerLayoutItems(schema));
+}
+
+export function getDesignerLayoutItems(schema: TemplateSchemaVO): DesignerLayoutItem[] {
   const byId = new Map(schema.components.map((component) => [component.id, component]));
-  return schema.layout.root.flatMap((node) => {
-    if (typeof node !== "string") {
-      return [];
-    }
-    const component = byId.get(node);
-    return component ? [component] : [];
-  });
+  return buildDesignerLayoutItems(schema.layout.root, byId);
+}
+
+export function getLayoutTabs(schema: TemplateSchemaVO, componentId: string): TemplateLayoutTabDTO[] {
+  const node = findContainerNode(schema.layout.root, componentId);
+  return node?.tabs ?? [];
+}
+
+export function updateLayoutTabs(
+  schema: TemplateSchemaVO,
+  componentId: string,
+  updater: (tabs: TemplateLayoutTabDTO[]) => TemplateLayoutTabDTO[],
+): TemplateSchemaVO {
+  return {
+    ...schema,
+    layout: {
+      ...schema.layout,
+      root: mapLayoutNodes(schema.layout.root, (node) =>
+        typeof node !== "string" && node.componentId === componentId ? { ...node, tabs: updater(node.tabs ?? []) } : node,
+      ),
+    },
+  };
 }
 
 export function normalizeDesignerOptions(component: TemplateComponentDTO): TemplateOptionDTO[] {
@@ -287,4 +347,207 @@ export function normalizeDesignerOptions(component: TemplateComponentDTO): Templ
 
 export function isBasicDesignerMaterial(type: TemplateComponentType): type is DesignerMaterialType {
   return designerMaterialTypes.includes(type as DesignerMaterialType);
+}
+
+function insertLayoutNodeBefore(
+  nodes: TemplateLayoutNodeDTO[],
+  layoutNode: TemplateLayoutNodeDTO,
+  beforeComponentId?: string | null,
+): TemplateLayoutNodeDTO[] {
+  const nextNodes = [...nodes];
+  const insertIndex = beforeComponentId ? nextNodes.findIndex((node) => getLayoutNodeComponentId(node) === beforeComponentId) : -1;
+  if (insertIndex >= 0) {
+    nextNodes.splice(insertIndex, 0, layoutNode);
+  } else {
+    nextNodes.push(layoutNode);
+  }
+  return nextNodes;
+}
+
+function insertLayoutNodeIntoContainer(
+  nodes: TemplateLayoutNodeDTO[],
+  layoutNode: TemplateLayoutNodeDTO,
+  target: DesignerLayoutTarget,
+): TemplateLayoutNodeDTO[] {
+  return nodes.map((node) => {
+    if (typeof node === "string") {
+      return node;
+    }
+    if (node.componentId === target.containerId) {
+      if (target.tabId && node.tabs) {
+        return {
+          ...node,
+          tabs: node.tabs.map((tab) => (tab.id === target.tabId ? { ...tab, children: [...tab.children, layoutNode] } : tab)),
+        };
+      }
+      return { ...node, children: [...(node.children ?? []), layoutNode] };
+    }
+    return {
+      ...node,
+      children: node.children ? insertLayoutNodeIntoContainer(node.children, layoutNode, target) : node.children,
+      tabs: node.tabs?.map((tab) => ({ ...tab, children: insertLayoutNodeIntoContainer(tab.children, layoutNode, target) })),
+    };
+  });
+}
+
+function moveLayoutNodeBefore(
+  nodes: TemplateLayoutNodeDTO[],
+  activeComponentId: string,
+  overComponentId: string,
+): TemplateLayoutNodeDTO[] {
+  const activeIndex = nodes.findIndex((node) => getLayoutNodeComponentId(node) === activeComponentId);
+  const overIndex = nodes.findIndex((node) => getLayoutNodeComponentId(node) === overComponentId);
+  if (activeIndex >= 0 && overIndex >= 0) {
+    const nextNodes = [...nodes];
+    const [moved] = nextNodes.splice(activeIndex, 1);
+    nextNodes.splice(activeIndex < overIndex ? overIndex - 1 : overIndex, 0, moved);
+    return nextNodes;
+  }
+  return nodes.map((node) => mapNestedLayoutNode(node, (children) => moveLayoutNodeBefore(children, activeComponentId, overComponentId)));
+}
+
+function moveLayoutNodeByOffset(
+  nodes: TemplateLayoutNodeDTO[],
+  componentId: string,
+  offset: -1 | 1,
+): TemplateLayoutNodeDTO[] {
+  const index = nodes.findIndex((node) => getLayoutNodeComponentId(node) === componentId);
+  const nextIndex = index + offset;
+  if (index < 0 || nextIndex < 0 || nextIndex >= nodes.length) {
+    return nodes.map((node) => mapNestedLayoutNode(node, (children) => moveLayoutNodeByOffset(children, componentId, offset)));
+  }
+  const nextNodes = [...nodes];
+  const [moved] = nextNodes.splice(index, 1);
+  nextNodes.splice(nextIndex, 0, moved);
+  return nextNodes;
+}
+
+function removeLayoutNode(
+  nodes: TemplateLayoutNodeDTO[],
+  componentId: string,
+): { nodes: TemplateLayoutNodeDTO[]; removedIds: Set<string> } {
+  const removedIds = new Set<string>();
+  const nextNodes: TemplateLayoutNodeDTO[] = [];
+
+  for (const node of nodes) {
+    if (getLayoutNodeComponentId(node) === componentId) {
+      collectLayoutNodeComponentIds(node).forEach((id) => removedIds.add(id));
+      continue;
+    }
+    if (typeof node === "string") {
+      nextNodes.push(node);
+      continue;
+    }
+    const childrenRemoval = removeLayoutNode(node.children ?? [], componentId);
+    childrenRemoval.removedIds.forEach((id) => removedIds.add(id));
+    const nextTabs = node.tabs?.map((tab) => {
+      const tabRemoval = removeLayoutNode(tab.children, componentId);
+      tabRemoval.removedIds.forEach((id) => removedIds.add(id));
+      return { ...tab, children: tabRemoval.nodes };
+    });
+    nextNodes.push({ ...node, children: node.children ? childrenRemoval.nodes : node.children, tabs: nextTabs });
+  }
+  return { nodes: nextNodes, removedIds };
+}
+
+function buildDesignerLayoutItems(
+  nodes: TemplateLayoutNodeDTO[],
+  byId: Map<string, TemplateComponentDTO>,
+): DesignerLayoutItem[] {
+  return nodes.flatMap((node): DesignerLayoutItem[] => {
+    const component = byId.get(getLayoutNodeComponentId(node));
+    if (!component) {
+      return [];
+    }
+    if (typeof node === "string") {
+      return [{ component }];
+    }
+    return [
+      {
+        component,
+        children: node.children ? buildDesignerLayoutItems(node.children, byId) : undefined,
+        tabs: node.tabs?.map((tab) => ({
+          id: tab.id,
+          label: tab.label,
+          children: buildDesignerLayoutItems(tab.children, byId),
+        })),
+      },
+    ];
+  });
+}
+
+function flattenDesignerLayoutItems(items: DesignerLayoutItem[]): TemplateComponentDTO[] {
+  return items.flatMap((item) => [
+    item.component,
+    ...(item.children ? flattenDesignerLayoutItems(item.children) : []),
+    ...(item.tabs ? item.tabs.flatMap((tab) => flattenDesignerLayoutItems(tab.children)) : []),
+  ]);
+}
+
+function getLayoutNodeComponentId(node: TemplateLayoutNodeDTO): string {
+  return typeof node === "string" ? node : node.componentId;
+}
+
+function mapNestedLayoutNode(
+  node: TemplateLayoutNodeDTO,
+  updater: (children: TemplateLayoutNodeDTO[]) => TemplateLayoutNodeDTO[],
+): TemplateLayoutNodeDTO {
+  if (typeof node === "string") {
+    return node;
+  }
+  return {
+    ...node,
+    children: node.children ? updater(node.children) : node.children,
+    tabs: node.tabs?.map((tab) => ({ ...tab, children: updater(tab.children) })),
+  };
+}
+
+function mapLayoutNodes(
+  nodes: TemplateLayoutNodeDTO[],
+  updater: (node: TemplateLayoutNodeDTO) => TemplateLayoutNodeDTO,
+): TemplateLayoutNodeDTO[] {
+  return nodes.map((node) => {
+    const updated = updater(node);
+    if (typeof updated === "string") {
+      return updated;
+    }
+    return {
+      ...updated,
+      children: updated.children ? mapLayoutNodes(updated.children, updater) : updated.children,
+      tabs: updated.tabs?.map((tab) => ({ ...tab, children: mapLayoutNodes(tab.children, updater) })),
+    };
+  });
+}
+
+function findContainerNode(nodes: TemplateLayoutNodeDTO[], componentId: string): Exclude<TemplateLayoutNodeDTO, string> | null {
+  for (const node of nodes) {
+    if (typeof node === "string") {
+      continue;
+    }
+    if (node.componentId === componentId) {
+      return node;
+    }
+    const childMatch = findContainerNode(node.children ?? [], componentId);
+    if (childMatch) {
+      return childMatch;
+    }
+    for (const tab of node.tabs ?? []) {
+      const tabMatch = findContainerNode(tab.children, componentId);
+      if (tabMatch) {
+        return tabMatch;
+      }
+    }
+  }
+  return null;
+}
+
+function collectLayoutNodeComponentIds(node: TemplateLayoutNodeDTO): string[] {
+  if (typeof node === "string") {
+    return [node];
+  }
+  return [
+    node.componentId,
+    ...(node.children ?? []).flatMap(collectLayoutNodeComponentIds),
+    ...(node.tabs ?? []).flatMap((tab) => tab.children.flatMap(collectLayoutNodeComponentIds)),
+  ];
 }

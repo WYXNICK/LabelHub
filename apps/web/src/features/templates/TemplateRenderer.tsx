@@ -4,17 +4,22 @@ import {
   ThunderboltOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { useRef, type ReactNode } from "react";
-import { Alert, Button, Checkbox, Empty, Form, Input, Radio, Select, Space, Tag, Tooltip, Typography, Upload } from "antd";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Alert, Button, Checkbox, Empty, Form, Input, Radio, Select, Space, Tabs, Tag, Tooltip, Typography, Upload } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 
 import type { JsonObject } from "../../shared/types/api";
 import type { TemplateComponentDTO, TemplateFieldValue, TemplateSchemaVO, TemplateSubmissionValue } from "./types";
 import {
   formatPayloadValue,
-  getRenderableComponents,
+  getRenderableLayoutItems,
   getTemplateOptions,
+  getTemplateSubmissionErrorsByField,
+  isTemplateComponentRequired,
+  isTemplateComponentVisible,
+  pruneHiddenSubmissionValue,
   readPayloadPath,
+  type RenderableLayoutItem,
   updateTemplateSubmissionValue,
 } from "./runtime";
 
@@ -33,33 +38,133 @@ export function TemplateRenderer({
   onChange,
   readonly = false,
 }: TemplateRendererProps) {
-  const renderableComponents = getRenderableComponents(schema);
-  if (renderableComponents.length === 0) {
+  const renderableItems = useMemo(() => getRenderableLayoutItems(schema), [schema]);
+  const errorsByField = useMemo(() => getTemplateSubmissionErrorsByField(schema, value), [schema, value]);
+
+  useEffect(() => {
+    const nextValue = pruneHiddenSubmissionValue(schema, value);
+    if (!isSameSubmissionValue(value, nextValue)) {
+      onChange(nextValue);
+    }
+  }, [schema, value, onChange]);
+
+  if (renderableItems.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前模板草稿还没有可渲染物料" />;
   }
 
   return (
     <div className="labelhub-template-renderer">
-      {renderableComponents.map((component) =>
-        "missingId" in component ? (
-          <Alert
-            key={component.missingId}
-            type="warning"
-            showIcon
-            message={`布局引用了不存在的组件：${component.missingId}`}
-          />
-        ) : (
-          <RendererField
-            key={component.id}
-            component={component}
-            itemPayload={itemPayload}
-            value={value}
-            readonly={readonly}
-            onChange={onChange}
-          />
-        ),
-      )}
+      {renderableItems.map((item, index) => (
+        <RendererLayoutItem
+          key={"missingId" in item ? `missing-${item.missingId}-${index}` : item.component.id}
+          item={item}
+          itemPayload={itemPayload}
+          value={value}
+          errorsByField={errorsByField}
+          readonly={readonly}
+          onChange={onChange}
+        />
+      ))}
     </div>
+  );
+}
+
+function RendererLayoutItem({
+  item,
+  itemPayload,
+  value,
+  errorsByField,
+  readonly,
+  onChange,
+}: {
+  item: RenderableLayoutItem;
+  itemPayload: JsonObject;
+  value: TemplateSubmissionValue;
+  errorsByField: Map<string, string[]>;
+  readonly: boolean;
+  onChange: (nextValue: TemplateSubmissionValue) => void;
+}) {
+  if ("missingId" in item) {
+    return <Alert type="warning" showIcon message={`布局引用了不存在的组件：${item.missingId}`} />;
+  }
+
+  const { component } = item;
+  if (!isTemplateComponentVisible(component, value)) {
+    return null;
+  }
+
+  if (component.type === "GROUP") {
+    return (
+      <section className="labelhub-template-group">
+        <div className="labelhub-template-group-head">
+          <Typography.Text strong>{component.label}</Typography.Text>
+          {typeof component.props.description === "string" && component.props.description && (
+            <Typography.Text type="secondary">{component.props.description}</Typography.Text>
+          )}
+        </div>
+        <div className="labelhub-template-group-body">
+          {(item.children ?? []).map((child, index) => (
+            <RendererLayoutItem
+              key={"missingId" in child ? `missing-${child.missingId}-${index}` : child.component.id}
+              item={child}
+              itemPayload={itemPayload}
+              value={value}
+              errorsByField={errorsByField}
+              readonly={readonly}
+              onChange={onChange}
+            />
+          ))}
+          {(item.children ?? []).length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="分组内暂无字段" />}
+        </div>
+      </section>
+    );
+  }
+
+  if (component.type === "TABS") {
+    const tabs = item.tabs ?? [];
+    const defaultTabId = typeof component.props.defaultTabId === "string" ? component.props.defaultTabId : tabs[0]?.id;
+    return (
+      <section className="labelhub-template-tabs">
+        <Typography.Text strong>{component.label}</Typography.Text>
+        <Tabs
+          defaultActiveKey={defaultTabId}
+          items={tabs.map((tab) => ({
+            key: tab.id,
+            label: tab.label,
+            children: (
+              <div className="labelhub-template-tab-body">
+                {tab.children.length > 0 ? (
+                  tab.children.map((child, index) => (
+                    <RendererLayoutItem
+                      key={"missingId" in child ? `missing-${child.missingId}-${index}` : child.component.id}
+                      item={child}
+                      itemPayload={itemPayload}
+                      value={value}
+                      errorsByField={errorsByField}
+                      readonly={readonly}
+                      onChange={onChange}
+                    />
+                  ))
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前 Tab 暂无字段" />
+                )}
+              </div>
+            ),
+          }))}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <RendererField
+      component={component}
+      itemPayload={itemPayload}
+      value={value}
+      errorsByField={errorsByField}
+      readonly={readonly}
+      onChange={onChange}
+    />
   );
 }
 
@@ -67,12 +172,14 @@ function RendererField({
   component,
   itemPayload,
   value,
+  errorsByField,
   readonly,
   onChange,
 }: {
   component: TemplateComponentDTO;
   itemPayload: JsonObject;
   value: TemplateSubmissionValue;
+  errorsByField: Map<string, string[]>;
   readonly: boolean;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
@@ -88,7 +195,8 @@ function RendererField({
     return <Alert type="warning" showIcon message={`${component.label} 缺少 fieldKey，暂时无法提交。`} />;
   }
 
-  const required = component.validation.required === true;
+  const errors = errorsByField.get(component.fieldKey) ?? [];
+  const required = isTemplateComponentRequired(component, value);
   const fieldValue = value[component.fieldKey];
   const inputId = `template-field-${component.fieldKey}`;
   const canUseNativeLabel =
@@ -100,7 +208,11 @@ function RendererField({
     onChange(updateTemplateSubmissionValue(value, component, nextValue));
 
   return (
-    <Form.Item className="labelhub-template-field">
+    <Form.Item
+      className="labelhub-template-field"
+      validateStatus={errors.length > 0 ? "error" : undefined}
+      help={errors.length > 0 ? errors.join("；") : undefined}
+    >
       <FieldLabel label={component.label} required={required} htmlFor={canUseNativeLabel ? inputId : undefined} />
       {renderInput(component, fieldValue, setValue, readonly, inputId)}
     </Form.Item>
@@ -259,7 +371,7 @@ function renderInput(
         </p>
         <p className="ant-upload-text">{component.type === "IMAGE_UPLOAD" ? "选择或拖拽图片" : "选择或拖拽文件"}</p>
         <p className="ant-upload-hint">
-          最多 {maxFiles} 个；{accept ? `允许 ${accept}` : "类型不限"}。阶段 2.5 预览仅记录文件名。
+          最多 {maxFiles} 个；{accept ? `允许 ${accept}` : "类型不限"}。当前预览仅记录文件名。
         </p>
       </Upload.Dragger>
     );
@@ -343,7 +455,7 @@ function RichTextInput({
   };
 
   const clearFormatting = () => {
-    // 仅清理工具栏可产生的轻量 Markdown 标记，避免误伤正文内容。
+    // 只清理工具栏可产生的轻量 Markdown 标记，避免误伤正文内容。
     const nextText = textValue
       .replace(/\*\*(.*?)\*\*/g, "$1")
       .replace(/_(.*?)_/g, "$1")
@@ -358,21 +470,13 @@ function RichTextInput({
       <div className="labelhub-rich-runtime-toolbar" aria-label={`${component.label} 富文本工具栏`}>
         <div className="labelhub-rich-runtime-tools">
           <Tooltip title="加粗选中文本">
-            <Button
-              size="small"
-              disabled={readonly}
-              onClick={() => wrapSelection("**", "**", "加粗文本")}
-            >
+            <Button size="small" disabled={readonly} onClick={() => wrapSelection("**", "**", "加粗文本")}>
               <span className="labelhub-rich-toolbar-mark">B</span>
               加粗
             </Button>
           </Tooltip>
           <Tooltip title="斜体选中文本">
-            <Button
-              size="small"
-              disabled={readonly}
-              onClick={() => wrapSelection("_", "_", "斜体文本")}
-            >
+            <Button size="small" disabled={readonly} onClick={() => wrapSelection("_", "_", "斜体文本")}>
               <span className="labelhub-rich-toolbar-mark labelhub-rich-toolbar-mark-italic">I</span>
               斜体
             </Button>
@@ -391,20 +495,14 @@ function RichTextInput({
               size="small"
               disabled={readonly}
               onClick={() =>
-                transformSelectedLines((line, index) =>
-                  /^\s*\d+\.\s+/.test(line) ? line : `${index + 1}. ${line || "列表项"}`,
-                )
+                transformSelectedLines((line, index) => (/^\s*\d+\.\s+/.test(line) ? line : `${index + 1}. ${line || "列表项"}`))
               }
             >
               有序列表
             </Button>
           </Tooltip>
           <Tooltip title="插入链接">
-            <Button
-              size="small"
-              disabled={readonly}
-              onClick={() => wrapSelection("[", "](https://)", "链接文本")}
-            >
+            <Button size="small" disabled={readonly} onClick={() => wrapSelection("[", "](https://)", "链接文本")}>
               插入链接
             </Button>
           </Tooltip>
@@ -504,12 +602,7 @@ function renderInlineRichText(text: string): ReactNode[] {
       nodes.push(<em key={`i-${match.index}`}>{match[3]}</em>);
     } else {
       nodes.push(
-        <Typography.Link
-          key={`a-${match.index}`}
-          href={getSafePreviewUrl(match[5])}
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Typography.Link key={`a-${match.index}`} href={getSafePreviewUrl(match[5])} target="_blank" rel="noreferrer">
           {match[4]}
         </Typography.Link>,
       );
@@ -540,9 +633,7 @@ function LlmAction({ component, readonly }: { component: TemplateComponentDTO; r
         <div>
           <Typography.Text strong>{component.label}</Typography.Text>
           <Typography.Paragraph type="secondary" className="labelhub-template-llm-desc">
-            {typeof component.props.helperText === "string"
-              ? component.props.helperText
-              : "模型输出仅作参考，标注员确认后再提交。"}
+            {typeof component.props.helperText === "string" ? component.props.helperText : "模型输出仅作参考，标注员确认后再提交。"}
           </Typography.Paragraph>
         </div>
       </Space>
@@ -586,4 +677,13 @@ function parseJsonObjectOrDraft(value: string): TemplateFieldValue {
   } catch {
     return value;
   }
+}
+
+function isSameSubmissionValue(left: TemplateSubmissionValue, right: TemplateSubmissionValue): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+  return leftKeys.every((key) => JSON.stringify(left[key]) === JSON.stringify(right[key]));
 }

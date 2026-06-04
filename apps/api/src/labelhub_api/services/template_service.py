@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -42,6 +43,9 @@ COLLECTABLE_TYPES = {
 CONTAINER_TYPES = {TemplateComponentType.GROUP.value, TemplateComponentType.TABS.value}
 NON_FIELD_TYPES = {TemplateComponentType.SHOW_ITEM.value, TemplateComponentType.LLM_ACTION.value, *CONTAINER_TYPES}
 SUPPORTED_SCHEMA_VERSION = "labelhub-template/v1"
+RULE_LOGICS = {"ALL", "ANY"}
+CONDITION_OPERATORS = {"EQUALS", "NOT_EQUALS", "IN", "NOT_IN", "NOT_EMPTY", "EMPTY"}
+CUSTOM_RULE_IDS = {"NO_EMOJI", "NO_URL", "TRIMMED_NON_EMPTY", "JSON_OBJECT"}
 
 
 class TemplateService:
@@ -134,6 +138,7 @@ class TemplateService:
         duplicate_component_ids: set[str] = set()
         field_keys: set[str] = set()
         duplicate_field_keys: set[str] = set()
+        component_index_by_id: dict[str, int] = {}
 
         for index, component in enumerate(schema.components):
             field_prefix = f"components.{index}"
@@ -144,6 +149,7 @@ class TemplateService:
             if component_id in component_ids:
                 duplicate_component_ids.add(component_id)
             component_ids.add(component_id)
+            component_index_by_id[component_id] = index
 
             if component_type not in allowed_types:
                 errors.append(self._error(f"{field_prefix}.type", f"不支持的物料类型：{component_type}。"))
@@ -165,6 +171,8 @@ class TemplateService:
                     validation=component.validation,
                 )
             )
+            errors.extend(self._validate_visibility_rules(field_prefix, component.visibility))
+            errors.extend(self._validate_validation_rules(field_prefix, component.validation))
 
         for component_id in sorted(duplicate_component_ids):
             errors.append(self._error("components", f"component.id 重复：{component_id}。"))
@@ -172,7 +180,16 @@ class TemplateService:
             errors.append(self._error("components", f"fieldKey 重复：{field_key}。"))
 
         errors.extend(self._validate_llm_field_references(schema.components, field_keys))
-        errors.extend(self._validate_layout(schema.layout, component_ids, {c.id: c.type for c in schema.components}))
+        errors.extend(self._validate_rule_field_references(schema.components, field_keys))
+        errors.extend(
+            self._validate_layout(
+                schema.layout,
+                component_ids,
+                {c.id: c.type for c in schema.components},
+                {c.id: c.props for c in schema.components},
+                component_index_by_id,
+            )
+        )
         return errors
 
     def _validate_component_properties(
@@ -214,12 +231,139 @@ class TemplateService:
             errors.extend(self._validate_llm_action_component(field_prefix, props))
             return errors
 
+        if component_type == TemplateComponentType.GROUP.value:
+            errors.extend(self._validate_group_component(field_prefix, props))
+            return errors
+
+        if component_type == TemplateComponentType.TABS.value:
+            errors.extend(self._validate_tabs_component(field_prefix, props))
+            return errors
+
         if component_type in {
             TemplateComponentType.RADIO.value,
             TemplateComponentType.CHECKBOX.value,
             TemplateComponentType.TAG_SELECT.value,
         }:
             errors.extend(self._validate_option_component(field_prefix, component_type, props, validation))
+        return errors
+
+    def _validate_group_component(
+        self,
+        field_prefix: str,
+        props: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        description = props.get("description")
+        if description is not None and not isinstance(description, str):
+            errors.append(self._error(f"{field_prefix}.props.description", "description 必须是字符串。"))
+        elif isinstance(description, str) and len(description) > 500:
+            errors.append(self._error(f"{field_prefix}.props.description", "description 不能超过 500 字符。"))
+
+        collapsible = props.get("collapsible")
+        if collapsible is not None and not isinstance(collapsible, bool):
+            errors.append(self._error(f"{field_prefix}.props.collapsible", "collapsible 必须是布尔值。"))
+        return errors
+
+    def _validate_tabs_component(
+        self,
+        field_prefix: str,
+        props: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        default_tab_id = props.get("defaultTabId")
+        if default_tab_id is not None and not isinstance(default_tab_id, str):
+            return [self._error(f"{field_prefix}.props.defaultTabId", "defaultTabId 必须是字符串。")]
+        if isinstance(default_tab_id, str) and len(default_tab_id) > 64:
+            return [self._error(f"{field_prefix}.props.defaultTabId", "defaultTabId 不能超过 64 字符。")]
+        return []
+
+    def _validate_visibility_rules(
+        self,
+        field_prefix: str,
+        visibility: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        return self._validate_rule_set_shape(f"{field_prefix}.visibility", visibility)
+
+    def _validate_validation_rules(
+        self,
+        field_prefix: str,
+        validation: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        pattern = validation.get("pattern")
+        if pattern is not None:
+            if not isinstance(pattern, str):
+                errors.append(self._error(f"{field_prefix}.validation.pattern", "pattern 必须是字符串。"))
+            else:
+                try:
+                    re.compile(pattern)
+                except re.error:
+                    errors.append(self._error(f"{field_prefix}.validation.pattern", "pattern 不是合法正则。"))
+
+        pattern_message = validation.get("patternMessage")
+        if pattern_message is not None and not isinstance(pattern_message, str):
+            errors.append(self._error(f"{field_prefix}.validation.patternMessage", "patternMessage 必须是字符串。"))
+
+        custom_rule_ids = validation.get("customRuleIds")
+        if custom_rule_ids is not None:
+            if not isinstance(custom_rule_ids, list):
+                errors.append(self._error(f"{field_prefix}.validation.customRuleIds", "customRuleIds 必须是字符串数组。"))
+            else:
+                for index, rule_id in enumerate(custom_rule_ids):
+                    if not isinstance(rule_id, str) or rule_id not in CUSTOM_RULE_IDS:
+                        errors.append(
+                            self._error(
+                                f"{field_prefix}.validation.customRuleIds.{index}",
+                                f"customRuleId 不在白名单：{rule_id}。",
+                            )
+                        )
+
+        required_when = validation.get("requiredWhen")
+        if required_when is not None:
+            if not isinstance(required_when, dict):
+                errors.append(self._error(f"{field_prefix}.validation.requiredWhen", "requiredWhen 必须是对象。"))
+            else:
+                errors.extend(self._validate_rule_set_shape(f"{field_prefix}.validation.requiredWhen", required_when))
+                message = required_when.get("message")
+                if message is not None and not isinstance(message, str):
+                    errors.append(self._error(f"{field_prefix}.validation.requiredWhen.message", "message 必须是字符串。"))
+        return errors
+
+    def _validate_rule_set_shape(
+        self,
+        field_prefix: str,
+        rule_set: dict[str, Any],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        logic = rule_set.get("logic")
+        if logic is not None and logic not in RULE_LOGICS:
+            errors.append(self._error(f"{field_prefix}.logic", "logic 只能是 ALL 或 ANY。"))
+
+        conditions = rule_set.get("conditions")
+        if conditions is None:
+            return errors
+        if not isinstance(conditions, list):
+            return [self._error(f"{field_prefix}.conditions", "conditions 必须是数组。")]
+
+        for index, condition in enumerate(conditions):
+            condition_prefix = f"{field_prefix}.conditions.{index}"
+            if not isinstance(condition, dict):
+                errors.append(self._error(condition_prefix, "condition 必须是对象。"))
+                continue
+
+            field_key = condition.get("fieldKey")
+            if not isinstance(field_key, str) or not field_key.strip():
+                errors.append(self._error(f"{condition_prefix}.fieldKey", "fieldKey 不能为空。"))
+
+            operator = condition.get("operator")
+            if operator not in CONDITION_OPERATORS:
+                errors.append(self._error(f"{condition_prefix}.operator", "operator 不在支持范围内。"))
+
+            value = condition.get("value")
+            if operator in {"IN", "NOT_IN"}:
+                if not isinstance(value, list) or not value or not all(isinstance(item, str) for item in value):
+                    errors.append(self._error(f"{condition_prefix}.value", "IN/NOT_IN 的 value 必须是非空字符串数组。"))
+            elif operator in {"EQUALS", "NOT_EQUALS"} and not isinstance(value, (str, int, float, bool, type(None))):
+                errors.append(self._error(f"{condition_prefix}.value", "EQUALS/NOT_EQUALS 的 value 类型不合法。"))
         return errors
 
     def _validate_text_component(
@@ -439,6 +583,47 @@ class TemplateService:
                 )
         return errors
 
+    def _validate_rule_field_references(
+        self,
+        components: list[Any],
+        field_keys: set[str],
+    ) -> list[TemplateSchemaValidationErrorVO]:
+        errors: list[TemplateSchemaValidationErrorVO] = []
+        for index, component in enumerate(components):
+            current_field_key = component.field_key
+            rule_sets = [
+                (f"components.{index}.visibility", component.visibility),
+            ]
+            required_when = component.validation.get("requiredWhen")
+            if isinstance(required_when, dict):
+                rule_sets.append((f"components.{index}.validation.requiredWhen", required_when))
+
+            for field_prefix, rule_set in rule_sets:
+                conditions = rule_set.get("conditions")
+                if not isinstance(conditions, list):
+                    continue
+                for condition_index, condition in enumerate(conditions):
+                    if not isinstance(condition, dict):
+                        continue
+                    field_key = condition.get("fieldKey")
+                    if not isinstance(field_key, str) or not field_key.strip():
+                        continue
+                    if field_key == current_field_key:
+                        errors.append(
+                            self._error(
+                                f"{field_prefix}.conditions.{condition_index}.fieldKey",
+                                "条件不能引用当前字段自身。",
+                            )
+                        )
+                    elif field_key not in field_keys:
+                        errors.append(
+                            self._error(
+                                f"{field_prefix}.conditions.{condition_index}.fieldKey",
+                                f"条件字段不存在：{field_key}。",
+                            )
+                        )
+        return errors
+
     def _is_image_accept_value(self, value: str) -> bool:
         normalized = value.lower()
         return normalized == "image/*" or normalized.startswith("image/") or normalized in {
@@ -487,6 +672,8 @@ class TemplateService:
         layout: dict[str, Any],
         component_ids: set[str],
         component_types: dict[str, str],
+        component_props: dict[str, dict[str, Any]],
+        component_index_by_id: dict[str, int],
     ) -> list[TemplateSchemaValidationErrorVO]:
         errors: list[TemplateSchemaValidationErrorVO] = []
         root = layout.get("root")
@@ -500,6 +687,8 @@ class TemplateService:
                 path="layout.root",
                 component_ids=component_ids,
                 component_types=component_types,
+                component_props=component_props,
+                component_index_by_id=component_index_by_id,
                 seen_layout_ids=seen_layout_ids,
             )
         )
@@ -515,6 +704,8 @@ class TemplateService:
         path: str,
         component_ids: set[str],
         component_types: dict[str, str],
+        component_props: dict[str, dict[str, Any]],
+        component_index_by_id: dict[str, int],
         seen_layout_ids: set[str],
     ) -> list[TemplateSchemaValidationErrorVO]:
         errors: list[TemplateSchemaValidationErrorVO] = []
@@ -537,6 +728,8 @@ class TemplateService:
                         component_type=component_types.get(component_id),
                         component_ids=component_ids,
                         component_types=component_types,
+                        component_props=component_props,
+                        component_index_by_id=component_index_by_id,
                         seen_layout_ids=seen_layout_ids,
                     )
                 )
@@ -561,6 +754,8 @@ class TemplateService:
         component_type: str | None,
         component_ids: set[str],
         component_types: dict[str, str],
+        component_props: dict[str, dict[str, Any]],
+        component_index_by_id: dict[str, int],
         seen_layout_ids: set[str],
     ) -> list[TemplateSchemaValidationErrorVO]:
         errors: list[TemplateSchemaValidationErrorVO] = []
@@ -577,6 +772,8 @@ class TemplateService:
                         path=f"{node_path}.children",
                         component_ids=component_ids,
                         component_types=component_types,
+                        component_props=component_props,
+                        component_index_by_id=component_index_by_id,
                         seen_layout_ids=seen_layout_ids,
                     )
                 )
@@ -586,21 +783,53 @@ class TemplateService:
             tabs = node.get("tabs")
             if not isinstance(tabs, list):
                 errors.append(self._error(f"{node_path}.tabs", "tabs 必须是数组。"))
+            elif len(tabs) == 0:
+                errors.append(self._error(f"{node_path}.tabs", "tabs 至少包含 1 个 Tab。"))
             else:
+                tab_ids: set[str] = set()
+                duplicated_tab_ids: set[str] = set()
                 for tab_index, tab in enumerate(tabs):
                     tab_path = f"{node_path}.tabs.{tab_index}"
-                    if not isinstance(tab, dict) or not isinstance(tab.get("children"), list):
-                        errors.append(self._error(tab_path, "tab 必须是包含 children 数组的对象。"))
+                    if not isinstance(tab, dict):
+                        errors.append(self._error(tab_path, "tab 必须是对象。"))
+                        continue
+                    tab_id = tab.get("id")
+                    if not isinstance(tab_id, str) or not tab_id.strip():
+                        errors.append(self._error(f"{tab_path}.id", "tab.id 不能为空。"))
+                    else:
+                        if tab_id in tab_ids:
+                            duplicated_tab_ids.add(tab_id)
+                        tab_ids.add(tab_id)
+                    label = tab.get("label")
+                    if not isinstance(label, str) or not label.strip():
+                        errors.append(self._error(f"{tab_path}.label", "tab.label 不能为空。"))
+                    children = tab.get("children")
+                    if not isinstance(children, list):
+                        errors.append(self._error(f"{tab_path}.children", "tab.children 必须是数组。"))
                         continue
                     errors.extend(
                         self._walk_layout_nodes(
-                            nodes=tab["children"],
+                            nodes=children,
                             path=f"{tab_path}.children",
                             component_ids=component_ids,
                             component_types=component_types,
+                            component_props=component_props,
+                            component_index_by_id=component_index_by_id,
                             seen_layout_ids=seen_layout_ids,
                         )
                     )
+                for tab_id in sorted(duplicated_tab_ids):
+                    errors.append(self._error(f"{node_path}.tabs", f"tab.id 重复：{tab_id}。"))
+
+                default_tab_id = component_props.get(component_id, {}).get("defaultTabId")
+                if isinstance(default_tab_id, str) and default_tab_id and default_tab_id not in tab_ids:
+                    component_index = component_index_by_id.get(component_id)
+                    field = (
+                        f"components.{component_index}.props.defaultTabId"
+                        if component_index is not None
+                        else f"{node_path}.tabs"
+                    )
+                    errors.append(self._error(field, "defaultTabId 必须引用已存在的 tab.id。"))
         return errors
 
     def _create_default_draft(self, task: TaskEntity, user: UserVO) -> TemplateDraftEntity:

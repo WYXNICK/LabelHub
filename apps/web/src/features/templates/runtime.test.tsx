@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest";
 import { TemplateRenderer } from "./TemplateRenderer";
 import {
   formatPayloadValue,
+  getRenderableLayoutItems,
   getRenderableComponents,
   getTemplateInitialValue,
   getTemplateOptions,
+  isTemplateComponentVisible,
+  pruneHiddenSubmissionValue,
   readPayloadPath,
   updateTemplateSubmissionValue,
+  validateTemplateSubmissionValue,
 } from "./runtime";
 import type { TemplateSchemaVO } from "./types";
 
@@ -128,6 +132,74 @@ function rendererSchema(): TemplateSchemaVO {
   };
 }
 
+function stage26Schema(): TemplateSchemaVO {
+  return {
+    schemaVersion: "labelhub-template/v1",
+    components: [
+      {
+        id: "group_review",
+        type: "GROUP",
+        label: "质检分组",
+        props: { description: "质量较差时需要补充原因", collapsible: false },
+        validation: {},
+        visibility: {},
+      },
+      {
+        id: "quality",
+        type: "RADIO",
+        fieldKey: "quality",
+        label: "质量",
+        props: { options: [{ label: "差", value: "bad" }, { label: "好", value: "good" }] },
+        validation: { required: true },
+        visibility: {},
+      },
+      {
+        id: "reason",
+        type: "TEXTAREA",
+        fieldKey: "reason",
+        label: "修正原因",
+        props: { placeholder: "请说明原因" },
+        validation: {
+          requiredWhen: {
+            logic: "ALL",
+            conditions: [{ fieldKey: "quality", operator: "EQUALS", value: "bad" }],
+            message: "质量较差时必须填写原因",
+          },
+          pattern: "^[^@#$]+$",
+          patternMessage: "不能包含特殊符号",
+          customRuleIds: ["NO_EMOJI"],
+        },
+        visibility: { logic: "ALL", conditions: [{ fieldKey: "quality", operator: "EQUALS", value: "bad" }] },
+      },
+      {
+        id: "tabs",
+        type: "TABS",
+        label: "多阶段信息",
+        props: { defaultTabId: "basic" },
+        validation: {},
+        visibility: {},
+      },
+      {
+        id: "note",
+        type: "TEXT_INPUT",
+        fieldKey: "note",
+        label: "备注",
+        props: { placeholder: "请输入备注" },
+        validation: {},
+        visibility: {},
+      },
+    ],
+    layout: {
+      root: [
+        { componentId: "group_review", children: ["quality", "reason"] },
+        { componentId: "tabs", tabs: [{ id: "basic", label: "基础", children: ["note"] }] },
+      ],
+    },
+    llmActions: [],
+    showItems: [],
+  };
+}
+
 describe("template runtime helpers", () => {
   it("reads payload values by a small JSONPath subset", () => {
     expect(readPayloadPath({ prompt: "hello", nested: { items: [{ text: "A" }] } }, "$.prompt")).toBe(
@@ -194,5 +266,35 @@ describe("template runtime helpers", () => {
     expect(html).toContain("结构化信息");
     expect(html).toContain("AI 参考建议");
     expect(html).toContain("阶段 3.6 接入真实调用");
+  });
+
+  it("evaluates stage 2.6 layout, visibility and linked validation rules", () => {
+    const schema = stage26Schema();
+    const reason = schema.components.find((component) => component.id === "reason");
+    expect(reason).toBeDefined();
+    expect(getRenderableLayoutItems(schema)).toHaveLength(2);
+    expect(isTemplateComponentVisible(reason!, { quality: "good", reason: "hidden" })).toBe(false);
+    expect(pruneHiddenSubmissionValue(schema, { quality: "good", reason: "hidden", note: "ok" })).toEqual({
+      quality: "good",
+      note: "ok",
+    });
+    expect(validateTemplateSubmissionValue(schema, { quality: "bad", reason: "" })).toEqual([
+      { fieldKey: "reason", message: "质量较差时必须填写原因" },
+    ]);
+    expect(validateTemplateSubmissionValue(schema, { quality: "bad", reason: "不要😀" })).toEqual([
+      { fieldKey: "reason", message: "修正原因 不能包含 Emoji" },
+    ]);
+
+    const html = renderToStaticMarkup(
+      <TemplateRenderer
+        schema={schema}
+        itemPayload={{}}
+        value={{ quality: "bad", reason: "", note: "n" }}
+        onChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("质检分组");
+    expect(html).toContain("多阶段信息");
+    expect(html).toContain("请说明原因");
   });
 });

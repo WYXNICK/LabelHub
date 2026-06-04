@@ -1260,6 +1260,12 @@ body {
   line-height: 1.6;
 }
 
+.labelhub-canvas-layout-preview {
+  background: linear-gradient(180deg, #fbfcff 0%, #f4f8ff 100%);
+  border-style: dashed;
+  border-color: #c9ddff;
+}
+
 .labelhub-canvas-show-preview {
   display: grid;
   gap: 4px;
@@ -1324,6 +1330,44 @@ body {
   gap: 6px;
 }
 
+.labelhub-canvas-container {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(248, 251, 255, 0.78);
+  border: 1px dashed #c9ddff;
+  border-radius: 8px;
+}
+
+.labelhub-canvas-container[data-over="true"] {
+  background: #edf4ff;
+  border-color: #3370ff;
+}
+
+.labelhub-canvas-container-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.labelhub-canvas-container-body {
+  display: grid;
+  gap: 10px;
+}
+
+.labelhub-canvas-container-body > .labelhub-canvas-item {
+  box-shadow: none;
+}
+
+.labelhub-canvas-tabs {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .labelhub-property-panel {
   display: flex;
   flex-direction: column;
@@ -1355,6 +1399,19 @@ body {
   margin-bottom: 12px;
 }
 
+.labelhub-property-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-property-subtitle {
+  margin-top: 4px;
+}
+
 .labelhub-option-editor-head {
   display: flex;
   align-items: center;
@@ -1369,6 +1426,33 @@ body {
   gap: 8px;
 }
 
+.labelhub-tabs-editor,
+.labelhub-rule-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.labelhub-tabs-editor-head,
+.labelhub-rule-editor-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.labelhub-tab-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px 30px;
+  gap: 6px;
+}
+
+.labelhub-rule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr) 30px;
+  gap: 6px;
+  align-items: center;
+}
+
 .labelhub-drag-overlay {
   padding: 9px 12px;
   color: #1f2329;
@@ -1376,6 +1460,31 @@ body {
   border: 1px solid #a8c5ff;
   border-radius: 8px;
   box-shadow: 0 12px 28px rgba(31, 35, 41, 0.14);
+}
+
+.labelhub-template-group,
+.labelhub-template-tabs {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-template-group-head {
+  display: grid;
+  gap: 4px;
+}
+
+.labelhub-template-group-body,
+.labelhub-template-tab-body {
+  display: grid;
+  gap: 12px;
+}
+
+.labelhub-template-tabs .ant-tabs {
+  min-width: 0;
 }
 
 @media (max-width: 1280px) {

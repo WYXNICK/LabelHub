@@ -19,6 +19,24 @@ export type TemplateVersionStatus = "ACTIVE" | "DISABLED";
 export type TemplateJsonValue = string | number | boolean | null | JsonObject | TemplateJsonValue[];
 export type TemplateFieldValue = TemplateJsonValue;
 export type TemplateSubmissionValue = Record<string, TemplateFieldValue>;
+export type TemplateRuleLogic = "ALL" | "ANY";
+export type TemplateConditionOperator = "EQUALS" | "NOT_EQUALS" | "IN" | "NOT_IN" | "NOT_EMPTY" | "EMPTY";
+export type TemplateCustomRuleId = "NO_EMOJI" | "NO_URL" | "TRIMMED_NON_EMPTY" | "JSON_OBJECT";
+
+export interface TemplateRuleConditionDTO {
+  fieldKey: string;
+  operator: TemplateConditionOperator;
+  value?: string | number | boolean | null | string[];
+}
+
+export interface TemplateRuleSetDTO {
+  logic?: TemplateRuleLogic;
+  conditions?: TemplateRuleConditionDTO[];
+}
+
+export interface TemplateRequiredWhenRuleDTO extends TemplateRuleSetDTO {
+  message?: string;
+}
 
 export interface TemplateComponentDTO {
   id: string;

@@ -791,6 +791,80 @@ LLM 边界：
 - 非法上传限制、非法 JSON 默认值、缺失 LLM prompt、引用不存在字段的 LLM 映射都返回结构化 `TemplateSchemaValidationVO.errors`。
 - 保存草稿仍只允许草稿任务，且继续写入 `audit_logs.action=TEMPLATE_SAVE`。
 
+### 9.12 阶段 2.6 高级布局与规则校验契约
+
+阶段 2.6 不新增 API 和数据库表，继续复用 `POST /api/template-schemas:validate` 与 `PUT /api/tasks/{taskId}/template-draft`。本阶段补齐官方 4.2 进阶要求中的条件显示、联动校验、正则/白名单自定义规则、分组容器和多 Tab 布局。
+
+规则协议：
+
+```json
+{
+  "visibility": {
+    "logic": "ALL",
+    "conditions": [
+      { "fieldKey": "quality", "operator": "EQUALS", "value": "bad" }
+    ]
+  },
+  "validation": {
+    "required": true,
+    "maxLength": 500,
+    "pattern": "^[^@#$]+$",
+    "patternMessage": "不能包含特殊符号",
+    "customRuleIds": ["NO_EMOJI"],
+    "requiredWhen": {
+      "logic": "ALL",
+      "conditions": [
+        { "fieldKey": "quality", "operator": "EQUALS", "value": "bad" }
+      ],
+      "message": "质量较差时必须填写原因"
+    }
+  }
+}
+```
+
+支持的条件操作符：
+
+| operator | 语义 |
+| --- | --- |
+| `EQUALS` | 字段值等于 `value` |
+| `NOT_EQUALS` | 字段值不等于 `value` |
+| `IN` | 字段值或数组字段任一项命中 `value[]` |
+| `NOT_IN` | 字段值或数组字段均未命中 `value[]` |
+| `NOT_EMPTY` | 字段存在且非空 |
+| `EMPTY` | 字段不存在或为空 |
+
+白名单自定义规则：
+
+| ruleId | 语义 |
+| --- | --- |
+| `NO_EMOJI` | 文本不得包含 emoji |
+| `NO_URL` | 文本不得包含 URL |
+| `TRIMMED_NON_EMPTY` | 去除首尾空白后不得为空 |
+| `JSON_OBJECT` | JSON 编辑器值必须是 Object |
+
+布局协议：
+
+| 物料 | fieldKey | props | layout |
+| --- | --- | --- | --- |
+| `GROUP` | 必须为空 | `description?: string`、`collapsible?: boolean` | `{ "componentId": "group_id", "children": [...] }` |
+| `TABS` | 必须为空 | `defaultTabId?: string` | `{ "componentId": "tabs_id", "tabs": [{ "id": "tab_1", "label": "基础信息", "children": [...] }] }` |
+
+后端校验要求：
+
+- `visibility.logic` 与 `validation.requiredWhen.logic` 只能是 `ALL` 或 `ANY`，缺省按 `ALL`。
+- 条件 `fieldKey` 必须引用当前 schema 中已存在的采集字段；不得引用当前组件自身的 `fieldKey`。
+- `operator=IN/NOT_IN` 时 `value` 必须是非空字符串数组；`EQUALS/NOT_EQUALS` 时 `value` 必须是字符串、数字、布尔值或 null。
+- `validation.pattern` 必须是可编译正则；`patternMessage` 为空或字符串。
+- `validation.customRuleIds` 只能使用白名单 ID，不允许保存任意函数体或脚本。
+- `GROUP` 的 layout 节点必须使用 `children`；非 GROUP 不允许使用 `children`。
+- `TABS` 的 layout 节点必须使用 `tabs`，每个 tab 必须有唯一非空 `id`、非空 `label` 和 `children` 数组；非 TABS 不允许使用 `tabs`。
+- 嵌套布局中每个组件只能出现一次；所有组件都必须出现在 layout 中。
+
+阶段边界：
+
+- 阶段 2.6 只校验规则定义和 Owner 预览运行时效果，不新增 Labeler 提交接口。
+- 真正提交时的后端字段级校验将在阶段 3.4 复用同一套规则语义接入。
+
 ## 10. 阶段 0 Entity 与迁移契约
 
 阶段 0 先落地 `users` 表迁移，便于后续 Auth/User 模块切换到数据库持久化。

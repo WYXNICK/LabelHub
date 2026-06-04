@@ -676,6 +676,70 @@ Renderer 行为：
 - 前端测试覆盖高级物料默认 schema、初始提交值和 Renderer 静态渲染。
 - 浏览器验收覆盖添加高级物料、编辑关键属性、预览抽屉渲染和布局在 `1280×800`、`1920×1080` 下无横向溢出。
 
+### 9.12 阶段 2.6 高级布局与规则
+
+阶段 2.6 继续使用同一份 `TemplateSchemaVO`，不引入前端私有协议。目标是让 Owner 在 Designer 中配置官方 4.2 进阶能力，并能在预览抽屉中看到 Renderer 运行效果。
+
+新增 Designer 物料分组：
+
+| 分组 | 物料 |
+| --- | --- |
+| 布局物料 | `GROUP`、`TABS` |
+
+规则结构：
+
+```ts
+type TemplateRuleLogic = "ALL" | "ANY";
+type TemplateConditionOperator = "EQUALS" | "NOT_EQUALS" | "IN" | "NOT_IN" | "NOT_EMPTY" | "EMPTY";
+
+interface TemplateRuleConditionDTO {
+  fieldKey: string;
+  operator: TemplateConditionOperator;
+  value?: string | number | boolean | null | string[];
+}
+
+interface TemplateRuleSetDTO {
+  logic?: TemplateRuleLogic;
+  conditions?: TemplateRuleConditionDTO[];
+}
+```
+
+字段级配置：
+
+| 配置 | 存放位置 | Designer 行为 | Renderer 行为 |
+| --- | --- | --- | --- |
+| 条件显示 | `component.visibility` | 可选择依赖字段、操作符和值 | 条件不满足时隐藏组件，隐藏采集字段从提交值中移除 |
+| 正则校验 | `component.validation.pattern/patternMessage` | 文本类、富文本和 JSON 字符串输入可配置 | 值不匹配时展示字段级错误 |
+| 白名单规则 | `component.validation.customRuleIds` | 多选 `NO_EMOJI`、`NO_URL`、`TRIMMED_NON_EMPTY`、`JSON_OBJECT` | 按规则展示字段级错误，不执行任意代码 |
+| 联动必填 | `component.validation.requiredWhen` | 配置依赖条件与错误提示 | 条件满足且字段为空时展示字段级错误 |
+
+布局结构：
+
+```ts
+type TemplateLayoutNodeDTO =
+  | string
+  | {
+      componentId: string;
+      children?: TemplateLayoutNodeDTO[];
+      tabs?: Array<{ id: string; label: string; children: TemplateLayoutNodeDTO[] }>;
+    };
+```
+
+交互规则：
+
+- `GROUP` 默认生成空 `children`，可从分组内部添加子物料；Renderer 用分组卡片渲染 children。
+- `TABS` 默认生成两个 tab，可在属性面板编辑 Tab 名称；Renderer 用 Ant Design Tabs 渲染各 tab children。
+- 删除容器时同步删除其嵌套 children 对应的组件，避免 schema 中出现孤儿组件。
+- 组件上移/下移在其所在兄弟节点内生效；根节点、分组 children、Tab children 均保持同一规则。
+- 预览抽屉直接消费当前未保存 schema，并展示条件显示、联动必填、正则和自定义规则的运行时反馈。
+- 阶段 2.6 不实现 Labeler 提交接口；阶段 3.4 会复用运行时规则语义接入提交校验。
+
+验收标准：
+
+- 前端测试覆盖布局物料默认值、嵌套添加、容器删除、条件显示、隐藏字段清理和运行时校验。
+- 后端 schema 校验拒绝非法条件字段、非法 operator、非法正则、未知 customRuleId、非法 GROUP/TABS layout。
+- Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 检查 Designer、预览抽屉、条件显示和 Tab 切换；Console 无非预期错误。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：

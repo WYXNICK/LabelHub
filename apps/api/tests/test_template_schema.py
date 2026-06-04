@@ -423,6 +423,173 @@ def test_validate_template_schema_rejects_invalid_stage25_advanced_material_prop
     assert "components.3.props.outputFieldKey" in fields
 
 
+def test_validate_template_schema_accepts_stage26_layout_and_rules(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    schema = {
+        "schemaVersion": "labelhub-template/v1",
+        "components": [
+            {
+                "id": "quality",
+                "type": "RADIO",
+                "fieldKey": "quality",
+                "label": "Quality",
+                "props": {"options": [{"label": "Bad", "value": "bad"}, {"label": "Good", "value": "good"}]},
+                "validation": {"required": True},
+                "visibility": {},
+            },
+            {
+                "id": "reason",
+                "type": "TEXTAREA",
+                "fieldKey": "reason",
+                "label": "Reason",
+                "props": {"placeholder": "Explain"},
+                "validation": {
+                    "pattern": "^[^@]+$",
+                    "patternMessage": "Cannot contain @",
+                    "customRuleIds": ["NO_EMOJI"],
+                    "requiredWhen": {
+                        "logic": "ALL",
+                        "conditions": [{"fieldKey": "quality", "operator": "EQUALS", "value": "bad"}],
+                        "message": "Bad quality requires reason",
+                    },
+                },
+                "visibility": {
+                    "logic": "ALL",
+                    "conditions": [{"fieldKey": "quality", "operator": "EQUALS", "value": "bad"}],
+                },
+            },
+            {
+                "id": "group_feedback",
+                "type": "GROUP",
+                "label": "Feedback",
+                "props": {"description": "Grouped feedback fields", "collapsible": False},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "tabs_detail",
+                "type": "TABS",
+                "label": "Details",
+                "props": {"defaultTabId": "basic"},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "summary",
+                "type": "TEXT_INPUT",
+                "fieldKey": "summary",
+                "label": "Summary",
+                "props": {},
+                "validation": {"customRuleIds": ["TRIMMED_NON_EMPTY"]},
+                "visibility": {},
+            },
+        ],
+        "layout": {
+            "root": [
+                "quality",
+                {"componentId": "group_feedback", "children": ["reason"]},
+                {
+                    "componentId": "tabs_detail",
+                    "tabs": [{"id": "basic", "label": "Basic", "children": ["summary"]}],
+                },
+            ]
+        },
+        "llmActions": [],
+        "showItems": [],
+    }
+
+    response = client.post("/api/template-schemas:validate", json={"schema": schema})
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": []}
+
+
+def test_validate_template_schema_rejects_invalid_stage26_rules_and_layout(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client)
+    schema = {
+        "schemaVersion": "labelhub-template/v1",
+        "components": [
+            {
+                "id": "quality",
+                "type": "RADIO",
+                "fieldKey": "quality",
+                "label": "Quality",
+                "props": {"options": [{"label": "Bad", "value": "bad"}]},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "reason",
+                "type": "TEXTAREA",
+                "fieldKey": "reason",
+                "label": "Reason",
+                "props": {},
+                "validation": {
+                    "pattern": "[",
+                    "patternMessage": 123,
+                    "customRuleIds": ["RUN_SCRIPT"],
+                    "requiredWhen": {
+                        "logic": "SOME",
+                        "conditions": [{"fieldKey": "missing", "operator": "EQUALS", "value": "bad"}],
+                    },
+                },
+                "visibility": {
+                    "conditions": [{"fieldKey": "reason", "operator": "MATCHES", "value": "bad"}],
+                },
+            },
+            {
+                "id": "group_feedback",
+                "type": "GROUP",
+                "label": "Feedback",
+                "props": {"description": 123, "collapsible": "yes"},
+                "validation": {},
+                "visibility": {},
+            },
+            {
+                "id": "tabs_detail",
+                "type": "TABS",
+                "label": "Details",
+                "props": {"defaultTabId": "missing_tab"},
+                "validation": {},
+                "visibility": {},
+            },
+        ],
+        "layout": {
+            "root": [
+                "quality",
+                {"componentId": "group_feedback", "children": ["reason"]},
+                {"componentId": "tabs_detail", "tabs": [{"id": "tab_1", "label": "", "children": []}]},
+            ]
+        },
+        "llmActions": [],
+        "showItems": [],
+    }
+
+    response = client.post("/api/template-schemas:validate", json={"schema": schema})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["valid"] is False
+    fields = {error["field"] for error in payload["errors"]}
+    assert "components.1.validation.pattern" in fields
+    assert "components.1.validation.patternMessage" in fields
+    assert "components.1.validation.customRuleIds.0" in fields
+    assert "components.1.validation.requiredWhen.logic" in fields
+    assert "components.1.validation.requiredWhen.conditions.0.fieldKey" in fields
+    assert "components.1.visibility.conditions.0.operator" in fields
+    assert "components.1.visibility.conditions.0.fieldKey" in fields
+    assert "components.2.props.description" in fields
+    assert "components.2.props.collapsible" in fields
+    assert "layout.root.2.tabs.0.label" in fields
+    assert "components.3.props.defaultTabId" in fields
+
+
 def test_save_template_schema_rejects_invalid_schema(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

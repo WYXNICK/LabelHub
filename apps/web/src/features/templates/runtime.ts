@@ -254,9 +254,9 @@ export function evaluateTemplateCondition(
     case "NOT_EQUALS":
       return !scalarEquals(currentValue, condition.value);
     case "IN":
-      return getStringArray(condition.value).includes(String(currentValue ?? ""));
+      return anyCurrentValueInExpected(currentValue, condition.value);
     case "NOT_IN":
-      return !getStringArray(condition.value).includes(String(currentValue ?? ""));
+      return !anyCurrentValueInExpected(currentValue, condition.value);
     case "NOT_EMPTY":
       return !isEmptyValue(currentValue);
     case "EMPTY":
@@ -370,6 +370,15 @@ function scalarEquals(currentValue: unknown, expectedValue: unknown): boolean {
     return currentValue.map(String).includes(String(expectedValue ?? ""));
   }
   return currentValue === expectedValue || String(currentValue ?? "") === String(expectedValue ?? "");
+}
+
+function anyCurrentValueInExpected(currentValue: unknown, expectedValue: unknown): boolean {
+  const expected = new Set(getStringArray(expectedValue).map(String));
+  if (expected.size === 0) {
+    return false;
+  }
+  const currentValues = Array.isArray(currentValue) ? currentValue.map(String) : [String(currentValue ?? "")];
+  return currentValues.some((item) => expected.has(item));
 }
 
 function getStringArray(value: unknown): string[] {

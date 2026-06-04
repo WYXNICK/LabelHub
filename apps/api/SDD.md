@@ -294,8 +294,14 @@ class LogoutResponseVO:
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
 | 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.7 已实现 |
 | 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
-| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
-| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
+| 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 实现 |
+| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 实现 |
+| 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2/3.5 实现 |
+| 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 实现 |
+| 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 实现 |
+| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 实现 |
+| 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 实现 |
+| 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 实现 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
@@ -783,7 +789,7 @@ LLM 边界：
 
 - 阶段 2.5 的 `LLM_ACTION` 只保存配置，不调用模型、不生成结果、不写预审记录。
 - `inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
-- 真实题目级调用接口仍在阶段 3.6 细化，必须继续使用 OpenAI API 格式和结构化输出模型。
+- 真实题目级调用接口将在阶段 3.6 通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入，必须继续使用 OpenAI API 格式和结构化输出模型。
 
 验收标准：
 
@@ -908,6 +914,52 @@ LLM 边界：
 - 连续发布两次时，新版本为 `ACTIVE`，旧版本为 `DISABLED`，旧版本 schema 保持不可变。
 - 发布空默认草稿返回 `422 INVALID_TEMPLATE_SCHEMA`，错误中至少包含 `components` 和 `layout.root`。
 - 发布模板版本后发布检查不再出现 `MISSING_TEMPLATE_VERSION`。
+
+### 9.14 阶段 3 Labeler 工作台与提交闭环契约
+
+阶段 3 必须以阶段 2 的 `TemplateVersionVO.schema` 为唯一作答协议。后端不能信任前端提交值，必须实现与前端 Renderer 等价的字段级提交校验，并以 assignment 领取时绑定的模板版本快照为准。
+
+新增实体：
+
+| Entity | 说明 |
+| --- | --- |
+| `AssignmentEntity` | Labeler 对某个任务题目的领取记录，保存模板版本、审核配置版本、草稿和导航状态 |
+| `SubmissionEntity` | 正式提交版本，保存不可变提交值和当次使用的模板版本 |
+| `LlmActionRunEntity` 或等价审计结构 | 记录题目级 LLM_ACTION 调用、输入、输出、错误和幂等键 |
+
+核心 VO/Request：
+
+| 契约 | 字段 |
+| --- | --- |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`deadlineAt`、`quota`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount` |
+| `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`status`、`draftValues`、`draftSavedAt`、`version`、`createdAt`、`updatedAt` |
+| `AssignmentContextVO` | `assignment`、`task`、`datasetItemPayload`、`templateSchema`、`latestSubmission`、`reviewFeedback`、`navigation` |
+| `SaveAssignmentDraftRequest` | `values`、`clientVersion` |
+| `CreateSubmissionRequest` | `values`、`idempotencyKey`、`clientDraftVersion` |
+| `SubmissionVO` | `id`、`assignmentId`、`submissionVersion`、`values`、`status`、`submittedAt` |
+| `RunLlmActionRequest` | `inputValues`、`targetFieldKey`、`idempotencyKey` |
+| `LlmActionRunVO` | `id`、`assignmentId`、`componentId`、`status`、`outputValue`、`outputValues`、`errorMessage`、`createdAt` |
+
+任务广场与领取规则：
+
+- `GET /api/marketplace/tasks` 只返回 `PUBLISHED`、未过期、未结束、已绑定模板版本和审核配置版本、且存在可用未领取题目的任务。
+- `POST /api/tasks/{taskId}/assignments` 在同一数据库事务内选择一个 `READY` 且未被有效 assignment 占用的 `dataset_items`，创建 assignment，并更新任务领取计数。
+- MVP 使用先到先得且同一题目只允许一个有效 assignment；多人标注以后扩展。
+- 创建 assignment 时必须固化 `template_version_id` 和 `review_config_version_id`，后续 Owner 发布新版本不得影响已领取题目。
+
+草稿与提交规则：
+
+- 草稿保存在 `assignments.draft_values`，并使用 `assignments.version` 做乐观锁；前端刷新后从 assignment 恢复。
+- 提交时以后端模板版本 schema 校验最终值，覆盖 required、requiredWhen、maxLength、pattern、customRuleIds、枚举值、JSON Object、文件/图片数量和受控文件引用。
+- `SHOW_ITEM`、`GROUP`、`TABS`、`LLM_ACTION` 不允许进入提交值；隐藏字段必须清理后再提交。
+- 每次正式提交生成递增 `submission_version`，写入 `SUBMISSION_CREATE` 审计，并更新 assignment 当前提交 ID 与状态。
+- 阶段 3 提交后状态保持 `SUBMITTED`，阶段 4 再接入 AI 预审队列和人工审核状态迁移。
+
+题目级 LLM 辅助：
+
+- `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
+- 请求使用 OpenAI API 兼容配置，必须关闭 thinking；输出只作为参考或预填，不自动提交。
+- 后端必须记录调用输入、输出、错误和幂等键，避免重复扣费或重复写入。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

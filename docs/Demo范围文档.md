@@ -43,7 +43,7 @@
 
 当前代码已经接入阶段 1 Demo 数据导入：Owner 可导入 `qa_quality` 和 `preference_compare` 的 JSON、JSONL、Excel 文件，导入结果、错误行、题目预览和批量编辑会持久化到 MySQL。发布前检查也能基于当前任务数据、审核配置和模板版本返回阻塞项。
 
-阶段 2 尚未实现动态模板，因此当前 Demo 演示应停在“缺少模板版本导致不能发布”的状态；不要为了演示领取任务而临时绕过 `MISSING_TEMPLATE_VERSION`。
+阶段 2 已实现动态模板 Designer/Renderer、官方要求物料、进阶布局/规则、模板版本发布与发布检查联动。当前 Demo 可演示“缺少模板版本时发布检查阻塞”以及“发布模板版本后 `MISSING_TEMPLATE_VERSION` 解除”；不要为了演示 Labeler 领取任务而临时绕过阶段 3 尚未实现的 assignment/submission 链路。
 
 ## 6. 非 Demo 范围
 

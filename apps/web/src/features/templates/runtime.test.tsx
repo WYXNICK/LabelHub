@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { TemplateRenderer } from "./TemplateRenderer";
 import {
+  evaluateTemplateCondition,
   formatPayloadValue,
   getRenderableLayoutItems,
   getRenderableComponents,
@@ -296,5 +297,22 @@ describe("template runtime helpers", () => {
     expect(html).toContain("质检分组");
     expect(html).toContain("多阶段信息");
     expect(html).toContain("请说明原因");
+  });
+
+  it("matches IN and NOT_IN conditions against multi-select field values", () => {
+    const value = { issues: ["fact_error", "unsafe"] };
+
+    expect(
+      evaluateTemplateCondition(
+        { fieldKey: "issues", operator: "IN", value: ["format_error", "fact_error"] },
+        value,
+      ),
+    ).toBe(true);
+    expect(
+      evaluateTemplateCondition(
+        { fieldKey: "issues", operator: "NOT_IN", value: ["format_error", "fact_error"] },
+        value,
+      ),
+    ).toBe(false);
   });
 });

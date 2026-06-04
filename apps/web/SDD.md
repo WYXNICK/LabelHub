@@ -184,8 +184,12 @@ export interface LogoutResponseVO {
 | 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.1 已实现 |
 | 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.1 已实现 |
 | 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 |
-| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
-| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
+| 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 实现 |
+| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 实现 |
+| 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 实现 |
+| 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 实现 |
+| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 实现 |
+| 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 实现 |
 | 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
@@ -662,7 +666,7 @@ Renderer 行为：
 - `RICH_TEXT` 渲染轻量富文本编辑区，提交值为字符串；本阶段不引入额外富文本依赖。
 - `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域，阶段 2.5 只在预览中记录本地文件名，真实证据文件上传在阶段 3 作答链路接入。
 - `JSON_EDITOR` 渲染等宽 JSON 编辑区，默认值可以是 JSON Object/Array；输入过程允许暂存字符串，最终提交校验放在阶段 3。
-- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；真实调用由阶段 3.6 `POST /api/llm-actions/{actionId}/runs` 接入。
+- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；真实调用由阶段 3.6 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入。
 
 交互规则：
 
@@ -775,6 +779,62 @@ VO 字段映射：
 - 前端测试覆盖模板版本 API 封装字段、Designer 发布按钮状态和版本列表展示。
 - Chrome DevTools MCP 使用 MySQL 数据链路验证：保存合法草稿、发布模板版本、查看版本记录、打开发布检查并确认 `MISSING_TEMPLATE_VERSION` 已解除。
 - `1280×800` 与 `1920×1080` 下 Designer 顶部操作、版本抽屉和模板工作台不遮挡、不横向溢出，Console 无非预期错误。
+
+### 9.14 阶段 3 Labeler 工作台与提交闭环
+
+阶段 3 前端必须直接复用阶段 2 的 `TemplateRenderer`、`TemplateSubmissionValue`、`pruneHiddenSubmissionValue` 和 `validateTemplateSubmissionValue`。Labeler 作答页不得复制一套新的表单渲染逻辑；后端仍是最终校验者。
+
+页面与路由：
+
+| 页面 | 路由 | 行为 |
+| --- | --- | --- |
+| 任务广场 | `/labeler/marketplace` | 搜索、筛选、任务卡片、剩余题量、奖励、截止时间、领取或继续作答 |
+| 标注工作台 | `/labeler/assignments/:assignmentId` | 展示题目 payload、模板版本 Renderer、草稿状态、上一题/下一题/跳题和提交按钮 |
+| 我的贡献 | `/labeler/contributions` | 展示已提交、通过、打回、待修改统计和列表 |
+| 打回修改详情 | `/labeler/assignments/:assignmentId/revise` | 展示审核意见、上一轮提交和修改再提交入口 |
+
+核心前端类型：
+
+```ts
+export interface MarketplaceTaskVO {
+  id: string;
+  title: string;
+  description?: string | null;
+  tags: string[];
+  rewardRule?: string | null;
+  deadlineAt: string;
+  quota: number;
+  availableItemCount: number;
+  claimedByMeCount: number;
+  submittedByMeCount: number;
+}
+
+export interface AssignmentContextVO {
+  assignment: AssignmentVO;
+  task: TaskVO;
+  datasetItemPayload: JsonObject;
+  templateSchema: TemplateSchemaVO;
+  latestSubmission?: SubmissionVO | null;
+  reviewFeedback?: JsonObject | null;
+  navigation: AssignmentNavigationVO;
+}
+```
+
+交互规则：
+
+- 任务广场只展示后端返回的可领取任务；前端不自行猜测任务是否可领。
+- 领取成功后进入 `/labeler/assignments/:assignmentId`；如果当前 Labeler 已有未提交 assignment，卡片提供“继续作答”入口。
+- 作答页初始化值优先级：后端 `assignment.draftValues` > `latestSubmission.values` > `getTemplateInitialValue(templateSchema)`。
+- Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，再防抖调用保存草稿接口。
+- 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。
+- 文件/图片上传物料在阶段 3 需要调用现有 `createFileObject`，提交值保存文件对象 ID 数组和必要展示名，不保存浏览器本地临时路径。
+- `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`；返回值只作为参考或写入目标字段草稿，必须由 Labeler 手动提交。
+
+验收标准：
+
+- Chrome DevTools MCP 覆盖 `1280×800` 与 `1920×1080` 下任务广场、作答页、贡献页；无横向溢出、主要操作不遮挡。
+- MySQL 链路验证：领取写入 assignment，草稿刷新恢复，提交生成 submission 版本，提交值包含固定 `templateVersionId`。
+- Console 无非预期错误；Network 中业务阻塞项必须可读，例如无可领取题目、任务过期、提交校验失败。
 
 ## 10. 前后端字段映射检查清单
 

@@ -184,8 +184,8 @@ export interface LogoutResponseVO {
 | 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.1 已实现 |
 | 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.1 已实现 |
 | 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 |
-| 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 实现 |
-| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 实现 |
+| 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 已实现 |
+| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 已实现 |
 | 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 实现 |
 | 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 实现 |
 | 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 实现 |
@@ -836,6 +836,23 @@ export interface AssignmentContextVO {
 - MySQL 链路验证：领取写入 assignment，草稿刷新恢复，提交生成 submission 版本，提交值包含固定 `templateVersionId`。
 - Console 无非预期错误；Network 中业务阻塞项必须可读，例如无可领取题目、任务过期、提交校验失败。
 
+阶段 3.0/3.1 首批落地契约：
+
+| 页面/模块 | 路由 | 行为 |
+| --- | --- | --- |
+| Labeler 任务广场 | `/labeler/marketplace` | 搜索可领取任务、展示剩余题量/截止时间/奖励规则/个人领取提交数，点击领取调用 `POST /api/tasks/{taskId}/assignments` |
+| 领取结果 | 任务卡片内反馈 | 阶段 3.1 只完成领取写入与状态反馈；正式作答页在 3.2 接入后再跳转到 assignment 详情 |
+
+`MarketplaceTaskVO` 字段必须与后端一致：`id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt`。
+
+`AssignmentVO` 字段必须与后端一致：`id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`labelerId`、`status`、`draftValues`、`draftSavedAt`、`currentSubmissionId`、`claimedAt`、`submittedAt`、`version`、`createdAt`、`updatedAt`。
+
+任务广场产品规则：
+
+- 主信息区域用卡片/列表承载任务，不复用 Owner 任务表格，避免 Labeler 被暴露模板、审核配置等管理操作。
+- 领取按钮只在 `availableItemCount > 0` 时可操作；请求中和成功后要有明确反馈，失败展示后端业务错误。
+- 页面需在 `1280×800` 与 `1920×1080` 下无横向溢出；任务卡片在窄屏自动换行。
+
 ## 10. 前后端字段映射检查清单
 
 每次开发前必须检查：
@@ -887,3 +904,11 @@ export interface AssignmentContextVO {
 - 已验证：Owner 登录、创建阶段 1.2 任务、进入 `/owner/tasks/:taskId/datasets`、上传 `qa_quality.json` 导入 30 条、上传 `preference_compare.jsonl` 导入 12 条、上传包含缺字段和重复 id 的 JSONL 后展示 2 条错误行。
 - 数据库侧确认：`datasets=3`、`dataset_items=43`、`import_jobs=3`、`import_error_rows=2`。
 - 浏览器侧确认：Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 视口检查页面布局；Network 核心请求均为预期状态码；Console 无非预期 error/issue。
+
+本次阶段 3.0/3.1 验收使用过的有效方式：
+
+- MySQL：`localhost:3306`，执行 `uv run alembic upgrade head` 后迁移版本进入 `0004_create_labeler_foundation`。
+- API：`http://localhost:8000`，Vite proxy 通过 `/api` 转发。
+- Web：`http://localhost:5173`，Labeler 登录后默认进入 `/labeler/marketplace`。
+- 已验证：`GET /api/marketplace/tasks` 返回 200；`POST /api/tasks/{taskId}/assignments` 返回 201；领取后页面“当前页剩余题目”减少、“我已领取”增加。
+- 浏览器侧确认：Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 下检查任务广场，无横向溢出；Network 核心请求均为预期状态码；Console 仅有 Vite/React 开发提示，无业务 error/issue。

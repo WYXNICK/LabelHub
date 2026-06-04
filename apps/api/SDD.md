@@ -294,8 +294,8 @@ class LogoutResponseVO:
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
 | 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.7 已实现 |
 | 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
-| 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 实现 |
-| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 实现 |
+| 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 已实现 |
+| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 已实现 |
 | 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2/3.5 实现 |
 | 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 实现 |
 | 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 实现 |
@@ -946,6 +946,31 @@ LLM 边界：
 - `POST /api/tasks/{taskId}/assignments` 在同一数据库事务内选择一个 `READY` 且未被有效 assignment 占用的 `dataset_items`，创建 assignment，并更新任务领取计数。
 - MVP 使用先到先得且同一题目只允许一个有效 assignment；多人标注以后扩展。
 - 创建 assignment 时必须固化 `template_version_id` 和 `review_config_version_id`，后续 Owner 发布新版本不得影响已领取题目。
+
+阶段 3.0/3.1 首批落地契约：
+
+| 名称 | 字段 |
+| --- | --- |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt` |
+| `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`labelerId`、`status`、`draftValues`、`draftSavedAt`、`currentSubmissionId`、`claimedAt`、`submittedAt`、`version`、`createdAt`、`updatedAt` |
+| `CreateAssignmentRequest` | `idempotencyKey?`，用于后续防重复点击；阶段 3.1 可为空 |
+
+新增枚举：
+
+| 枚举 | 值 |
+| --- | --- |
+| `AssignmentStatus` | `CLAIMED`、`DRAFT_SAVED`、`SUBMITTED`、`RETURNED`、`APPROVED`、`CANCELLED` |
+| `SubmissionStatus` | `SUBMITTED`、`AI_REVIEWING`、`HUMAN_REVIEWING`、`RETURNED`、`APPROVED` |
+| `LlmActionRunStatus` | `SUCCEEDED`、`FAILED` |
+
+阶段 3.1 错误码：
+
+| code | 场景 |
+| --- | --- |
+| `FORBIDDEN` | 非 Labeler 调用任务广场或领取接口 |
+| `TASK_NOT_CLAIMABLE` | 任务不是发布中、已过期、缺模板版本、缺审核配置或分发策略暂不支持 |
+| `NO_AVAILABLE_ITEMS` | 任务没有可领取题目或配额已满 |
+| `CLAIM_CONFLICT` | 并发领取时目标题目已被其他 Labeler 抢先锁定 |
 
 草稿与提交规则：
 

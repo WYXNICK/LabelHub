@@ -2,7 +2,7 @@ import type { UserRole } from "../features/auth/types";
 
 export const roleHomePath: Record<UserRole, string> = {
   OWNER: "/owner/foundation",
-  LABELER: "/labeler/foundation",
+  LABELER: "/labeler/marketplace",
   REVIEWER: "/reviewer/foundation",
   SYSTEM: "/login",
 };

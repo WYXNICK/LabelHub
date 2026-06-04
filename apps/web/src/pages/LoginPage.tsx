@@ -158,6 +158,7 @@ export function LoginPage() {
             {error && <Alert showIcon type="error" message={error} style={{ marginBottom: 16 }} />}
 
             <Form
+              name="labelhub-login-form"
               form={form}
               layout="vertical"
               initialValues={{ email: selectedEmail, password: DEMO_PASSWORD }}
@@ -168,10 +169,22 @@ export function LoginPage() {
                 name="email"
                 rules={[{ required: true, message: "请输入邮箱地址" }, { type: "email" }]}
               >
-                <Input size="large" placeholder="name@company.com" />
+                <Input
+                  id="login-email"
+                  name="email"
+                  autoComplete="username"
+                  size="large"
+                  placeholder="name@company.com"
+                />
               </Form.Item>
               <Form.Item label="密码" name="password" rules={[{ required: true, message: "请输入密码" }]}>
-                <Input.Password size="large" placeholder="请输入密码" />
+                <Input.Password
+                  id="login-password"
+                  name="password"
+                  autoComplete="current-password"
+                  size="large"
+                  placeholder="请输入密码"
+                />
               </Form.Item>
               <Button
                 block

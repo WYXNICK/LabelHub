@@ -24,6 +24,7 @@ import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
+import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
 import { RoleHomePage } from "./RoleHomePage";
 
 const roleName: Record<UserRole, string> = {
@@ -148,6 +149,9 @@ function renderRoleContent(user: UserVO, path: string) {
     if (taskId) {
       return <OwnerTaskSettingsPage taskId={taskId} />;
     }
+  }
+  if (user.role === "LABELER" && path === "/labeler/marketplace") {
+    return <LabelerMarketplacePage />;
   }
   return <RoleHomePage path={path} user={user} />;
 }

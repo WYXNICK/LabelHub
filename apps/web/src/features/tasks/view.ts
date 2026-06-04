@@ -2,7 +2,7 @@ import type { PublishBlockerCode, PublishBlockerVO, TaskStatus, TaskVO } from ".
 
 export const taskStatusMeta: Record<TaskStatus, { label: string; color: string }> = {
   DRAFT: { label: "草稿", color: "default" },
-  PUBLISHED: { label: "发布中", color: "processing" },
+  PUBLISHED: { label: "已发布", color: "processing" },
   PAUSED: { label: "已暂停", color: "warning" },
   ENDED: { label: "已结束", color: "error" },
 };

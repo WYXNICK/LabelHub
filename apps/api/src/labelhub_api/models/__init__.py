@@ -10,6 +10,7 @@ from labelhub_api.models.review_config import (
     ReviewConfigDraftEntity,
     ReviewConfigVersionEntity,
 )
+from labelhub_api.models.template import TemplateDraftEntity, TemplateVersionEntity
 from labelhub_api.models.task import TaskEntity, TaskStateTransitionEntity
 from labelhub_api.models.user import UserEntity
 
@@ -22,6 +23,8 @@ __all__ = [
     "ImportJobEntity",
     "ReviewConfigDraftEntity",
     "ReviewConfigVersionEntity",
+    "TemplateDraftEntity",
+    "TemplateVersionEntity",
     "TaskEntity",
     "TaskStateTransitionEntity",
     "UserEntity",

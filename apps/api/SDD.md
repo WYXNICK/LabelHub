@@ -271,6 +271,7 @@ class LogoutResponseVO:
 | 阶段 | 接口 | Request | VO | 状态 |
 | --- | --- | --- | --- | --- |
 | 1 | `GET /api/tasks` | `ListTasksRequest` | `PageVO[TaskVO]` | 阶段 1.1 已实现 |
+| 1 | `GET /api/tasks/summary` | `GetTaskSummaryRequest` | `TaskSummaryVO` | 阶段 1.1 已实现 |
 | 1 | `POST /api/tasks` | `CreateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
 | 1 | `GET /api/tasks/{taskId}` | `GetTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
 | 1 | `PATCH /api/tasks/{taskId}` | `UpdateTaskRequest` | `TaskDetailVO` | 阶段 1.1 已实现 |
@@ -287,9 +288,20 @@ class LogoutResponseVO:
 | 1 | `POST /api/tasks/{taskId}/review-config-versions` | `PublishReviewConfigVersionRequest` | `ReviewConfigVersionVO` | 阶段 1.4 已实现 |
 | 1 | `GET /api/tasks/{taskId}/review-config-versions` | `ListReviewConfigVersionsRequest` | `PageVO[ReviewConfigVersionVO]` | 阶段 1.4 已实现 |
 | 1 | `GET /api/audit-logs` | `ListAuditLogsRequest` | `PageVO[AuditLogVO]` | 阶段 1.1 已实现 |
-| 2 | `POST /api/tasks/{taskId}/template-versions` | `CreateTemplateVersionRequest` | `TemplateVersionVO` | 待细化 |
-| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 待细化 |
-| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 待细化 |
+| 2 | `GET /api/tasks/{taskId}/template-draft` | `GetTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.1 已实现 |
+| 2 | `PUT /api/tasks/{taskId}/template-draft` | `SaveTemplateDraftRequest` | `TemplateDraftVO` | 阶段 2.1 已实现 |
+| 2 | `POST /api/template-schemas:validate` | `ValidateTemplateSchemaRequest` | `TemplateSchemaValidationVO` | 阶段 2.1 已实现 |
+| 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
+| 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.7 已实现 |
+| 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
+| 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 实现 |
+| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 实现 |
+| 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2/3.5 实现 |
+| 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 实现 |
+| 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 实现 |
+| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 实现 |
+| 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 实现 |
+| 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 实现 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
@@ -367,6 +379,7 @@ class PublishBlockerCode(str, Enum):
 | --- | --- |
 | `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
 | `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `TaskSummaryVO` | `totalTaskCount`、`draftTaskCount`、`publishedTaskCount`、`pausedTaskCount`、`endedTaskCount`、`totalQuota`、`totalClaimedCount`、`totalSubmittedCount`、`totalApprovedCount`、`readyDatasetCount`、`enabledItemCount`、`templateReadyTaskCount`、`reviewConfigReadyTaskCount` |
 | `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
 | `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
 | `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
@@ -386,14 +399,14 @@ class PublishBlockerCode(str, Enum):
 
 ### 9.2 阶段 1.1 任务 CRUD 与状态机
 
-阶段 1.1 将 `GET/POST/PATCH /api/tasks`、`GET /api/tasks/{taskId}`、`POST /api/tasks/{taskId}/state-transitions` 和 `GET /api/audit-logs` 从契约占位推进为可用业务能力。
+阶段 1.1 将 `GET/POST/PATCH /api/tasks`、`GET /api/tasks/summary`、`GET /api/tasks/{taskId}`、`POST /api/tasks/{taskId}/state-transitions` 和 `GET /api/audit-logs` 从契约占位推进为可用业务能力。`GET /api/tasks/summary` 返回当前 Owner 全量任务聚合，不受任务列表分页和筛选影响，用于任务管理页顶部总览卡片。
 
 状态迁移规则：
 
 | 当前状态 | 允许目标状态 | 说明 |
 | --- | --- | --- |
 | `DRAFT` | `PUBLISHED`、`ENDED` | 发布前必须通过最小发布保护；结束后不可恢复 |
-| `PUBLISHED` | `PAUSED`、`ENDED` | 发布中任务可暂停或结束 |
+| `PUBLISHED` | `PAUSED`、`ENDED` | 已发布任务可暂停或结束；该状态对应官方“发布中”，表示可领取/运行，不表示异步发布仍在处理中 |
 | `PAUSED` | `PUBLISHED`、`ENDED` | 重新发布仍需通过最小发布保护 |
 | `ENDED` | 无 | 终态，不允许继续迁移 |
 
@@ -590,6 +603,363 @@ class CreateFileObjectRequest:
 - 草稿任务缺少数据集、模板版本和审核配置时，接口返回 `200` 且 `canPublish=false`，阻塞项至少包含 `MISSING_DATASET`、`MISSING_TEMPLATE_VERSION`、`MISSING_REVIEW_CONFIG`。
 - 补齐 READY 数据集、模板版本 ID 和审核配置版本 ID 后，接口返回 `canPublish=true`。
 - 已结束任务返回 `INVALID_TASK_STATUS`，不得显示为可发布。
+
+### 9.7 阶段 2.0 动态模板契约与数据底座
+
+阶段 2.0 只交付动态模板的契约、OpenAPI 可见性、Entity 和 Alembic 迁移，不实现真实保存、校验、Designer 拖拽或模板版本发布业务。模板接口按 2.1、2.2、2.3-2.7 分粒度推进，当前阶段 2.7 已完成模板版本发布能力。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/template-draft` | 契约已暴露 | 获取任务模板草稿，2.1 实现 |
+| `PUT /api/tasks/{taskId}/template-draft` | 契约已暴露 | 保存任务模板草稿，2.1 实现 |
+| `POST /api/template-schemas:validate` | 契约已暴露 | 校验模板 schema，2.1 实现 |
+| `POST /api/tasks/{taskId}/template-versions` | 阶段 2.7 已实现 | 发布不可变模板版本 |
+| `GET /api/tasks/{taskId}/template-versions` | 阶段 2.7 已实现 | 查询任务模板版本列表 |
+| `GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 | 获取单个模板版本详情 |
+
+阶段 2.0 枚举：
+
+```python
+class TemplateComponentType(str, Enum):
+    SHOW_ITEM = "SHOW_ITEM"
+    TEXT_INPUT = "TEXT_INPUT"
+    TEXTAREA = "TEXTAREA"
+    RADIO = "RADIO"
+    CHECKBOX = "CHECKBOX"
+    TAG_SELECT = "TAG_SELECT"
+    RICH_TEXT = "RICH_TEXT"
+    FILE_UPLOAD = "FILE_UPLOAD"
+    IMAGE_UPLOAD = "IMAGE_UPLOAD"
+    JSON_EDITOR = "JSON_EDITOR"
+    LLM_ACTION = "LLM_ACTION"
+    GROUP = "GROUP"
+    TABS = "TABS"
+
+
+class TemplateVersionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+```
+
+Request 与 VO 字段：
+
+| 契约 | 字段 |
+| --- | --- |
+| `TemplateComponentDTO` | `id`、`type`、`fieldKey`、`label`、`props`、`validation`、`visibility` |
+| `TemplateSchemaVO` | `schemaVersion`、`components`、`layout`、`llmActions`、`showItems` |
+| `TemplateDraftVO` | `id`、`taskId`、`schema`、`updatedBy`、`createdAt`、`updatedAt` |
+| `TemplateVersionVO` | `id`、`taskId`、`versionNo`、`schema`、`status`、`versionNote`、`publishedBy`、`publishedAt`、`createdAt`、`updatedAt` |
+| `SaveTemplateDraftRequest` | `schema` |
+| `ValidateTemplateSchemaRequest` | `schema` |
+| `TemplateSchemaValidationVO` | `valid`、`errors` |
+| `PublishTemplateVersionRequest` | `draftId`、`versionNote` |
+
+阶段 2.0 Entity 与迁移表：`template_drafts`、`template_versions`。
+
+数据表约束：
+
+- `template_drafts.task_id` 唯一，一个任务只保留一个当前可编辑草稿。
+- `template_versions.task_id + version_no` 唯一，发布版本不可原地覆盖。
+- `template_versions.status` 使用 `ACTIVE/DISABLED`，2.7 发布新版本时再处理旧版本停用和 `tasks.current_template_version_id` 绑定。
+- `tasks.current_template_version_id` 当前仍保持普通索引，不在 2.0 强加外键，避免阶段 1 既有测试或演示数据中的临时模板 ID 被迁移破坏。
+
+验收标准：
+
+- `/api/openapi.json` 包含阶段 2 模板接口与 `Template*` schema。
+- SQLAlchemy metadata 注册 `template_drafts`、`template_versions`。
+- Alembic `0003_create_template_foundation` 可在 MySQL 上执行。
+- 阶段 2.0 的版本接口在当时仅作为契约底座；阶段 2.7 完成后不得再返回 `501 NOT_IMPLEMENTED`。
+
+### 9.8 阶段 2.1 模板 schema 基础结构与后端校验
+
+阶段 2.1 将模板草稿和 schema 校验从占位推进为可用能力。该阶段仍不实现 Renderer、Designer 拖拽、基础物料属性面板或模板版本发布；版本发布继续由 2.7 完成。
+
+接口范围：
+
+| 接口 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/template-draft` | 已实现 | Owner 获取任务模板草稿；不存在时创建默认空 schema 草稿 |
+| `PUT /api/tasks/{taskId}/template-draft` | 已实现 | Owner 保存模板草稿；非法 schema 返回结构化错误 |
+| `POST /api/template-schemas:validate` | 已实现 | Owner 校验模板 schema；返回 `valid=false` 与错误列表，不写库 |
+| `POST/GET /api/tasks/{taskId}/template-versions` | 阶段 2.7 已实现 | 发布版本与版本列表 |
+| `GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 | 版本详情 |
+
+基础校验规则：
+
+- `schemaVersion` 当前必须为 `labelhub-template/v1`。
+- `component.id` 在同一 schema 内必须唯一。
+- `component.type` 必须属于官方物料白名单。
+- 采集类物料必须配置非空 `fieldKey`，且同一 schema 内 `fieldKey` 必须唯一。
+- `SHOW_ITEM`、`LLM_ACTION`、`GROUP`、`TABS` 不参与提交，不应配置 `fieldKey`。
+- `layout.root` 必须是数组，布局节点只能是组件 ID 字符串或包含 `componentId` 的对象。
+- 布局引用的组件必须存在；同一组件不能在布局中重复出现；组件也不能成为孤儿节点。
+- `children` 仅允许用于 `GROUP`；`tabs` 仅允许用于 `TABS`。
+
+错误语义：
+
+- `POST /api/template-schemas:validate` 校验失败时返回 `200`，`TemplateSchemaValidationVO.valid=false`，`errors` 中包含 `field` 和 `message`。
+- `PUT /api/tasks/{taskId}/template-draft` 校验失败时返回 `422 INVALID_TEMPLATE_SCHEMA`，`details.errors` 与校验接口字段一致。
+- 非 Owner 返回 `403 FORBIDDEN`；任务不存在或不归属当前 Owner 返回 `404 NOT_FOUND`。
+- 当前仅允许在 `DRAFT` 任务上保存模板草稿；非草稿任务返回 `409 TASK_NOT_EDITABLE`。
+
+审计要求：
+
+- 保存草稿写入 `audit_logs.action=TEMPLATE_SAVE`，`entityType=TEMPLATE`，`entityId=draftId`。
+- `metadata` 记录 `taskId`、`componentCount` 和 `schemaVersion`。
+
+验收标准：
+
+- Owner 可获取默认空模板草稿，默认 `layout.root=[]`。
+- 合法 schema 可保存到 `template_drafts.schema`。
+- 非法物料、重复 `fieldKey`、重复布局引用、引用不存在组件、孤儿组件均能得到结构化错误。
+- MySQL 环境下可以真实创建任务、保存模板草稿，并在 `template_drafts` 中查询到 schema。
+
+### 9.9 阶段 2.2 Renderer 最小运行时契约
+
+阶段 2.2 不新增后端接口，也不改变模板版本发布语义。后端责任是继续保证 2.1 的 `TemplateSchemaVO` 可作为 Renderer 的唯一输入 schema；前端 Renderer 必须直接消费该 schema，不允许引入前端私有模板协议。
+
+Renderer 最小支持范围：
+
+| 物料类型 | Renderer 行为 |
+| --- | --- |
+| `SHOW_ITEM` | 从题目 payload 中按 `props.path` 读取并只读展示，不进入提交值 |
+| `TEXT_INPUT` | 渲染单行输入，值写入 `fieldKey` |
+| `TEXTAREA` | 渲染多行文本，值写入 `fieldKey` |
+| `RADIO` | 按 `props.options` 渲染单选，值写入 `fieldKey` |
+| `CHECKBOX` | 按 `props.options` 渲染多选，值写入 `fieldKey` 数组 |
+| `TAG_SELECT` | 按 `props.options` 渲染标签选择，允许多选，值写入 `fieldKey` 数组 |
+
+后端校验继续覆盖：
+
+- 上述采集物料必须有唯一 `fieldKey`。
+- `SHOW_ITEM` 不得配置 `fieldKey`。
+- `layout.root` 引用的组件必须存在，且不能重复。
+- 2.2 所用 demo schema 必须可通过 `POST /api/template-schemas:validate`。
+
+验收标准：
+
+- 后端测试覆盖包含 `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` 的最小 Renderer schema，并确认校验通过。
+- 保存到 `template_drafts.schema` 的同一份 schema 可被前端 Renderer 直接渲染。
+- 阶段 2.7 完成后 `template-versions` 相关接口必须解除占位；只有任务尚未绑定当前模板版本时才返回 `MISSING_TEMPLATE_VERSION`。
+
+### 9.10 阶段 2.3/2.4 Designer 与基础物料校验契约
+
+阶段 2.3/2.4 不新增后端接口，继续复用阶段 2.1 已实现的模板草稿与校验接口：
+
+| 能力 | 接口 | 说明 |
+| --- | --- | --- |
+| 获取草稿 | `GET /api/tasks/{taskId}/template-draft` | Designer 初始化时读取同一份 `TemplateSchemaVO` |
+| 保存草稿 | `PUT /api/tasks/{taskId}/template-draft` | Designer 保存当前画布、物料属性、默认值与校验配置 |
+| 校验 schema | `POST /api/template-schemas:validate` | Designer 点击校验或保存前展示结构化错误 |
+
+基础物料后端语义校验：
+
+| 物料 | 必填契约 | props/validation 约束 |
+| --- | --- | --- |
+| `SHOW_ITEM` | `fieldKey=null` | `props.path` 为空或以 `$` 开头 |
+| `TEXT_INPUT` | 唯一 `fieldKey` | `props.placeholder/defaultValue` 为字符串；`validation.required` 为布尔值；`validation.maxLength` 为 1-500 |
+| `TEXTAREA` | 唯一 `fieldKey` | `props.placeholder/defaultValue` 为字符串；`validation.required` 为布尔值；`validation.maxLength` 为 1-5000 |
+| `RADIO` | 唯一 `fieldKey` | `props.options` 至少 1 项；每项包含非空 `label/value`；`props.defaultValue` 为空或存在于 options |
+| `CHECKBOX` | 唯一 `fieldKey` | `props.options` 至少 1 项；`props.defaultValue` 为空或为 options value 子集数组 |
+| `TAG_SELECT` | 唯一 `fieldKey` | 与 `CHECKBOX` 相同；运行时以多选标签渲染 |
+
+验收标准：
+
+- 保存 Designer 生成的基础物料 schema 时，后端不接受非法 options、非法默认值、非法最大长度或非法 ShowItem 路径。
+- `TemplateSchemaValidationVO.errors` 仍保持 `field + message` 结构，前端可直接映射到右侧属性或顶部错误提示。
+- Designer 保存草稿不等于发布模板版本；只有阶段 2.7 发布成功并更新 `tasks.current_template_version_id` 后，才解除任务发布前检查中的 `MISSING_TEMPLATE_VERSION`。
+
+### 9.11 阶段 2.5 高级物料校验契约
+
+阶段 2.5 不新增 API，也不新增数据库表。后端继续用 `TemplateSchemaVO` 作为唯一模板协议，在 `POST /api/template-schemas:validate` 与 `PUT /api/tasks/{taskId}/template-draft` 中补齐高级物料的语义校验。
+
+高级物料规则：
+
+| 物料 | fieldKey | props/validation 约束 |
+| --- | --- | --- |
+| `RICH_TEXT` | 唯一且非空 | `props.placeholder/defaultValue` 为字符串；`props.toolbarPreset` 为空或字符串；`validation.required` 为布尔值；`validation.maxLength` 为 1-10000 |
+| `FILE_UPLOAD` | 唯一且非空 | `props.accept` 为空或非空字符串数组；`props.maxFiles` 为 1-20 整数；`props.maxSizeMb` 为 1-100 整数；`props.defaultValue` 为空或字符串数组 |
+| `IMAGE_UPLOAD` | 唯一且非空 | 与 `FILE_UPLOAD` 相同，但 `accept` 只能使用 `image/*`、图片 MIME 或图片扩展名 |
+| `JSON_EDITOR` | 唯一且非空 | `props.placeholder` 为空或字符串；`props.defaultValue` 为空或 JSON Object/Array；`validation.required` 为布尔值 |
+| `LLM_ACTION` | 必须为空 | `props.promptTemplate` 必填且长度不超过 8000；`props.actionLabel/helperText` 为空或字符串；`props.inputFieldKeys` 为空或采集字段数组；`props.outputFieldKey` 为空或引用已存在采集字段 |
+
+LLM 边界：
+
+- 阶段 2.5 的 `LLM_ACTION` 只保存配置，不调用模型、不生成结果、不写预审记录。
+- `inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
+- 真实题目级调用接口将在阶段 3.6 通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入，必须继续使用 OpenAI API 格式和结构化输出模型。
+
+验收标准：
+
+- 合法高级物料 schema 可以通过校验并保存到 `template_drafts.schema`。
+- 非法上传限制、非法 JSON 默认值、缺失 LLM prompt、引用不存在字段的 LLM 映射都返回结构化 `TemplateSchemaValidationVO.errors`。
+- 保存草稿仍只允许草稿任务，且继续写入 `audit_logs.action=TEMPLATE_SAVE`。
+
+### 9.12 阶段 2.6 高级布局与规则校验契约
+
+阶段 2.6 不新增 API 和数据库表，继续复用 `POST /api/template-schemas:validate` 与 `PUT /api/tasks/{taskId}/template-draft`。本阶段补齐官方 4.2 进阶要求中的条件显示、联动校验、正则/白名单自定义规则、分组容器和多 Tab 布局。
+
+规则协议：
+
+```json
+{
+  "visibility": {
+    "logic": "ALL",
+    "conditions": [
+      { "fieldKey": "quality", "operator": "EQUALS", "value": "bad" }
+    ]
+  },
+  "validation": {
+    "required": true,
+    "maxLength": 500,
+    "pattern": "^[^@#$]+$",
+    "patternMessage": "不能包含特殊符号",
+    "customRuleIds": ["NO_EMOJI"],
+    "requiredWhen": {
+      "logic": "ALL",
+      "conditions": [
+        { "fieldKey": "quality", "operator": "EQUALS", "value": "bad" }
+      ],
+      "message": "质量较差时必须填写原因"
+    }
+  }
+}
+```
+
+支持的条件操作符：
+
+| operator | 语义 |
+| --- | --- |
+| `EQUALS` | 字段值等于 `value` |
+| `NOT_EQUALS` | 字段值不等于 `value` |
+| `IN` | 字段值或数组字段任一项命中 `value[]` |
+| `NOT_IN` | 字段值或数组字段均未命中 `value[]` |
+| `NOT_EMPTY` | 字段存在且非空 |
+| `EMPTY` | 字段不存在或为空 |
+
+白名单自定义规则：
+
+| ruleId | 语义 |
+| --- | --- |
+| `NO_EMOJI` | 文本不得包含 emoji |
+| `NO_URL` | 文本不得包含 URL |
+| `TRIMMED_NON_EMPTY` | 去除首尾空白后不得为空 |
+| `JSON_OBJECT` | JSON 编辑器值必须是 Object |
+
+布局协议：
+
+| 物料 | fieldKey | props | layout |
+| --- | --- | --- | --- |
+| `GROUP` | 必须为空 | `description?: string`、`collapsible?: boolean` | `{ "componentId": "group_id", "children": [...] }` |
+| `TABS` | 必须为空 | `defaultTabId?: string` | `{ "componentId": "tabs_id", "tabs": [{ "id": "tab_1", "label": "基础信息", "children": [...] }] }` |
+
+后端校验要求：
+
+- `visibility.logic` 与 `validation.requiredWhen.logic` 只能是 `ALL` 或 `ANY`，缺省按 `ALL`。
+- 条件 `fieldKey` 必须引用当前 schema 中已存在的采集字段；不得引用当前组件自身的 `fieldKey`。
+- `operator=IN/NOT_IN` 时 `value` 必须是非空字符串数组；`EQUALS/NOT_EQUALS` 时 `value` 必须是字符串、数字、布尔值或 null。
+- `validation.pattern` 必须是可编译正则；`patternMessage` 为空或字符串。
+- `validation.customRuleIds` 只能使用白名单 ID，不允许保存任意函数体或脚本。
+- `GROUP` 的 layout 节点必须使用 `children`；非 GROUP 不允许使用 `children`。
+- `TABS` 的 layout 节点必须使用 `tabs`，每个 tab 必须有唯一非空 `id`、非空 `label` 和 `children` 数组；非 TABS 不允许使用 `tabs`。
+- 嵌套布局中每个组件只能出现一次；所有组件都必须出现在 layout 中。
+
+阶段边界：
+
+- 阶段 2.6 只校验规则定义和 Owner 预览运行时效果，不新增 Labeler 提交接口。
+- 真正提交时的后端字段级校验将在阶段 3.4 复用同一套规则语义接入。
+
+### 9.13 阶段 2.7 模板版本发布与发布检查联动契约
+
+阶段 2.7 将模板版本接口从契约占位推进为可用业务能力。模板版本是任务级不可变快照：一个任务拥有一份 `template_drafts`，可以发布多个 `template_versions`，但任意时刻只有一个 `ACTIVE` 版本绑定到 `tasks.current_template_version_id`。
+
+接口契约：
+
+| 接口 | 权限 | 行为 |
+| --- | --- | --- |
+| `POST /api/tasks/{taskId}/template-versions` | Owner 且只能操作自己创建的草稿任务 | 校验并发布当前草稿快照，返回 `TemplateVersionVO` |
+| `GET /api/tasks/{taskId}/template-versions?page&pageSize` | Owner 且只能查看自己创建的任务 | 按 `versionNo` 倒序返回版本分页 |
+| `GET /api/template-versions/{templateVersionId}` | Owner 且只能查看自己任务下的版本 | 返回单个不可变版本详情 |
+
+`PublishTemplateVersionRequest`：
+
+```json
+{
+  "draftId": "draft_xxx",
+  "versionNote": "补齐商品清洗标签"
+}
+```
+
+发布规则：
+
+- 任务必须处于 `DRAFT`，已发布、暂停或结束任务不得继续改写模板版本。
+- `draftId` 必须等于当前任务草稿 ID，避免跨任务或旧草稿误发布。
+- 发布前必须复用 `POST /api/template-schemas:validate` 的完整校验，并追加发布级校验：`components` 至少 1 个、`layout.root` 非空、至少存在 1 个可提交字段。
+- 发布成功后写入新的 `TemplateVersionEntity`，`versionNo=max+1`，`schema` 为发布时的完整 JSON 快照，后续草稿修改不得改变历史版本。
+- 发布新版本时将同任务旧 `ACTIVE` 版本更新为 `DISABLED`，新版本为 `ACTIVE`。
+- 同一事务内更新 `tasks.current_template_version_id`、递增 `tasks.version` 并写入 `audit_logs.action=TEMPLATE_PUBLISH`。
+- 发布失败返回统一错误结构；schema 不可发布时使用 `422 INVALID_TEMPLATE_SCHEMA` 并返回字段级 `errors`。
+
+发布检查联动：
+
+- `GET /api/tasks/{taskId}/publish-check` 以 `tasks.currentTemplateVersionId` 判断模板是否就绪。
+- 成功发布模板版本后，同一任务的发布检查不再返回 `MISSING_TEMPLATE_VERSION`；是否可发布仍取决于数据集、审核配置、配额、截止时间和任务状态。
+- `TaskVO` 与 `TaskDetailVO` 必须返回 `currentTemplateVersionId`、`currentReviewConfigVersionId`；`TaskStatsVO` 返回 `templateVersionCount`，用于前端展示模板准备状态。
+
+验收标准：
+
+- 发布合法草稿后返回 `TemplateVersionVO.status=ACTIVE`，版本列表按版本号倒序展示。
+- 连续发布两次时，新版本为 `ACTIVE`，旧版本为 `DISABLED`，旧版本 schema 保持不可变。
+- 发布空默认草稿返回 `422 INVALID_TEMPLATE_SCHEMA`，错误中至少包含 `components` 和 `layout.root`。
+- 发布模板版本后发布检查不再出现 `MISSING_TEMPLATE_VERSION`。
+
+### 9.14 阶段 3 Labeler 工作台与提交闭环契约
+
+阶段 3 必须以阶段 2 的 `TemplateVersionVO.schema` 为唯一作答协议。后端不能信任前端提交值，必须实现与前端 Renderer 等价的字段级提交校验，并以 assignment 领取时绑定的模板版本快照为准。
+
+新增实体：
+
+| Entity | 说明 |
+| --- | --- |
+| `AssignmentEntity` | Labeler 对某个任务题目的领取记录，保存模板版本、审核配置版本、草稿和导航状态 |
+| `SubmissionEntity` | 正式提交版本，保存不可变提交值和当次使用的模板版本 |
+| `LlmActionRunEntity` 或等价审计结构 | 记录题目级 LLM_ACTION 调用、输入、输出、错误和幂等键 |
+
+核心 VO/Request：
+
+| 契约 | 字段 |
+| --- | --- |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`deadlineAt`、`quota`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount` |
+| `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`status`、`draftValues`、`draftSavedAt`、`version`、`createdAt`、`updatedAt` |
+| `AssignmentContextVO` | `assignment`、`task`、`datasetItemPayload`、`templateSchema`、`latestSubmission`、`reviewFeedback`、`navigation` |
+| `SaveAssignmentDraftRequest` | `values`、`clientVersion` |
+| `CreateSubmissionRequest` | `values`、`idempotencyKey`、`clientDraftVersion` |
+| `SubmissionVO` | `id`、`assignmentId`、`submissionVersion`、`values`、`status`、`submittedAt` |
+| `RunLlmActionRequest` | `inputValues`、`targetFieldKey`、`idempotencyKey` |
+| `LlmActionRunVO` | `id`、`assignmentId`、`componentId`、`status`、`outputValue`、`outputValues`、`errorMessage`、`createdAt` |
+
+任务广场与领取规则：
+
+- `GET /api/marketplace/tasks` 只返回 `PUBLISHED`、未过期、未结束、已绑定模板版本和审核配置版本、且存在可用未领取题目的任务。
+- `POST /api/tasks/{taskId}/assignments` 在同一数据库事务内选择一个 `READY` 且未被有效 assignment 占用的 `dataset_items`，创建 assignment，并更新任务领取计数。
+- MVP 使用先到先得且同一题目只允许一个有效 assignment；多人标注以后扩展。
+- 创建 assignment 时必须固化 `template_version_id` 和 `review_config_version_id`，后续 Owner 发布新版本不得影响已领取题目。
+
+草稿与提交规则：
+
+- 草稿保存在 `assignments.draft_values`，并使用 `assignments.version` 做乐观锁；前端刷新后从 assignment 恢复。
+- 提交时以后端模板版本 schema 校验最终值，覆盖 required、requiredWhen、maxLength、pattern、customRuleIds、枚举值、JSON Object、文件/图片数量和受控文件引用。
+- `SHOW_ITEM`、`GROUP`、`TABS`、`LLM_ACTION` 不允许进入提交值；隐藏字段必须清理后再提交。
+- 每次正式提交生成递增 `submission_version`，写入 `SUBMISSION_CREATE` 审计，并更新 assignment 当前提交 ID 与状态。
+- 阶段 3 提交后状态保持 `SUBMITTED`，阶段 4 再接入 AI 预审队列和人工审核状态迁移。
+
+题目级 LLM 辅助：
+
+- `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
+- 请求使用 OpenAI API 兼容配置，必须关闭 thinking；输出只作为参考或预填，不自动提交。
+- 后端必须记录调用输入、输出、错误和幂等键，避免重复扣费或重复写入。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

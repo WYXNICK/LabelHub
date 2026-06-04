@@ -40,7 +40,7 @@ interface ReadinessRow {
 
 const BLOCKER_MESSAGES: Partial<Record<PublishBlockerCode, string>> = {
   MISSING_DATASET: "先导入并确认至少一个可用数据集。",
-  MISSING_TEMPLATE_VERSION: "阶段 2 完成模板 Designer/Renderer 后，在任务上发布模板版本。",
+  MISSING_TEMPLATE_VERSION: "进入模板搭建器，保存草稿并发布一个模板版本。",
   MISSING_REVIEW_CONFIG: "进入审核配置页，保存并发布审核配置版本。",
   INVALID_QUOTA: "回到任务设置页，将任务配额调整为大于 0。",
   INVALID_DEADLINE: "回到任务设置页，将截止时间调整到未来时间。",
@@ -233,7 +233,7 @@ export function OwnerPublishCheckDrawer({
               description={
                 check.canPublish
                   ? "当前任务已具备进入发布状态的基础条件。"
-                  : "请先处理下方阻塞项；阶段 1 正常会被“缺少模板版本”阻塞。"
+                  : "请先处理下方阻塞项；模板、数据集和审核配置都必须绑定到当前任务后才能发布。"
               }
             />
           )}

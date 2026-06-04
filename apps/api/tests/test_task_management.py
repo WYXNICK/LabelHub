@@ -77,6 +77,7 @@ def test_owner_can_create_list_get_and_update_draft_task(
         "datasetCount": 0,
         "itemCount": 0,
         "enabledItemCount": 0,
+        "templateVersionCount": 0,
         "reviewConfigVersionCount": 0,
     }
 
@@ -118,6 +119,59 @@ def test_non_owner_cannot_create_task(client_with_db: tuple[TestClient, sessionm
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_owner_task_summary_reports_full_scope_metrics(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    login(client)
+    draft = create_task(client, "草稿任务")
+    published = create_task(client, "已发布任务")
+
+    with session_factory() as session:
+        draft_task = session.get(TaskEntity, draft["id"])
+        published_task = session.get(TaskEntity, published["id"])
+        assert draft_task is not None
+        assert published_task is not None
+        draft_task.submitted_count = 3
+        draft_task.approved_count = 1
+        draft_task.current_template_version_id = "template_version_draft"
+        published_task.status = "PUBLISHED"
+        published_task.submitted_count = 7
+        published_task.claimed_count = 8
+        published_task.current_review_config_version_id = "review_config_ready"
+        session.add(
+            DatasetEntity(
+                id="dataset_summary_ready",
+                task_id=published_task.id,
+                name="summary_dataset",
+                dataset_type=DatasetType.QA_QUALITY.value,
+                source_format=DatasetSourceFormat.JSON.value,
+                item_count=12,
+                enabled_item_count=10,
+                disabled_item_count=2,
+                status=DatasetStatus.READY.value,
+                created_by="user_owner_demo",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/tasks/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["totalTaskCount"] == 2
+    assert body["draftTaskCount"] == 1
+    assert body["publishedTaskCount"] == 1
+    assert body["totalSubmittedCount"] == 10
+    assert body["totalApprovedCount"] == 1
+    assert body["readyDatasetCount"] == 1
+    assert body["enabledItemCount"] == 10
+    assert body["templateReadyTaskCount"] == 1
+    assert body["reviewConfigReadyTaskCount"] == 1
 
 
 def test_publish_is_blocked_until_dataset_template_and_review_config_are_ready(

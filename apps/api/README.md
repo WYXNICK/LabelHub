@@ -44,7 +44,7 @@ cd E:/my-try/LabelHub/apps/api
 uv run alembic upgrade head
 ```
 
-当前鉴权接口仍使用内存 demo 用户；任务、数据集、导入、审核配置、发布检查、状态迁移和审计日志已进入阶段 1 MySQL 主链路。
+当前鉴权接口仍使用内存 demo 用户；任务、数据集、导入、审核配置、发布检查、状态迁移和审计日志已进入阶段 1 MySQL 主链路。阶段 2.0 已新增模板草稿与模板版本表、OpenAPI 契约和路由占位；阶段 2.1 已实现模板草稿保存和 schema 校验；阶段 2.2 已补充最小 Renderer schema 校验覆盖。模板 Designer 和版本发布将在 2.3-2.7 继续实现。
 
 接口：
 
@@ -54,6 +54,10 @@ uv run alembic upgrade head
 - `POST /api/auth/logout`
 - `GET /api/openapi.json`
 - `GET /api/tasks/{taskId}/publish-check`
+- `GET/PUT /api/tasks/{taskId}/template-draft`
+- `POST /api/template-schemas:validate`
+- `POST/GET /api/tasks/{taskId}/template-versions`
+- `GET /api/template-versions/{templateVersionId}`
 
 包管理规则：
 

@@ -1,4 +1,11 @@
-import { ArrowLeftOutlined, AuditOutlined, DatabaseOutlined, FileProtectOutlined, SaveOutlined } from "@ant-design/icons";
+import {
+  ArrowLeftOutlined,
+  AuditOutlined,
+  DatabaseOutlined,
+  FileProtectOutlined,
+  FormOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -19,6 +26,7 @@ import { navigate } from "../app/routes";
 import { createTask, getTask, updateTask } from "../features/tasks/api";
 import type { CreateTaskRequest, TaskDetailVO } from "../features/tasks/types";
 import { distributionStrategyOptions, formatTaskTime, parseApiDateTime, taskStatusMeta } from "../features/tasks/view";
+import { buildOwnerTaskDesignerPath } from "../features/templates/view";
 import { ApiClientError } from "../shared/api/client";
 import type { JsonObject } from "../shared/types/api";
 import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
@@ -197,6 +205,11 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
           </Button>
         )}
         {taskId && (
+          <Button icon={<FormOutlined />} onClick={() => navigate(buildOwnerTaskDesignerPath(taskId, "settings"))}>
+            模板搭建
+          </Button>
+        )}
+        {taskId && (
           <Button icon={<FileProtectOutlined />} onClick={() => setPublishCheckOpen(true)}>
             发布检查
           </Button>
@@ -222,7 +235,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
           type="info"
           showIcon
           message="当前任务不可编辑"
-          description="阶段 1.1 仅允许编辑草稿任务。发布中、暂停或已结束任务需要通过状态流转控制。"
+          description="阶段 1.1 仅允许编辑草稿任务。已发布、暂停或已结束任务需要通过状态流转控制。"
         />
       )}
 

@@ -16,7 +16,24 @@ export interface TaskStatsVO {
   datasetCount: number;
   itemCount: number;
   enabledItemCount: number;
+  templateVersionCount: number;
   reviewConfigVersionCount: number;
+}
+
+export interface TaskSummaryVO {
+  totalTaskCount: number;
+  draftTaskCount: number;
+  publishedTaskCount: number;
+  pausedTaskCount: number;
+  endedTaskCount: number;
+  totalQuota: number;
+  totalClaimedCount: number;
+  totalSubmittedCount: number;
+  totalApprovedCount: number;
+  readyDatasetCount: number;
+  enabledItemCount: number;
+  templateReadyTaskCount: number;
+  reviewConfigReadyTaskCount: number;
 }
 
 export interface TaskVO {
@@ -31,6 +48,8 @@ export interface TaskVO {
   deadlineAt: string | null;
   distributionStrategy: DistributionStrategy;
   status: TaskStatus;
+  currentTemplateVersionId: string | null;
+  currentReviewConfigVersionId: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -39,8 +58,6 @@ export interface TaskVO {
 export interface TaskDetailVO extends TaskVO {
   instructionRichText: JsonObject | null;
   rewardRule: JsonObject | null;
-  currentTemplateVersionId: string | null;
-  currentReviewConfigVersionId: string | null;
   version: number;
   stats: TaskStatsVO;
 }

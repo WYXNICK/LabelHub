@@ -17,7 +17,24 @@ class TaskStatsVO(CamelModel):
     dataset_count: int = 0
     item_count: int = 0
     enabled_item_count: int = 0
+    template_version_count: int = 0
     review_config_version_count: int = 0
+
+
+class TaskSummaryVO(CamelModel):
+    total_task_count: int = 0
+    draft_task_count: int = 0
+    published_task_count: int = 0
+    paused_task_count: int = 0
+    ended_task_count: int = 0
+    total_quota: int = 0
+    total_claimed_count: int = 0
+    total_submitted_count: int = 0
+    total_approved_count: int = 0
+    ready_dataset_count: int = 0
+    enabled_item_count: int = 0
+    template_ready_task_count: int = 0
+    review_config_ready_task_count: int = 0
 
 
 class TaskVO(CamelModel):
@@ -32,6 +49,8 @@ class TaskVO(CamelModel):
     deadline_at: datetime | None
     distribution_strategy: DistributionStrategy
     status: TaskStatus
+    current_template_version_id: str | None = None
+    current_review_config_version_id: str | None = None
     created_by: str
     created_at: datetime
     updated_at: datetime
@@ -40,8 +59,6 @@ class TaskVO(CamelModel):
 class TaskDetailVO(TaskVO):
     instruction_rich_text: dict[str, Any] | None
     reward_rule: dict[str, Any] | None
-    current_template_version_id: str | None
-    current_review_config_version_id: str | None
     version: int
     stats: TaskStatsVO
 

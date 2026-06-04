@@ -11,6 +11,7 @@ import labelhub_api.models  # noqa: F401
 
 STAGE1_PATHS = {
     "/api/tasks": {"get", "post"},
+    "/api/tasks/summary": {"get"},
     "/api/tasks/{taskId}": {"get", "patch"},
     "/api/tasks/{taskId}/state-transitions": {"post"},
     "/api/tasks/{taskId}/publish-check": {"get"},
@@ -55,6 +56,7 @@ def test_stage1_openapi_exposes_owner_foundation_contract() -> None:
     for schema_name in [
         "TaskVO",
         "TaskDetailVO",
+        "TaskSummaryVO",
         "CreateTaskRequest",
         "DatasetVO",
         "DatasetItemVO",

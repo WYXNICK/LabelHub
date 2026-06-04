@@ -22,6 +22,7 @@ from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.dataset import DatasetEntity, DatasetItemEntity
 from labelhub_api.models.review_config import ReviewConfigVersionEntity
 from labelhub_api.models.task import TaskEntity, TaskStateTransitionEntity
+from labelhub_api.models.template import TemplateVersionEntity
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.audit import AuditLogVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
@@ -32,6 +33,7 @@ from labelhub_api.schemas.tasks import (
     TaskDetailVO,
     TaskStateTransitionRequest,
     TaskStatsVO,
+    TaskSummaryVO,
     TaskVO,
     UpdateTaskRequest,
 )
@@ -72,6 +74,43 @@ class TaskService:
                 total_items=total_items,
                 total_pages=ceil(total_items / page_size) if total_items else 0,
             ),
+        )
+
+    def get_task_summary(self, *, user: UserVO) -> TaskSummaryVO:
+        self._require_owner(user)
+        task_scope = select(TaskEntity.id).where(TaskEntity.created_by == user.id)
+        sum_fields = self._db.execute(
+            select(
+                func.count(TaskEntity.id),
+                func.coalesce(func.sum(TaskEntity.quota), 0),
+                func.coalesce(func.sum(TaskEntity.claimed_count), 0),
+                func.coalesce(func.sum(TaskEntity.submitted_count), 0),
+                func.coalesce(func.sum(TaskEntity.approved_count), 0),
+            ).where(TaskEntity.created_by == user.id)
+        ).one()
+        dataset_summary = self._db.execute(
+            select(
+                func.count(DatasetEntity.id),
+                func.coalesce(func.sum(DatasetEntity.enabled_item_count), 0),
+            ).where(
+                DatasetEntity.task_id.in_(task_scope),
+                DatasetEntity.status == DatasetStatus.READY.value,
+            )
+        ).one()
+        return TaskSummaryVO(
+            total_task_count=int(sum_fields[0] or 0),
+            draft_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.DRAFT),
+            published_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.PUBLISHED),
+            paused_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.PAUSED),
+            ended_task_count=self._count_tasks_by_status(user=user, status=TaskStatus.ENDED),
+            total_quota=int(sum_fields[1] or 0),
+            total_claimed_count=int(sum_fields[2] or 0),
+            total_submitted_count=int(sum_fields[3] or 0),
+            total_approved_count=int(sum_fields[4] or 0),
+            ready_dataset_count=int(dataset_summary[0] or 0),
+            enabled_item_count=int(dataset_summary[1] or 0),
+            template_ready_task_count=self._count_tasks_with_field(user=user, field_name="current_template_version_id"),
+            review_config_ready_task_count=self._count_tasks_with_field(user=user, field_name="current_review_config_version_id"),
         )
 
     def create_task(self, *, user: UserVO, request: CreateTaskRequest, request_id: str) -> TaskDetailVO:
@@ -294,6 +333,29 @@ class TaskService:
         if "distribution_strategy" in updates and updates["distribution_strategy"] is not None:
             task.distribution_strategy = updates["distribution_strategy"].value
 
+    def _count_tasks_by_status(self, *, user: UserVO, status: TaskStatus) -> int:
+        return int(
+            self._db.scalar(
+                select(func.count()).select_from(TaskEntity).where(
+                    TaskEntity.created_by == user.id,
+                    TaskEntity.status == status.value,
+                )
+            )
+            or 0
+        )
+
+    def _count_tasks_with_field(self, *, user: UserVO, field_name: str) -> int:
+        field = getattr(TaskEntity, field_name)
+        return int(
+            self._db.scalar(
+                select(func.count()).select_from(TaskEntity).where(
+                    TaskEntity.created_by == user.id,
+                    field.is_not(None),
+                )
+            )
+            or 0
+        )
+
     def _get_owned_task(self, task_id: str, user: UserVO) -> TaskEntity:
         task = self._db.get(TaskEntity, task_id)
         if task is None or task.created_by != user.id:
@@ -363,7 +425,7 @@ class TaskService:
         status = TaskStatus(task.status)
         if status in {TaskStatus.DRAFT, TaskStatus.PAUSED}:
             return []
-        message = "任务已处于发布中，无需再次发布。" if status == TaskStatus.PUBLISHED else "已结束任务不可恢复发布。"
+        message = "任务已处于已发布状态，无需再次发布。" if status == TaskStatus.PUBLISHED else "已结束任务不可恢复发布。"
         return [
             PublishBlockerVO(
                 code=PublishBlockerCode.INVALID_TASK_STATUS,
@@ -393,6 +455,8 @@ class TaskService:
             deadline_at=task.deadline_at,
             distribution_strategy=task.distribution_strategy,
             status=task.status,
+            current_template_version_id=task.current_template_version_id,
+            current_review_config_version_id=task.current_review_config_version_id,
             created_by=task.created_by,
             created_at=task.created_at,
             updated_at=task.updated_at,
@@ -403,8 +467,6 @@ class TaskService:
             **self._to_task_vo(task).model_dump(),
             instruction_rich_text=task.instruction_rich_text,
             reward_rule=task.reward_rule,
-            current_template_version_id=task.current_template_version_id,
-            current_review_config_version_id=task.current_review_config_version_id,
             version=task.version,
             stats=self._build_stats(task.id),
         )
@@ -427,10 +489,14 @@ class TaskService:
                 ReviewConfigVersionEntity.task_id == task_id
             )
         ) or 0
+        template_version_count = self._db.scalar(
+            select(func.count()).select_from(TemplateVersionEntity).where(TemplateVersionEntity.task_id == task_id)
+        ) or 0
         return TaskStatsVO(
             dataset_count=dataset_count,
             item_count=item_count,
             enabled_item_count=enabled_item_count,
+            template_version_count=template_version_count,
             review_config_version_count=review_config_version_count,
         )
 

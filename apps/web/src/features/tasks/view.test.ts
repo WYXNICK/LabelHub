@@ -6,9 +6,14 @@ import {
   matchOwnerTaskSettingsPath,
   parseApiDateTime,
   sortPublishBlockers,
+  taskStatusMeta,
 } from "./view";
 
 describe("task view helpers", () => {
+  it("uses a stable completed label for published tasks", () => {
+    expect(taskStatusMeta.PUBLISHED.label).toBe("已发布");
+  });
+
   it("maps task statuses to allowed owner actions", () => {
     expect(getTaskTransitionActions({ status: "DRAFT" }).map((action) => action.targetStatus)).toEqual([
       "PUBLISHED",

@@ -173,6 +173,7 @@ export interface LogoutResponseVO {
 | 阶段 | 页面/模块 | 前端 VO / Request | 后端接口 | 状态 |
 | --- | --- | --- | --- | --- |
 | 1 | 任务列表 | `TaskVO`、`ListTasksRequest` | `GET /api/tasks` | 阶段 1.1 已实现 |
+| 1 | 任务总览 | `TaskSummaryVO` | `GET /api/tasks/summary` | 阶段 1.1 已实现 |
 | 1 | 任务创建/编辑 | `TaskDetailVO`、`CreateTaskRequest`、`UpdateTaskRequest` | `POST /api/tasks`、`PATCH /api/tasks/{taskId}` | 阶段 1.1 已实现 |
 | 1 | 任务状态迁移 | `TaskStateTransitionRequest`、`TaskDetailVO` | `POST /api/tasks/{taskId}/state-transitions` | 阶段 1.1 已实现 |
 | 1 | 数据集与导入 | `DatasetVO`、`DatasetItemVO`、`ImportJobVO`、`ImportErrorRowVO` | `POST /api/tasks/{taskId}/import-jobs`、`GET /api/import-jobs/{importJobId}`、`GET /api/import-jobs/{importJobId}/errors` | 阶段 1.2 已实现 |
@@ -180,9 +181,15 @@ export interface LogoutResponseVO {
 | 1 | 审核配置 | `ReviewConfigDraftVO`、`ReviewConfigVersionVO`、`ReviewDimensionDTO`、`ReviewThresholdDTO` | `GET/PUT /api/tasks/{taskId}/review-config-draft`、`POST/GET /api/tasks/{taskId}/review-config-versions` | 阶段 1.4 已实现 |
 | 1 | 发布前检查 | `PublishCheckVO`、`PublishBlockerVO` | `GET /api/tasks/{taskId}/publish-check` | 阶段 1.5 已实现 |
 | 1 | 任务审计 | `AuditLogVO` | `GET /api/audit-logs?entityType=TASK&entityId={taskId}` | 阶段 1.1 已实现 |
-| 2 | 模板版本 | `TemplateVersionVO`、`TemplateSchemaVO` | `POST /api/tasks/{taskId}/template-versions` | 待细化 |
-| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 待细化 |
-| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 待细化 |
+| 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.1 已实现 |
+| 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.1 已实现 |
+| 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 |
+| 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 实现 |
+| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 实现 |
+| 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 实现 |
+| 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 实现 |
+| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 实现 |
+| 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 实现 |
 | 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
@@ -217,6 +224,7 @@ export type PublishBlockerCode =
 | --- | --- |
 | `TaskVO` | `id`、`title`、`description`、`tags`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`deadlineAt`、`distributionStrategy`、`status`、`createdBy`、`createdAt`、`updatedAt` |
 | `TaskDetailVO` | `TaskVO` 全量字段 + `instructionRichText`、`rewardRule`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`version`、`stats` |
+| `TaskSummaryVO` | `totalTaskCount`、`draftTaskCount`、`publishedTaskCount`、`pausedTaskCount`、`endedTaskCount`、`totalQuota`、`totalClaimedCount`、`totalSubmittedCount`、`totalApprovedCount`、`readyDatasetCount`、`enabledItemCount`、`templateReadyTaskCount`、`reviewConfigReadyTaskCount` |
 | `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
 | `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
 | `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
@@ -242,13 +250,14 @@ export type PublishBlockerCode =
 
 | 页面 | 路由 | 行为 |
 | --- | --- | --- |
-| 任务列表 | `/owner/tasks` | 搜索、状态筛选、分页、任务状态标签、数据量摘要、创建入口、编辑入口、发布/暂停/恢复/结束入口 |
+| 任务列表 | `/owner/tasks` | 顶部任务总览卡、搜索、状态筛选、分页、任务状态标签、数据量摘要、创建入口、编辑入口、发布/暂停/恢复/结束入口 |
 | 任务创建 | `/owner/tasks/new` | 创建 `DRAFT` 任务，字段包含标题、描述、富文本说明、标签、奖励规则、截止时间、配额和分发策略 |
 | 任务设置 | `/owner/tasks/:taskId/settings` | 加载任务详情，只允许编辑 `DRAFT` 任务；提交时携带 `version` 做乐观锁 |
 
 交互规则：
 
 - 状态迁移由后端决定最终结果；前端只发起 `TaskStateTransitionRequest`。
+- 顶部总览读取 `GET /api/tasks/summary`，展示 Owner 全量已发布任务（对应官方“发布中”）、草稿任务、可用题目和累计提交；搜索/状态筛选只影响下方列表。
 - 发布失败时展示后端 `PUBLISH_BLOCKED` 的阻塞项，例如缺少数据集、模板版本或审核配置。
 - 列表和详情页都必须处理 loading、empty、error 和成功反馈。
 - 阶段 1.1 不在前端实现数据导入、审核配置保存、模板搭建或完整发布检查抽屉。
@@ -464,6 +473,368 @@ export interface PublishCheckVO {
 - 使用 Chrome DevTools MCP 在真实浏览器检查 `1280×800` 与 `1920×1080`。
 - 后端必须连接 MySQL；至少验证一个已具备数据集和审核配置但缺少模板版本的任务，抽屉清晰显示 `MISSING_TEMPLATE_VERSION` 并阻止发布。
 - Console 不应出现非预期 error/issue；Network 中 `publish-check` 返回 200，强制发布接口在缺模板时返回预期业务阻塞。
+
+### 9.7 阶段 2.0 动态模板契约与前端 API 外壳
+
+阶段 2.0 在前端只落模板类型和 API 封装，不新增 Designer 页面、不渲染模板、不实现拖拽交互。模板 API 按阶段逐步接入；当前阶段 2.7 已完成模板版本发布能力。
+
+前端文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/types.ts` | 定义 `TemplateSchemaVO`、`TemplateComponentDTO`、`TemplateDraftVO`、`TemplateVersionVO` 等类型 |
+| `src/features/templates/api.ts` | 封装模板草稿、schema 校验、模板版本列表和版本详情接口 |
+
+前端类型：
+
+```ts
+export type TemplateComponentType =
+  | "SHOW_ITEM"
+  | "TEXT_INPUT"
+  | "TEXTAREA"
+  | "RADIO"
+  | "CHECKBOX"
+  | "TAG_SELECT"
+  | "RICH_TEXT"
+  | "FILE_UPLOAD"
+  | "IMAGE_UPLOAD"
+  | "JSON_EDITOR"
+  | "LLM_ACTION"
+  | "GROUP"
+  | "TABS";
+
+export interface TemplateSchemaVO {
+  schemaVersion: string;
+  components: TemplateComponentDTO[];
+  layout: JsonObject;
+  llmActions: JsonObject[];
+  showItems: JsonObject[];
+}
+```
+
+接口封装：
+
+| 前端函数 | 后端接口 |
+| --- | --- |
+| `getTemplateDraft` | `GET /api/tasks/{taskId}/template-draft` |
+| `saveTemplateDraft` | `PUT /api/tasks/{taskId}/template-draft` |
+| `validateTemplateSchema` | `POST /api/template-schemas:validate` |
+| `publishTemplateVersion` | `POST /api/tasks/{taskId}/template-versions` |
+| `listTemplateVersions` | `GET /api/tasks/{taskId}/template-versions` |
+| `getTemplateVersion` | `GET /api/template-versions/{templateVersionId}` |
+
+字段对齐要求：
+
+- 前端字段使用 camelCase，例如 `schemaVersion`、`fieldKey`、`llmActions`、`showItems`。
+- 后端 Pydantic 使用 alias 对外返回同名 camelCase JSON。
+- VO 中对外字段必须使用 `schema`；后端内部可用 `template_schema` 避免遮蔽 Pydantic BaseModel 方法。
+- 2.1 实现业务时，Designer、Renderer、Labeler 必须复用这同一份 `TemplateSchemaVO`，不得引入前端私有 schema。
+
+### 9.8 阶段 2.1 模板 schema 基础结构与校验反馈
+
+阶段 2.1 在前端新增模板 schema 基础工具，不新增页面。Designer 和 Renderer 后续必须复用这些工具生成默认结构、创建物料和展示后端校验结果。
+
+前端文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/view.ts` | 默认 schema、默认物料、采集字段提取、校验结果摘要 |
+| `src/features/templates/view.test.ts` | 覆盖默认 schema、默认 fieldKey、校验摘要 |
+
+交互边界：
+
+- `getTemplateDraft`、`saveTemplateDraft`、`validateTemplateSchema` 已可调用真实后端业务。
+- `publishTemplateVersion`、`listTemplateVersions`、`getTemplateVersion` 已在阶段 2.7 接入；2.1 阶段页面不得提前把它们当成可用发布能力。
+- `TemplateLayoutDTO` 以 `root` 数组作为基础布局；字符串节点表示组件 ID，对象节点为后续 `GROUP/TABS` 预留。
+- 前端只做轻量结构准备和校验结果展示，非法物料、重复字段和非法布局最终以后端校验为准。
+
+### 9.9 阶段 2.2 Renderer 最小运行时
+
+阶段 2.2 新增可复用 Renderer 和轻量预览壳，用于证明同一份 `TemplateSchemaVO` 既可以由 Owner 预览，也能在后续 Labeler 工作台直接复用。该阶段不实现拖拽、不实现属性面板、不保存 schema，也不发布模板版本。
+
+前端文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/TemplateRenderer.tsx` | 运行时渲染组件，消费 `TemplateSchemaVO`、题目 payload 和表单值 |
+| `src/features/templates/runtime.ts` | payload 路径读取、默认值、提交字段提取、值更新等纯函数 |
+| `src/features/templates/runtime.test.tsx` | 覆盖 ShowItem、基础物料渲染和值结构 |
+| `src/pages/OwnerTemplateRendererPreviewPage.tsx` | `/owner/tasks/:taskId/designer` 的阶段 2.2 预览壳 |
+
+Renderer Props：
+
+```ts
+interface TemplateRendererProps {
+  schema: TemplateSchemaVO;
+  itemPayload: JsonObject;
+  value: TemplateSubmissionValue;
+  onChange: (nextValue: TemplateSubmissionValue) => void;
+  readonly?: boolean;
+}
+```
+
+运行规则：
+
+- `SHOW_ITEM` 使用 `props.path` 读取 payload，例如 `$.prompt`，只展示不写入提交值。
+- `TEXT_INPUT`、`TEXTAREA` 写入字符串。
+- `RADIO` 写入单个字符串。
+- `CHECKBOX`、`TAG_SELECT` 写入字符串数组。
+- 物料顺序以 `layout.root` 为准；无效布局节点显示轻量错误，不阻断整个 Renderer。
+- `props.options` 仅接受 `{ label, value }` 数组；非法选项在 Renderer 侧降级为空列表，最终以后端 schema 校验为准。
+
+页面边界：
+
+- `/owner/tasks/:taskId/designer` 在 2.2 只展示“模板运行时预览”，加载当前任务、模板草稿，并用一个 demo payload 渲染。
+- 若模板草稿为空，显示空状态和后续 Designer 提示。
+- 页面提供返回任务列表、任务设置、发布检查入口，保持 Owner 工作流一致。
+- 浏览器验收必须覆盖 `1280x800` 和 `1920x1080`，Console 不应出现非预期 error。
+
+### 9.10 阶段 2.3/2.4 Designer 三栏布局与基础物料属性
+
+阶段 2.3/2.4 将 `/owner/tasks/:taskId/designer` 从只读预览壳升级为 Owner 模板搭建器。该阶段页面只保存模板草稿，不发布模板版本；在 2.3/2.4 交付时不得在页面上承诺“发布后可领取”。
+
+入口策略：
+
+- 左侧导航新增 `/owner/templates`「模板工作台」，用于集中筛选任务、查看模板准备状态并进入对应任务的 Designer。
+- 任务列表仍保留行内「更多 -> 搭建模板」快捷入口，用于从具体任务上下文快速进入。
+- 真正编辑 schema 的页面保持 `/owner/tasks/:taskId/designer`，因为模板草稿、模板版本和发布检查都必须绑定具体任务。
+- 进入 Designer 时使用 `?from=templates|tasks|settings` 标记来源；顶部返回按钮按来源返回「模板工作台」「任务管理」或「任务设置」，直接打开 Designer 时默认返回模板工作台。
+
+页面结构：
+
+| 区域 | 职责 |
+| --- | --- |
+| 顶部工具栏 | 来源感知返回、进入任务设置、预览、校验、保存草稿、展示任务状态与草稿保存状态 |
+| 左侧物料栏 | 展示 `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT`，支持点击添加和拖拽到画布 |
+| 中间画布 | 按 `layout.root` 渲染组件卡片；支持拖拽排序、上移/下移、删除和选择 |
+| 右侧属性面板 | 编辑选中物料的 `label`、`fieldKey`、`props`、`validation`；ShowItem 不允许编辑 fieldKey |
+| 预览抽屉 | 使用阶段 2.2 `TemplateRenderer` 和同一份 schema 预览运行时效果 |
+
+基础物料属性：
+
+| 物料 | 属性面板能力 |
+| --- | --- |
+| `SHOW_ITEM` | 展示标题、payload 路径 `props.path` |
+| `TEXT_INPUT` | 字段名、标签、占位符、默认值、必填、最大长度 |
+| `TEXTAREA` | 字段名、标签、占位符、默认值、必填、最大长度 |
+| `RADIO` | 字段名、标签、选项增删改、默认选项、必填 |
+| `CHECKBOX` | 字段名、标签、选项增删改、默认多选、必填 |
+| `TAG_SELECT` | 字段名、标签、选项增删改、默认标签、必填、占位符 |
+
+交互与错误：
+
+- 点击或拖拽物料都会生成新的 `TemplateComponentDTO`，并追加到 `components` 与 `layout.root`。
+- 画布排序只调整 `layout.root`；不得改变组件 `id`、`fieldKey` 或属性。
+- 删除物料必须同步移除 `components` 与 `layout.root`。
+- 保存草稿调用 `saveTemplateDraft`；后端 `INVALID_TEMPLATE_SCHEMA` 的结构化错误必须展示。
+- 校验调用 `validateTemplateSchema`，成功显示通过提示，失败展示 `field + message`。
+- 预览抽屉必须直接消费当前未保存 schema，验证 Designer 与 Renderer 共享协议。
+- 浏览器验收覆盖 `1280x800` 与 `1920x1080`；三栏区域不得遮挡、横向溢出或出现不可见的主要操作。
+
+文件落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/templates/designer.ts` | Designer schema 增删改排、默认物料与选项工具 |
+| `src/features/templates/designer.test.ts` | 覆盖添加、排序、删除、属性更新和基础物料默认值 |
+| `src/pages/OwnerTemplateDesignerPage.tsx` | `/owner/tasks/:taskId/designer` 三栏搭建器 |
+| `src/features/templates/TemplateRenderer.tsx` | 继续作为预览抽屉与后续 Labeler 运行时复用 |
+
+### 9.11 阶段 2.5 高级物料
+
+阶段 2.5 不新增后端接口，继续复用 `GET/PUT /api/tasks/{taskId}/template-draft` 与 `POST /api/template-schemas:validate`。本阶段目标是把官方要求中的高级物料纳入同一份 `TemplateSchemaVO`，并让 Designer 与 Renderer 同时识别这些物料。
+
+Designer 物料分组：
+
+| 分组 | 物料 |
+| --- | --- |
+| 基础物料 | `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` |
+| 高级物料 | `RICH_TEXT`、`FILE_UPLOAD`、`IMAGE_UPLOAD`、`JSON_EDITOR`、`LLM_ACTION` |
+
+高级物料属性：
+
+| 物料 | fieldKey | props | validation |
+| --- | --- | --- | --- |
+| `RICH_TEXT` | 必填且唯一 | `placeholder`、`defaultValue`、`toolbarPreset` | `required`、`maxLength` |
+| `FILE_UPLOAD` | 必填且唯一 | `accept` 字符串数组、`maxFiles`、`maxSizeMb` | `required` |
+| `IMAGE_UPLOAD` | 必填且唯一 | `accept` 图片 MIME/扩展名数组、`maxFiles`、`maxSizeMb` | `required` |
+| `JSON_EDITOR` | 必填且唯一 | `placeholder`、`defaultValue` JSON Object/Array | `required` |
+| `LLM_ACTION` | 不配置 | `actionLabel`、`promptTemplate`、`inputFieldKeys`、`outputFieldKey`、`helperText` | 不参与提交 |
+
+Renderer 行为：
+
+- `RICH_TEXT` 渲染轻量富文本编辑区，提交值为字符串；本阶段不引入额外富文本依赖。
+- `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域，阶段 2.5 只在预览中记录本地文件名，真实证据文件上传在阶段 3 作答链路接入。
+- `JSON_EDITOR` 渲染等宽 JSON 编辑区，默认值可以是 JSON Object/Array；输入过程允许暂存字符串，最终提交校验放在阶段 3。
+- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；真实调用由阶段 3.6 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入。
+
+交互规则：
+
+- 高级物料同样支持点击/拖拽添加、排序、删除、右侧属性编辑、预览和保存草稿。
+- Designer 生成的 schema 必须可被后端校验接口直接验证，不出现前端私有字段。
+- `LLM_ACTION.props.inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段；后端负责最终校验。
+- 预览抽屉必须用当前未保存 schema 渲染高级物料，验证 Designer/Renderer 共用契约。
+
+验收标准：
+
+- 前端测试覆盖高级物料默认 schema、初始提交值和 Renderer 静态渲染。
+- 浏览器验收覆盖添加高级物料、编辑关键属性、预览抽屉渲染和布局在 `1280×800`、`1920×1080` 下无横向溢出。
+
+### 9.12 阶段 2.6 高级布局与规则
+
+阶段 2.6 继续使用同一份 `TemplateSchemaVO`，不引入前端私有协议。目标是让 Owner 在 Designer 中配置官方 4.2 进阶能力，并能在预览抽屉中看到 Renderer 运行效果。
+
+新增 Designer 物料分组：
+
+| 分组 | 物料 |
+| --- | --- |
+| 布局物料 | `GROUP`、`TABS` |
+
+规则结构：
+
+```ts
+type TemplateRuleLogic = "ALL" | "ANY";
+type TemplateConditionOperator = "EQUALS" | "NOT_EQUALS" | "IN" | "NOT_IN" | "NOT_EMPTY" | "EMPTY";
+
+interface TemplateRuleConditionDTO {
+  fieldKey: string;
+  operator: TemplateConditionOperator;
+  value?: string | number | boolean | null | string[];
+}
+
+interface TemplateRuleSetDTO {
+  logic?: TemplateRuleLogic;
+  conditions?: TemplateRuleConditionDTO[];
+}
+```
+
+字段级配置：
+
+| 配置 | 存放位置 | Designer 行为 | Renderer 行为 |
+| --- | --- | --- | --- |
+| 条件显示 | `component.visibility` | 可选择依赖字段、操作符和值 | 条件不满足时隐藏组件，隐藏采集字段从提交值中移除 |
+| 正则校验 | `component.validation.pattern/patternMessage` | 文本类、富文本和 JSON 字符串输入可配置 | 值不匹配时展示字段级错误 |
+| 白名单规则 | `component.validation.customRuleIds` | 多选 `NO_EMOJI`、`NO_URL`、`TRIMMED_NON_EMPTY`、`JSON_OBJECT` | 按规则展示字段级错误，不执行任意代码 |
+| 联动必填 | `component.validation.requiredWhen` | 配置依赖条件与错误提示 | 条件满足且字段为空时展示字段级错误 |
+
+布局结构：
+
+```ts
+type TemplateLayoutNodeDTO =
+  | string
+  | {
+      componentId: string;
+      children?: TemplateLayoutNodeDTO[];
+      tabs?: Array<{ id: string; label: string; children: TemplateLayoutNodeDTO[] }>;
+    };
+```
+
+交互规则：
+
+- `GROUP` 默认生成空 `children`，可从分组内部添加子物料；Renderer 用分组卡片渲染 children。
+- `TABS` 默认生成两个 tab，可在属性面板编辑 Tab 名称；Renderer 用 Ant Design Tabs 渲染各 tab children。
+- 删除容器时同步删除其嵌套 children 对应的组件，避免 schema 中出现孤儿组件。
+- 组件上移/下移在其所在兄弟节点内生效；根节点、分组 children、Tab children 均保持同一规则。
+- 预览抽屉直接消费当前未保存 schema，并展示条件显示、联动必填、正则和自定义规则的运行时反馈。
+- 阶段 2.6 不实现 Labeler 提交接口；阶段 3.4 会复用运行时规则语义接入提交校验。
+
+验收标准：
+
+- 前端测试覆盖布局物料默认值、嵌套添加、容器删除、条件显示、隐藏字段清理和运行时校验。
+- 后端 schema 校验拒绝非法条件字段、非法 operator、非法正则、未知 customRuleId、非法 GROUP/TABS layout。
+- Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 检查 Designer、预览抽屉、条件显示和 Tab 切换；Console 无非预期错误。
+
+### 9.13 阶段 2.7 模板版本发布与发布检查联动
+
+阶段 2.7 在 Designer 中接入模板版本发布，不改变模板 schema 协议。前端必须继续以 `TemplateSchemaVO` 作为唯一渲染和保存结构，发布动作只把当前任务草稿固化为后端不可变版本。
+
+页面入口：
+
+| 页面 | 行为 |
+| --- | --- |
+| `/owner/templates` 模板工作台 | 展示任务模板准备状态；已发布模板的任务显示当前版本已绑定，未发布模板的任务提示继续搭建并发布 |
+| `/owner/tasks` 任务管理 | 保留行内快捷入口，具体任务上下文中可进入 Designer；发布检查仍在任务发布动作前展示 |
+| `/owner/tasks/{taskId}/designer?from=...` | 顶部返回按钮按来源返回模板工作台、任务管理或任务设置；直接进入时默认返回模板工作台 |
+
+Designer 交互：
+
+- 顶部展示当前模板版本状态：未发布、已发布、草稿已同步或草稿有改动。
+- “保存草稿”只写入 `template_drafts`，不解除发布检查阻塞。
+- “发布版本”必须先校验当前 schema；若草稿有未保存改动，应保存当前草稿后再调用 `publishTemplateVersion`。
+- 发布成功后刷新任务详情和版本列表，展示 `r{versionNo}`、`ACTIVE/DISABLED` 状态、发布时间、发布人和版本备注。
+- “版本记录”抽屉展示当前任务版本历史，当前绑定版本需要明确标记。
+- “发布检查”抽屉复用阶段 1.5 组件；成功发布模板版本后不应再出现 `MISSING_TEMPLATE_VERSION`，但其他阻塞项仍如实展示。
+
+VO 字段映射：
+
+| 后端 JSON 字段 | 前端类型字段 | 用途 |
+| --- | --- | --- |
+| `TaskVO.currentTemplateVersionId` | `currentTemplateVersionId` | 判断当前任务是否已有模板版本 |
+| `TaskVO.currentReviewConfigVersionId` | `currentReviewConfigVersionId` | 发布检查和任务列表状态展示 |
+| `TaskStatsVO.templateVersionCount` | `templateVersionCount` | 任务统计与模板工作台准备状态 |
+| `TemplateVersionVO.versionNo/status/versionNote/publishedAt` | 同名 camelCase | 版本记录抽屉展示 |
+
+验收标准：
+
+- 前端测试覆盖模板版本 API 封装字段、Designer 发布按钮状态和版本列表展示。
+- Chrome DevTools MCP 使用 MySQL 数据链路验证：保存合法草稿、发布模板版本、查看版本记录、打开发布检查并确认 `MISSING_TEMPLATE_VERSION` 已解除。
+- `1280×800` 与 `1920×1080` 下 Designer 顶部操作、版本抽屉和模板工作台不遮挡、不横向溢出，Console 无非预期错误。
+
+### 9.14 阶段 3 Labeler 工作台与提交闭环
+
+阶段 3 前端必须直接复用阶段 2 的 `TemplateRenderer`、`TemplateSubmissionValue`、`pruneHiddenSubmissionValue` 和 `validateTemplateSubmissionValue`。Labeler 作答页不得复制一套新的表单渲染逻辑；后端仍是最终校验者。
+
+页面与路由：
+
+| 页面 | 路由 | 行为 |
+| --- | --- | --- |
+| 任务广场 | `/labeler/marketplace` | 搜索、筛选、任务卡片、剩余题量、奖励、截止时间、领取或继续作答 |
+| 标注工作台 | `/labeler/assignments/:assignmentId` | 展示题目 payload、模板版本 Renderer、草稿状态、上一题/下一题/跳题和提交按钮 |
+| 我的贡献 | `/labeler/contributions` | 展示已提交、通过、打回、待修改统计和列表 |
+| 打回修改详情 | `/labeler/assignments/:assignmentId/revise` | 展示审核意见、上一轮提交和修改再提交入口 |
+
+核心前端类型：
+
+```ts
+export interface MarketplaceTaskVO {
+  id: string;
+  title: string;
+  description?: string | null;
+  tags: string[];
+  rewardRule?: string | null;
+  deadlineAt: string;
+  quota: number;
+  availableItemCount: number;
+  claimedByMeCount: number;
+  submittedByMeCount: number;
+}
+
+export interface AssignmentContextVO {
+  assignment: AssignmentVO;
+  task: TaskVO;
+  datasetItemPayload: JsonObject;
+  templateSchema: TemplateSchemaVO;
+  latestSubmission?: SubmissionVO | null;
+  reviewFeedback?: JsonObject | null;
+  navigation: AssignmentNavigationVO;
+}
+```
+
+交互规则：
+
+- 任务广场只展示后端返回的可领取任务；前端不自行猜测任务是否可领。
+- 领取成功后进入 `/labeler/assignments/:assignmentId`；如果当前 Labeler 已有未提交 assignment，卡片提供“继续作答”入口。
+- 作答页初始化值优先级：后端 `assignment.draftValues` > `latestSubmission.values` > `getTemplateInitialValue(templateSchema)`。
+- Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，再防抖调用保存草稿接口。
+- 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。
+- 文件/图片上传物料在阶段 3 需要调用现有 `createFileObject`，提交值保存文件对象 ID 数组和必要展示名，不保存浏览器本地临时路径。
+- `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`；返回值只作为参考或写入目标字段草稿，必须由 Labeler 手动提交。
+
+验收标准：
+
+- Chrome DevTools MCP 覆盖 `1280×800` 与 `1920×1080` 下任务广场、作答页、贡献页；无横向溢出、主要操作不遮挡。
+- MySQL 链路验证：领取写入 assignment，草稿刷新恢复，提交生成 submission 版本，提交值包含固定 `templateVersionId`。
+- Console 无非预期错误；Network 中业务阻塞项必须可读，例如无可领取题目、任务过期、提交校验失败。
 
 ## 10. 前后端字段映射检查清单
 

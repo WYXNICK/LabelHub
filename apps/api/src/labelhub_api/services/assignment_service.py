@@ -13,6 +13,7 @@ from labelhub_api.core.enums import (
     AssignmentStatus,
     AuditAction,
     AuditEntityType,
+    ContributionBucket,
     DatasetItemStatus,
     DistributionStrategy,
     SubmissionStatus,
@@ -29,8 +30,12 @@ from labelhub_api.schemas.assignments import (
     AssignmentContextVO,
     AssignmentNavigationVO,
     AssignmentVO,
+    ContributionItemVO,
+    ContributionStatsVO,
     CreateAssignmentRequest,
+    CreateSubmissionRequest,
     MarketplaceTaskVO,
+    ReviewFeedbackVO,
     SaveAssignmentDraftRequest,
     SubmissionVO,
 )
@@ -38,6 +43,7 @@ from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
 from labelhub_api.schemas.tasks import TaskVO
 from labelhub_api.schemas.templates import TemplateSchemaVO
+from labelhub_api.services.submission_validation import validate_submission_value
 
 
 class AssignmentService:
@@ -101,6 +107,68 @@ class AssignmentService:
         )
         return PageVO(
             data=[self._to_assignment_vo(assignment) for assignment in assignments],
+            pagination=PaginationVO(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=ceil(total_items / page_size) if total_items else 0,
+            ),
+        )
+
+    def get_contribution_stats(self, *, user: UserVO) -> ContributionStatsVO:
+        self._require_labeler(user)
+        base_query = select(AssignmentEntity).where(
+            AssignmentEntity.labeler_id == user.id,
+            AssignmentEntity.status != AssignmentStatus.CANCELLED.value,
+        )
+        assignments = list(self._db.scalars(base_query))
+        draft_count = sum(1 for item in assignments if item.status in self._draft_status_values())
+        in_review_count = sum(1 for item in assignments if item.status == AssignmentStatus.SUBMITTED.value)
+        approved_count = sum(1 for item in assignments if item.status == AssignmentStatus.APPROVED.value)
+        returned_count = sum(1 for item in assignments if item.status == AssignmentStatus.RETURNED.value)
+        submitted_count = in_review_count + approved_count + returned_count
+        reviewed_count = approved_count + returned_count
+        total_submission_count = int(
+            self._db.scalar(
+                select(func.count()).select_from(SubmissionEntity).where(SubmissionEntity.labeler_id == user.id)
+            )
+            or 0
+        )
+        latest_updated_at = max((item.updated_at for item in assignments), default=None)
+        return ContributionStatsVO(
+            total_assignments=len(assignments),
+            draft_count=draft_count,
+            in_review_count=in_review_count,
+            submitted_count=submitted_count,
+            approved_count=approved_count,
+            returned_count=returned_count,
+            revision_required_count=returned_count,
+            total_submission_count=total_submission_count,
+            pass_rate=round((approved_count / reviewed_count) * 100, 1) if reviewed_count else 0.0,
+            latest_updated_at=latest_updated_at,
+        )
+
+    def list_contributions(
+        self,
+        *,
+        user: UserVO,
+        page: int,
+        page_size: int,
+        bucket: ContributionBucket,
+        keyword: str | None,
+    ) -> PageVO[ContributionItemVO]:
+        self._require_labeler(user)
+        query = self._contribution_query(user=user, bucket=bucket, keyword=keyword)
+        total_items = self._db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
+        assignments = list(
+            self._db.scalars(
+                query.order_by(AssignmentEntity.updated_at.desc(), AssignmentEntity.claimed_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return PageVO(
+            data=[self._to_contribution_item_vo(assignment) for assignment in assignments],
             pagination=PaginationVO(
                 page=page,
                 page_size=page_size,
@@ -245,7 +313,7 @@ class AssignmentService:
             dataset_item_payload=item.payload,
             template_schema=TemplateSchemaVO.model_validate(template_version.schema_json),
             latest_submission=self._to_submission_vo(self._get_latest_submission(assignment.id)),
-            review_feedback=None,
+            review_feedback=self._get_review_feedback(assignment.id),
             navigation=self._build_navigation(assignment, task),
         )
 
@@ -334,6 +402,164 @@ class AssignmentService:
         self._db.commit()
         self._db.refresh(assignment)
         return self._to_assignment_vo(assignment)
+
+    def create_submission(
+        self,
+        *,
+        assignment_id: str,
+        user: UserVO,
+        body: CreateSubmissionRequest,
+        request_id: str,
+    ) -> SubmissionVO:
+        self._require_labeler(user)
+        assignment = self._db.get(AssignmentEntity, assignment_id)
+        if assignment is None or assignment.labeler_id != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="领取记录不存在。", request_id=request_id)
+
+        if body.idempotency_key:
+            existing_submission = self._db.scalar(
+                select(SubmissionEntity).where(SubmissionEntity.idempotency_key == body.idempotency_key)
+            )
+            if existing_submission is not None:
+                if existing_submission.assignment_id != assignment.id or existing_submission.labeler_id != user.id:
+                    raise ApiException(
+                        status_code=409,
+                        code="SUBMISSION_IDEMPOTENCY_CONFLICT",
+                        message="提交幂等键已被其他题目使用。",
+                        request_id=request_id,
+                    )
+                existing_vo = self._to_submission_vo(existing_submission)
+                assert existing_vo is not None
+                return existing_vo
+
+        if assignment.status not in {
+            AssignmentStatus.CLAIMED.value,
+            AssignmentStatus.DRAFT_SAVED.value,
+            AssignmentStatus.RETURNED.value,
+        }:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_NOT_EDITABLE",
+                message="当前题目状态不可提交。",
+                request_id=request_id,
+            )
+
+        if body.client_draft_version is not None and body.client_draft_version != assignment.version:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_VERSION_CONFLICT",
+                message="题目草稿已被更新，请重新加载后再提交。",
+                details={"currentVersion": assignment.version},
+                request_id=request_id,
+            )
+
+        template_version = self._db.get(TemplateVersionEntity, assignment.template_version_id)
+        if template_version is None:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_CONTEXT_INCOMPLETE",
+                message="题目模板版本不存在，请联系任务负责人。",
+                request_id=request_id,
+            )
+
+        schema = TemplateSchemaVO.model_validate(template_version.schema_json)
+        validation = validate_submission_value(schema, body.values)
+        if validation.errors:
+            raise ApiException(
+                status_code=422,
+                code="SUBMISSION_VALIDATION_FAILED",
+                message="提交内容未通过校验，请修正后再提交。",
+                details={"errors": validation.error_details()},
+                request_id=request_id,
+            )
+
+        task = self._db.get(TaskEntity, assignment.task_id)
+        if task is None:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_CONTEXT_INCOMPLETE",
+                message="题目所属任务不存在，请联系任务负责人。",
+                request_id=request_id,
+            )
+
+        now = datetime.now(UTC)
+        previous_status = assignment.status
+        next_version = int(
+            self._db.scalar(
+                select(func.coalesce(func.max(SubmissionEntity.submission_version), 0)).where(
+                    SubmissionEntity.assignment_id == assignment.id
+                )
+            )
+            or 0
+        ) + 1
+        submission = SubmissionEntity(
+            id=self._new_id("submission"),
+            assignment_id=assignment.id,
+            task_id=assignment.task_id,
+            dataset_item_id=assignment.dataset_item_id,
+            labeler_id=user.id,
+            template_version_id=assignment.template_version_id,
+            submission_version=next_version,
+            values=validation.values,
+            status=SubmissionStatus.SUBMITTED.value,
+            idempotency_key=body.idempotency_key,
+            submitted_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        self._db.add(submission)
+
+        assignment.status = AssignmentStatus.SUBMITTED.value
+        assignment.current_submission_id = submission.id
+        assignment.submitted_at = now
+        assignment.draft_values = validation.values
+        assignment.draft_saved_at = now
+        assignment.version += 1
+        assignment.updated_at = now
+        task.submitted_count += 1
+        task.updated_at = now
+
+        self._append_audit(
+            entity_type=AuditEntityType.SUBMISSION,
+            entity_id=submission.id,
+            actor=user,
+            action=AuditAction.SUBMISSION_CREATE,
+            request_id=request_id,
+            from_state=previous_status,
+            to_state=AssignmentStatus.SUBMITTED.value,
+            metadata={
+                "taskId": assignment.task_id,
+                "assignmentId": assignment.id,
+                "datasetItemId": assignment.dataset_item_id,
+                "templateVersionId": assignment.template_version_id,
+                "submissionVersion": next_version,
+                "fieldKeys": sorted(validation.values.keys()),
+                "idempotencyKey": body.idempotency_key,
+            },
+        )
+        try:
+            self._db.commit()
+        except IntegrityError as exc:
+            self._db.rollback()
+            if body.idempotency_key:
+                existing_submission = self._db.scalar(
+                    select(SubmissionEntity).where(SubmissionEntity.idempotency_key == body.idempotency_key)
+                )
+                if existing_submission is not None and existing_submission.assignment_id == assignment_id:
+                    existing_vo = self._to_submission_vo(existing_submission)
+                    assert existing_vo is not None
+                    return existing_vo
+            raise ApiException(
+                status_code=409,
+                code="SUBMISSION_CONFLICT",
+                message="提交发生并发冲突，请刷新后重试。",
+                request_id=request_id,
+            ) from exc
+
+        self._db.refresh(submission)
+        submission_vo = self._to_submission_vo(submission)
+        assert submission_vo is not None
+        return submission_vo
 
     def _claimable_task_query(self, *, keyword: str | None) -> Select[tuple[TaskEntity]]:
         now = datetime.now(UTC)
@@ -470,6 +696,129 @@ class AssignmentService:
             updated_at=submission.updated_at,
         )
 
+    def _to_contribution_item_vo(self, assignment: AssignmentEntity) -> ContributionItemVO:
+        task = self._db.get(TaskEntity, assignment.task_id)
+        item = self._db.get(DatasetItemEntity, assignment.dataset_item_id)
+        latest_submission = self._get_latest_submission(assignment.id)
+        return ContributionItemVO(
+            assignment_id=assignment.id,
+            task_id=assignment.task_id,
+            task_title=task.title if task else "Unknown task",
+            task_description=task.description if task else None,
+            dataset_item_id=assignment.dataset_item_id,
+            dataset_item_preview=self._preview_dataset_item(item),
+            status=AssignmentStatus(assignment.status),
+            latest_submission_id=latest_submission.id if latest_submission else None,
+            latest_submission_version=latest_submission.submission_version if latest_submission else None,
+            latest_submission_status=SubmissionStatus(latest_submission.status) if latest_submission else None,
+            claimed_at=assignment.claimed_at,
+            draft_saved_at=assignment.draft_saved_at,
+            submitted_at=assignment.submitted_at,
+            updated_at=assignment.updated_at,
+            can_continue=assignment.status in self._draft_status_values(),
+            can_revise=assignment.status == AssignmentStatus.RETURNED.value,
+            review_feedback=self._get_review_feedback(assignment.id),
+        )
+
+    def _contribution_query(
+        self,
+        *,
+        user: UserVO,
+        bucket: ContributionBucket,
+        keyword: str | None,
+    ) -> Select[tuple[AssignmentEntity]]:
+        query = select(AssignmentEntity).where(
+            AssignmentEntity.labeler_id == user.id,
+            AssignmentEntity.status != AssignmentStatus.CANCELLED.value,
+        )
+        statuses = self._contribution_bucket_statuses(bucket)
+        if statuses:
+            query = query.where(AssignmentEntity.status.in_(statuses))
+
+        normalized_keyword = keyword.strip() if keyword else ""
+        if normalized_keyword:
+            pattern = f"%{normalized_keyword}%"
+            query = query.join(TaskEntity, AssignmentEntity.task_id == TaskEntity.id).where(
+                or_(
+                    TaskEntity.title.like(pattern),
+                    TaskEntity.description.like(pattern),
+                    AssignmentEntity.dataset_item_id.like(pattern),
+                )
+            )
+        return query
+
+    def _contribution_bucket_statuses(self, bucket: ContributionBucket) -> list[str]:
+        if bucket == ContributionBucket.ALL:
+            return []
+        if bucket == ContributionBucket.DRAFT:
+            return self._draft_status_values()
+        if bucket == ContributionBucket.IN_REVIEW:
+            return [AssignmentStatus.SUBMITTED.value]
+        if bucket == ContributionBucket.APPROVED:
+            return [AssignmentStatus.APPROVED.value]
+        if bucket in {ContributionBucket.RETURNED, ContributionBucket.REVISION_REQUIRED}:
+            return [AssignmentStatus.RETURNED.value]
+        return []
+
+    def _draft_status_values(self) -> list[str]:
+        return [AssignmentStatus.CLAIMED.value, AssignmentStatus.DRAFT_SAVED.value]
+
+    def _preview_dataset_item(self, item: DatasetItemEntity | None) -> str:
+        if item is None:
+            return ""
+        payload = item.payload if isinstance(item.payload, dict) else {}
+        for key in ("prompt", "question", "title", "text", "content"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()[:120]
+        return item.external_item_id or item.id
+
+    def _get_review_feedback(self, assignment_id: str) -> ReviewFeedbackVO | None:
+        audit = self._db.scalar(
+            select(AuditLogEntity)
+            .where(
+                AuditLogEntity.entity_type == AuditEntityType.ASSIGNMENT.value,
+                AuditLogEntity.entity_id == assignment_id,
+                AuditLogEntity.to_state == AssignmentStatus.RETURNED.value,
+            )
+            .order_by(AuditLogEntity.created_at.desc())
+            .limit(1)
+        )
+        if audit is None:
+            audit = self._find_returned_submission_audit(assignment_id)
+        if audit is None:
+            return None
+
+        metadata = audit.metadata_json if isinstance(audit.metadata_json, dict) else {}
+        reason = audit.reason or metadata.get("reason")
+        # 阶段 3.5 只展示最近一次意见；完整多轮时间线在 Reviewer 阶段扩展。
+        return ReviewFeedbackVO(
+            reason=reason if isinstance(reason, str) and reason.strip() else "审核未通过，请按意见修改后重新提交。",
+            source=str(metadata.get("source") or audit.action),
+            reviewer_id=audit.actor_id,
+            reviewer_role=audit.actor_role,
+            returned_at=audit.created_at,
+            metadata=metadata,
+        )
+
+    def _find_returned_submission_audit(self, assignment_id: str) -> AuditLogEntity | None:
+        recent_audits = list(
+            self._db.scalars(
+                select(AuditLogEntity)
+                .where(
+                    AuditLogEntity.entity_type == AuditEntityType.SUBMISSION.value,
+                    AuditLogEntity.to_state == AssignmentStatus.RETURNED.value,
+                )
+                .order_by(AuditLogEntity.created_at.desc())
+                .limit(50)
+            )
+        )
+        for audit in recent_audits:
+            metadata = audit.metadata_json if isinstance(audit.metadata_json, dict) else {}
+            if metadata.get("assignmentId") == assignment_id:
+                return audit
+        return None
+
     def _get_latest_submission(self, assignment_id: str) -> SubmissionEntity | None:
         return self._db.scalar(
             select(SubmissionEntity)
@@ -562,6 +911,7 @@ class AssignmentService:
         actor: UserVO,
         request_id: str,
         metadata: dict[str, Any],
+        entity_type: AuditEntityType = AuditEntityType.ASSIGNMENT,
         action: AuditAction = AuditAction.ASSIGNMENT_CLAIM,
         from_state: str | None = None,
         to_state: str | None = AssignmentStatus.CLAIMED.value,
@@ -569,7 +919,7 @@ class AssignmentService:
         self._db.add(
             AuditLogEntity(
                 id=self._new_id("audit"),
-                entity_type=AuditEntityType.ASSIGNMENT.value,
+                entity_type=entity_type.value,
                 entity_id=entity_id,
                 actor_id=actor.id,
                 actor_role=actor.role,

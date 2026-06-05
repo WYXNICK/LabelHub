@@ -182,7 +182,7 @@ export function LabelerMarketplacePage() {
           </Typography.Text>
         </div>
         <Space wrap>
-          <Tag color="blue">阶段 3.2 · 领取与作答入口</Tag>
+          <Tag color="blue">阶段 3 · 领取与作答入口</Tag>
           <Button icon={<ReloadOutlined />} onClick={reloadCurrentPage}>
             刷新
           </Button>

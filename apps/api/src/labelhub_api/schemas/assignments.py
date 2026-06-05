@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import Field
 
-from labelhub_api.core.enums import AssignmentStatus, DistributionStrategy, SubmissionStatus
+from labelhub_api.core.enums import AssignmentStatus, ContributionBucket, DistributionStrategy, SubmissionStatus
 from labelhub_api.schemas.common import CamelModel
 from labelhub_api.schemas.tasks import TaskVO
 from labelhub_api.schemas.templates import TemplateSchemaVO
@@ -39,6 +39,12 @@ class CreateAssignmentRequest(CamelModel):
 class SaveAssignmentDraftRequest(CamelModel):
     values: dict[str, Any] = Field(default_factory=dict)
     client_version: int = Field(ge=0)
+
+
+class CreateSubmissionRequest(CamelModel):
+    values: dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str | None = Field(default=None, max_length=128)
+    client_draft_version: int | None = Field(default=None, ge=0)
 
 
 class AssignmentVO(CamelModel):
@@ -75,6 +81,55 @@ class SubmissionVO(CamelModel):
     updated_at: datetime
 
 
+class ReviewFeedbackVO(CamelModel):
+    reason: str
+    source: str
+    reviewer_id: str | None = None
+    reviewer_role: str | None = None
+    returned_at: datetime
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ContributionStatsVO(CamelModel):
+    total_assignments: int
+    draft_count: int
+    in_review_count: int
+    submitted_count: int
+    approved_count: int
+    returned_count: int
+    revision_required_count: int
+    total_submission_count: int
+    pass_rate: float
+    latest_updated_at: datetime | None = None
+
+
+class ContributionItemVO(CamelModel):
+    assignment_id: str
+    task_id: str
+    task_title: str
+    task_description: str | None = None
+    dataset_item_id: str
+    dataset_item_preview: str
+    status: AssignmentStatus
+    latest_submission_id: str | None = None
+    latest_submission_version: int | None = None
+    latest_submission_status: SubmissionStatus | None = None
+    claimed_at: datetime
+    draft_saved_at: datetime | None = None
+    submitted_at: datetime | None = None
+    updated_at: datetime
+    can_continue: bool
+    can_revise: bool
+    review_feedback: ReviewFeedbackVO | None = None
+
+
+class ListContributionsRequest(CamelModel):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
+    bucket: ContributionBucket = ContributionBucket.ALL
+    keyword: str | None = Field(default=None, max_length=120)
+
+
 class AssignmentNavigationVO(CamelModel):
     previous_assignment_id: str | None = None
     next_assignment_id: str | None = None
@@ -90,5 +145,5 @@ class AssignmentContextVO(CamelModel):
     dataset_item_payload: dict[str, Any]
     template_schema: TemplateSchemaVO
     latest_submission: SubmissionVO | None = None
-    review_feedback: dict[str, Any] | None = None
+    review_feedback: ReviewFeedbackVO | None = None
     navigation: AssignmentNavigationVO

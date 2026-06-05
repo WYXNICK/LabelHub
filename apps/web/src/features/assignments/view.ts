@@ -1,6 +1,14 @@
 import { getTemplateInitialValue } from "../templates/runtime";
 import type { TemplateSubmissionValue } from "../templates/types";
-import type { AssignmentContextVO, AssignmentNavigationVO, AssignmentStatus, AssignmentVO, MarketplaceTaskVO } from "./types";
+import type {
+  AssignmentContextVO,
+  AssignmentNavigationVO,
+  AssignmentStatus,
+  AssignmentVO,
+  ContributionBucket,
+  ContributionItemVO,
+  MarketplaceTaskVO,
+} from "./types";
 
 export type DraftSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error" | "conflict";
 
@@ -24,6 +32,15 @@ export const draftSaveStatusMeta: Record<
   error: { label: "保存失败", color: "error", message: "网络或服务异常，当前输入仍保留在页面中。" },
   conflict: { label: "版本冲突", color: "error", message: "服务端已有更新，请重新加载题目后继续编辑。" },
 };
+
+export const contributionBucketTabs: Array<{ key: ContributionBucket; label: string }> = [
+  { key: "ALL", label: "全部" },
+  { key: "DRAFT", label: "待提交" },
+  { key: "IN_REVIEW", label: "审核中" },
+  { key: "APPROVED", label: "已通过" },
+  { key: "RETURNED", label: "已打回" },
+  { key: "REVISION_REQUIRED", label: "待修改" },
+];
 
 export function formatRewardRule(rewardRule: MarketplaceTaskVO["rewardRule"]): string {
   if (!rewardRule) {
@@ -51,6 +68,15 @@ export function getClaimButtonText(
 export function buildClaimIdempotencyKey(taskId: string): string {
   const randomPart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
   return `stage3-claim:${taskId}:${randomPart}`;
+}
+
+export function buildSubmissionIdempotencyKey(assignmentId: string): string {
+  const randomPart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
+  return `stage3-submit:${assignmentId}:${randomPart}`;
+}
+
+export function isAssignmentEditable(status: AssignmentStatus): boolean {
+  return status === "CLAIMED" || status === "DRAFT_SAVED" || status === "RETURNED";
 }
 
 export function summarizeMarketplace(tasks: MarketplaceTaskVO[]) {
@@ -81,9 +107,32 @@ export function buildLabelerAssignmentPath(assignmentId: string): string {
   return `/labeler/assignments/${assignmentId}`;
 }
 
+export function buildLabelerAssignmentRevisePath(assignmentId: string): string {
+  return `/labeler/assignments/${assignmentId}/revise`;
+}
+
 export function matchLabelerAssignmentPath(path: string): string | null {
   const match = /^\/labeler\/assignments\/([^/]+)$/.exec(path);
   return match?.[1] ?? null;
+}
+
+export function matchLabelerAssignmentRevisePath(path: string): string | null {
+  const match = /^\/labeler\/assignments\/([^/]+)\/revise$/.exec(path);
+  return match?.[1] ?? null;
+}
+
+export function getContributionAction(item: ContributionItemVO): { label: string; path: string } {
+  if (item.canRevise) {
+    return { label: "修改并提交", path: buildLabelerAssignmentRevisePath(item.assignmentId) };
+  }
+  if (item.canContinue) {
+    return { label: "继续作答", path: buildLabelerAssignmentPath(item.assignmentId) };
+  }
+  return { label: "查看提交", path: buildLabelerAssignmentPath(item.assignmentId) };
+}
+
+export function formatContributionVersion(item: ContributionItemVO): string {
+  return item.latestSubmissionVersion ? `v${item.latestSubmissionVersion}` : "暂无提交";
 }
 
 export function getAssignmentProgressText(navigation: AssignmentNavigationVO): string {

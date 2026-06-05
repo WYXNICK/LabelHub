@@ -20,6 +20,7 @@ import {
   pruneHiddenSubmissionValue,
   readPayloadPath,
   type RenderableLayoutItem,
+  type TemplateSubmissionError,
   updateTemplateSubmissionValue,
 } from "./runtime";
 
@@ -29,6 +30,8 @@ interface TemplateRendererProps {
   value: TemplateSubmissionValue;
   onChange: (nextValue: TemplateSubmissionValue) => void;
   readonly?: boolean;
+  serverErrors?: TemplateSubmissionError[];
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
 }
 
 export function TemplateRenderer({
@@ -37,9 +40,14 @@ export function TemplateRenderer({
   value,
   onChange,
   readonly = false,
+  serverErrors = [],
+  onUploadFile,
 }: TemplateRendererProps) {
   const renderableItems = useMemo(() => getRenderableLayoutItems(schema), [schema]);
-  const errorsByField = useMemo(() => getTemplateSubmissionErrorsByField(schema, value), [schema, value]);
+  const errorsByField = useMemo(
+    () => mergeErrorsByField(getTemplateSubmissionErrorsByField(schema, value), serverErrors),
+    [schema, serverErrors, value],
+  );
 
   useEffect(() => {
     const nextValue = pruneHiddenSubmissionValue(schema, value);
@@ -62,6 +70,7 @@ export function TemplateRenderer({
           value={value}
           errorsByField={errorsByField}
           readonly={readonly}
+          onUploadFile={onUploadFile}
           onChange={onChange}
         />
       ))}
@@ -75,6 +84,7 @@ function RendererLayoutItem({
   value,
   errorsByField,
   readonly,
+  onUploadFile,
   onChange,
 }: {
   item: RenderableLayoutItem;
@@ -82,6 +92,7 @@ function RendererLayoutItem({
   value: TemplateSubmissionValue;
   errorsByField: Map<string, string[]>;
   readonly: boolean;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
   if ("missingId" in item) {
@@ -111,6 +122,7 @@ function RendererLayoutItem({
               value={value}
               errorsByField={errorsByField}
               readonly={readonly}
+              onUploadFile={onUploadFile}
               onChange={onChange}
             />
           ))}
@@ -142,6 +154,7 @@ function RendererLayoutItem({
                       value={value}
                       errorsByField={errorsByField}
                       readonly={readonly}
+                      onUploadFile={onUploadFile}
                       onChange={onChange}
                     />
                   ))
@@ -163,6 +176,7 @@ function RendererLayoutItem({
       value={value}
       errorsByField={errorsByField}
       readonly={readonly}
+      onUploadFile={onUploadFile}
       onChange={onChange}
     />
   );
@@ -174,6 +188,7 @@ function RendererField({
   value,
   errorsByField,
   readonly,
+  onUploadFile,
   onChange,
 }: {
   component: TemplateComponentDTO;
@@ -181,6 +196,7 @@ function RendererField({
   value: TemplateSubmissionValue;
   errorsByField: Map<string, string[]>;
   readonly: boolean;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
   if (component.type === "SHOW_ITEM") {
@@ -214,7 +230,7 @@ function RendererField({
       help={errors.length > 0 ? errors.join("；") : undefined}
     >
       <FieldLabel label={component.label} required={required} htmlFor={canUseNativeLabel ? inputId : undefined} />
-      {renderInput(component, fieldValue, setValue, readonly, inputId)}
+      {renderInput(component, fieldValue, setValue, readonly, inputId, onUploadFile)}
     </Form.Item>
   );
 }
@@ -262,6 +278,7 @@ function renderInput(
   onChange: (nextValue: TemplateFieldValue) => void,
   readonly: boolean,
   inputId: string,
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>,
 ) {
   const placeholder = typeof component.props.placeholder === "string" ? component.props.placeholder : undefined;
   if (component.type === "TEXT_INPUT") {
@@ -357,8 +374,13 @@ function renderInput(
         accept={accept || undefined}
         fileList={fileList}
         listType={component.type === "IMAGE_UPLOAD" ? "picture" : "text"}
-        beforeUpload={(file) => {
-          onChange([...names, file.name].slice(0, maxFiles));
+        beforeUpload={async (file) => {
+          try {
+            const fileRef = onUploadFile ? await onUploadFile(file, component) : file.name;
+            onChange([...names, fileRef].slice(0, maxFiles));
+          } catch {
+            return Upload.LIST_IGNORE;
+          }
           return false;
         }}
         onRemove={(file) => {
@@ -686,4 +708,15 @@ function isSameSubmissionValue(left: TemplateSubmissionValue, right: TemplateSub
     return false;
   }
   return leftKeys.every((key) => JSON.stringify(left[key]) === JSON.stringify(right[key]));
+}
+
+function mergeErrorsByField(
+  runtimeErrors: Map<string, string[]>,
+  serverErrors: TemplateSubmissionError[],
+): Map<string, string[]> {
+  const merged = new Map(runtimeErrors);
+  for (const error of serverErrors) {
+    merged.set(error.fieldKey, [...(merged.get(error.fieldKey) ?? []), error.message]);
+  }
+  return merged;
 }

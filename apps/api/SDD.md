@@ -302,6 +302,7 @@ class LogoutResponseVO:
 | 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 实现 |
 | 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 实现 |
 | 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 实现 |
+| 3 | `GET /api/me/contributions` | `ListContributionsRequest` | `PageVO[ContributionItemVO]` | 阶段 3.5 实现 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
@@ -989,6 +990,26 @@ LLM 边界：
 - 首次保存从 `CLAIMED` 迁移到 `DRAFT_SAVED`；后续保存保持当前可编辑状态。
 - 每次保存写入 `audit_logs.action=ASSIGNMENT_DRAFT_SAVE`，`metadata` 至少记录 `taskId`、`datasetItemId`、`fieldKeys`。
 
+阶段 3.4 提交校验和提交版本契约：
+
+| 名称 | 字段/规则 |
+| --- | --- |
+| `POST /api/assignments/{assignmentId}/submissions` | 当前 Labeler 正式提交本人领取题目；非本人领取不可访问 |
+| `CreateSubmissionRequest` | `values` 为 JSON Object；`idempotencyKey?` 防重复点击；`clientDraftVersion?` 用于提交前乐观冲突检查 |
+| `SubmissionVO` | 返回新建或幂等命中的提交版本，包含 `submissionVersion`、清理后的 `values`、`status=SUBMITTED` 和 `submittedAt` |
+
+提交规则：
+
+- 只允许 `CLAIMED`、`DRAFT_SAVED`、`RETURNED` 状态提交；`SUBMITTED`、`APPROVED`、`CANCELLED` 返回 `409 ASSIGNMENT_NOT_EDITABLE`。
+- 若 `clientDraftVersion` 存在且落后于当前 `assignments.version`，返回 `409 ASSIGNMENT_VERSION_CONFLICT`，前端必须重新加载后再提交。
+- 后端使用 assignment 固化的 `template_version_id` 读取不可变 schema，不能读取任务当前草稿或最新模板。
+- 后端先按 `visibility`/`requiredWhen` 规则计算可见字段，清理隐藏字段；`SHOW_ITEM`、`GROUP`、`TABS`、`LLM_ACTION` 等非采集组件不得进入提交值。
+- 后端最终校验必须覆盖 required、requiredWhen、maxLength、pattern、customRuleIds、RADIO/CHECKBOX/TAG_SELECT 枚举值、JSON Object，以及 FILE/IMAGE 受控引用数组和数量限制。
+- 校验失败返回 `422 SUBMISSION_VALIDATION_FAILED`，`details.errors` 使用 `{ fieldKey, message }[]`，字段名和前端 VO 一致。
+- 每次成功提交生成 `submission_version=max+1`，写入 `submissions`，更新 `assignments.current_submission_id`、`assignments.status=SUBMITTED`、`assignments.submitted_at`、`assignments.version+1`，并递增任务提交计数。
+- `idempotencyKey` 命中同一 assignment 的既有 submission 时直接返回既有 `SubmissionVO`；命中其他 assignment 或其他用户时返回 `409 SUBMISSION_IDEMPOTENCY_CONFLICT`。
+- 提交成功写入 `audit_logs.entity_type=SUBMISSION`、`action=SUBMISSION_CREATE`，metadata 至少记录 `taskId`、`assignmentId`、`datasetItemId`、`templateVersionId`、`submissionVersion` 和 `fieldKeys`。
+
 新增枚举：
 
 | 枚举 | 值 |
@@ -1021,6 +1042,73 @@ LLM 边界：
 - `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
 - 请求使用 OpenAI API 兼容配置，必须关闭 thinking；输出只作为参考或预填，不自动提交。
 - 后端必须记录调用输入、输出、错误和幂等键，避免重复扣费或重复写入。
+
+### 9.15 阶段 3.5 我的贡献与返修入口契约
+
+阶段 3.5 只消费 Labeler 已有 assignment、submission 与 audit 记录，不提前实现 Reviewer 审核流。Reviewer 阶段真正写入打回审计后，Labeler 侧继续沿用本节 VO。
+
+新增接口：
+
+| 接口 | Request | VO | 说明 |
+| --- | --- | --- | --- |
+| `GET /api/me/contribution-stats` | Cookie 鉴权，无请求体 | `ContributionStatsVO` | 返回当前 Labeler 的已提交、通过、打回、待修改、草稿/待提交、通过率等聚合统计 |
+| `GET /api/me/contributions` | `page`、`pageSize`、`bucket?`、`keyword?` | `PageVO[ContributionItemVO]` | 返回当前 Labeler 的贡献列表，支持按状态分组和任务/题目关键词筛选 |
+
+VO 字段：
+
+```python
+class ReviewFeedbackVO(CamelModel):
+    reason: str
+    source: str
+    reviewerId: str | None
+    reviewerRole: str | None
+    returnedAt: datetime
+    metadata: dict[str, Any]
+
+
+class ContributionStatsVO(CamelModel):
+    totalAssignments: int
+    draftCount: int
+    inReviewCount: int
+    submittedCount: int
+    approvedCount: int
+    returnedCount: int
+    revisionRequiredCount: int
+    totalSubmissionCount: int
+    passRate: float
+    latestUpdatedAt: datetime | None
+
+
+class ContributionItemVO(CamelModel):
+    assignmentId: str
+    taskId: str
+    taskTitle: str
+    taskDescription: str | None
+    datasetItemId: str
+    datasetItemPreview: str
+    status: AssignmentStatus
+    latestSubmissionId: str | None
+    latestSubmissionVersion: int | None
+    latestSubmissionStatus: SubmissionStatus | None
+    claimedAt: datetime
+    draftSavedAt: datetime | None
+    submittedAt: datetime | None
+    updatedAt: datetime
+    canContinue: bool
+    canRevise: bool
+    reviewFeedback: ReviewFeedbackVO | None
+```
+
+状态分组 `bucket` 取值：`ALL`、`DRAFT`、`IN_REVIEW`、`APPROVED`、`RETURNED`、`REVISION_REQUIRED`。其中 `DRAFT` 对应 `CLAIMED/DRAFT_SAVED`，`IN_REVIEW` 对应阶段 3 的 `SUBMITTED`，`RETURNED` 与 `REVISION_REQUIRED` 均对应 `RETURNED`。
+
+`AssignmentContextVO.reviewFeedback` 从最新一条 `audit_logs` 中 `entityType=ASSIGNMENT`、`entityId=assignment.id`、`toState=RETURNED` 的记录生成。阶段 4 写入真实审核打回后，必须把打回原因写入 `audit_logs.reason` 或 `metadata.reason`，Labeler 工作台即可展示上一轮审核意见。
+
+返修再提交规则：
+
+- `RETURNED` assignment 仍可保存草稿和再次提交。
+- 再次提交复用 `POST /api/assignments/{assignmentId}/submissions`，后端必须生成递增 `submissionVersion`，不覆盖历史 submission。
+- 再次提交成功后 assignment 回到 `SUBMITTED`，`reviewFeedback` 作为历史意见保留在审计日志中，不删除。
+- 当前阶段只展示最近一次打回意见；完整多轮审核时间线在阶段 4 接入审核流后扩展。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

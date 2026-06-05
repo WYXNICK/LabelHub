@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -26,7 +26,7 @@ from labelhub_api.core.enums import (
 from labelhub_api.db.base import Base
 from labelhub_api.db.session import get_db_session
 from labelhub_api.main import create_app
-from labelhub_api.models.assignment import AssignmentEntity
+from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.dataset import DatasetEntity, DatasetItemEntity
 from labelhub_api.models.review_config import ReviewConfigVersionEntity
@@ -40,6 +40,9 @@ STAGE3_PATHS = {
     "/api/assignments": {"get"},
     "/api/assignments/{assignmentId}": {"get"},
     "/api/assignments/{assignmentId}/draft": {"put"},
+    "/api/assignments/{assignmentId}/submissions": {"post"},
+    "/api/me/contribution-stats": {"get"},
+    "/api/me/contributions": {"get"},
 }
 
 STAGE3_TABLES = {"assignments", "submissions", "llm_action_runs"}
@@ -203,9 +206,13 @@ def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
         "MarketplaceTaskVO",
         "CreateAssignmentRequest",
         "SaveAssignmentDraftRequest",
+        "CreateSubmissionRequest",
         "AssignmentVO",
         "AssignmentContextVO",
         "AssignmentNavigationVO",
+        "ContributionItemVO",
+        "ContributionStatsVO",
+        "ReviewFeedbackVO",
         "SubmissionVO",
     ]:
         assert schema_name in schemas
@@ -405,6 +412,372 @@ def test_save_assignment_draft_rejects_stale_client_version(
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "ASSIGNMENT_VERSION_CONFLICT"
     assert response.json()["error"]["details"] == {"currentVersion": 3}
+
+
+def test_labeler_can_submit_assignment_and_create_submission_version(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 submit task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(
+        f"/api/tasks/{task['id']}/assignments",
+        json={"idempotencyKey": "claim-stage3-submit"},
+    ).json()
+
+    response = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "最终答案"},
+            "idempotencyKey": "submit-stage3-1",
+            "clientDraftVersion": assignment["version"],
+        },
+        headers={"X-Request-ID": "req_stage3_submit"},
+    )
+
+    assert response.status_code == 201
+    submission = response.json()
+    assert submission["assignmentId"] == assignment["id"]
+    assert submission["submissionVersion"] == 1
+    assert submission["values"] == {"answer": "最终答案"}
+    assert submission["status"] == "SUBMITTED"
+    assert submission["submittedAt"] is not None
+
+    context_response = client.get(f"/api/assignments/{assignment['id']}")
+    assert context_response.status_code == 200
+    context = context_response.json()
+    assert context["assignment"]["status"] == AssignmentStatus.SUBMITTED.value
+    assert context["assignment"]["currentSubmissionId"] == submission["id"]
+    assert context["latestSubmission"]["id"] == submission["id"]
+
+    with session_factory() as session:
+        stored_task = session.get(TaskEntity, task["id"])
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        stored_submission = session.get(SubmissionEntity, submission["id"])
+        audit_log = session.scalar(
+            select(AuditLogEntity).where(
+                AuditLogEntity.entity_type == AuditEntityType.SUBMISSION.value,
+                AuditLogEntity.entity_id == submission["id"],
+                AuditLogEntity.action == AuditAction.SUBMISSION_CREATE.value,
+            )
+        )
+
+        assert stored_task is not None
+        assert stored_task.submitted_count == 1
+        assert stored_assignment is not None
+        assert stored_assignment.status == AssignmentStatus.SUBMITTED.value
+        assert stored_assignment.current_submission_id == submission["id"]
+        assert stored_submission is not None
+        assert stored_submission.idempotency_key == "submit-stage3-1"
+        assert audit_log is not None
+        assert audit_log.request_id == "req_stage3_submit"
+        assert audit_log.metadata_json["fieldKeys"] == ["answer"]
+
+
+def test_submit_assignment_rejects_required_field_errors(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 submit validation task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    response = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={"values": {}, "clientDraftVersion": assignment["version"]},
+    )
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "SUBMISSION_VALIDATION_FAILED"
+    assert error["details"]["errors"] == [{"fieldKey": "answer", "message": "Answer 为必填项"}]
+
+    with session_factory() as session:
+        submission_count = session.scalar(select(func.count()).select_from(SubmissionEntity))
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        assert submission_count == 0
+        assert stored_assignment is not None
+        assert stored_assignment.status == AssignmentStatus.CLAIMED.value
+
+
+def test_submit_assignment_prunes_hidden_fields_before_persisting(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 hidden field task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    with session_factory() as session:
+        template = session.get(TemplateVersionEntity, "template_version_stage3")
+        assert template is not None
+        schema = dict(template.schema_json)
+        schema["components"] = [
+            *schema["components"],
+            {
+                "id": "hidden_note",
+                "type": "TEXT_INPUT",
+                "fieldKey": "hiddenNote",
+                "label": "Hidden Note",
+                "props": {},
+                "validation": {"required": True},
+                "visibility": {
+                    "logic": "ALL",
+                    "conditions": [{"fieldKey": "answer", "operator": "EQUALS", "value": "needs_note"}],
+                },
+            },
+        ]
+        schema["layout"] = {"root": [*schema["layout"]["root"], "hidden_note"]}
+        template.schema_json = schema
+        session.commit()
+
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    response = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "ok", "hiddenNote": "should be removed"},
+            "clientDraftVersion": assignment["version"],
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["values"] == {"answer": "ok"}
+
+    with session_factory() as session:
+        stored_submission = session.get(SubmissionEntity, response.json()["id"])
+        assert stored_submission is not None
+        assert stored_submission.values == {"answer": "ok"}
+
+
+def test_submit_assignment_requires_controlled_file_references(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 file ref task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    with session_factory() as session:
+        template = session.get(TemplateVersionEntity, "template_version_stage3")
+        assert template is not None
+        schema = dict(template.schema_json)
+        schema["components"] = [
+            *schema["components"],
+            {
+                "id": "evidence",
+                "type": "FILE_UPLOAD",
+                "fieldKey": "evidence",
+                "label": "Evidence",
+                "props": {"maxFiles": 2},
+                "validation": {"required": True},
+                "visibility": {},
+            },
+        ]
+        schema["layout"] = {"root": [*schema["layout"]["root"], "evidence"]}
+        template.schema_json = schema
+        session.commit()
+
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    invalid_response = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={"values": {"answer": "ok", "evidence": ["local.pdf"]}, "clientDraftVersion": assignment["version"]},
+    )
+
+    assert invalid_response.status_code == 422
+    assert invalid_response.json()["error"]["details"]["errors"] == [
+        {"fieldKey": "evidence", "message": "Evidence 必须使用已上传文件引用"}
+    ]
+
+    valid_response = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={"values": {"answer": "ok", "evidence": ["file_controlled_ref"]}, "clientDraftVersion": assignment["version"]},
+    )
+
+    assert valid_response.status_code == 201
+    assert valid_response.json()["values"] == {"answer": "ok", "evidence": ["file_controlled_ref"]}
+
+
+def test_submit_assignment_is_idempotent_for_same_assignment(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 idempotent submit task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+    payload = {
+        "values": {"answer": "幂等提交"},
+        "idempotencyKey": "submit-stage3-idempotent",
+        "clientDraftVersion": assignment["version"],
+    }
+
+    first = client.post(f"/api/assignments/{assignment['id']}/submissions", json=payload)
+    second = client.post(f"/api/assignments/{assignment['id']}/submissions", json=payload)
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+    with session_factory() as session:
+        submission_count = session.scalar(select(func.count()).select_from(SubmissionEntity))
+        assert submission_count == 1
+
+
+def test_labeler_can_view_contribution_stats_list_and_return_feedback(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 contribution task", quota=3)
+    prepare_claimable_task(session_factory, task["id"], item_count=3)
+    login(client, "labeler@labelhub.dev")
+
+    assignments = [
+        client.post(
+            f"/api/tasks/{task['id']}/assignments",
+            json={"idempotencyKey": f"claim-stage3-contribution-{index}"},
+        ).json()
+        for index in range(3)
+    ]
+    for index, assignment in enumerate(assignments):
+        response = client.post(
+            f"/api/assignments/{assignment['id']}/submissions",
+            json={
+                "values": {"answer": f"answer-{index}"},
+                "idempotencyKey": f"submit-stage3-contribution-{index}",
+                "clientDraftVersion": assignment["version"],
+            },
+        )
+        assert response.status_code == 201
+
+    returned_assignment_id = assignments[2]["id"]
+    returned_reason = "答案缺少关键依据，请补充理由后重新提交。"
+    now = datetime.now(UTC)
+    with session_factory() as session:
+        approved_assignment = session.get(AssignmentEntity, assignments[1]["id"])
+        returned_assignment = session.get(AssignmentEntity, returned_assignment_id)
+        assert approved_assignment is not None
+        assert returned_assignment is not None
+        approved_assignment.status = AssignmentStatus.APPROVED.value
+        approved_submission = session.get(SubmissionEntity, approved_assignment.current_submission_id)
+        assert approved_submission is not None
+        approved_submission.status = "APPROVED"
+        returned_assignment.status = AssignmentStatus.RETURNED.value
+        returned_assignment.updated_at = now
+        returned_submission = session.get(SubmissionEntity, returned_assignment.current_submission_id)
+        assert returned_submission is not None
+        returned_submission.status = "RETURNED"
+        session.add(
+            AuditLogEntity(
+                id="audit_stage3_returned_feedback",
+                entity_type=AuditEntityType.ASSIGNMENT.value,
+                entity_id=returned_assignment.id,
+                actor_id="user_reviewer_demo",
+                actor_role="REVIEWER",
+                action=AuditAction.STATE_TRANSITION.value,
+                from_state=AssignmentStatus.SUBMITTED.value,
+                to_state=AssignmentStatus.RETURNED.value,
+                reason=returned_reason,
+                metadata_json={"source": "HUMAN_REVIEW", "assignmentId": returned_assignment.id},
+                request_id="req_stage3_returned",
+                created_at=now,
+            )
+        )
+        session.commit()
+
+    stats_response = client.get("/api/me/contribution-stats")
+    assert stats_response.status_code == 200
+    stats = stats_response.json()
+    assert stats["totalAssignments"] == 3
+    assert stats["submittedCount"] == 3
+    assert stats["inReviewCount"] == 1
+    assert stats["approvedCount"] == 1
+    assert stats["returnedCount"] == 1
+    assert stats["revisionRequiredCount"] == 1
+    assert stats["totalSubmissionCount"] == 3
+    assert stats["passRate"] == 50.0
+
+    list_response = client.get("/api/me/contributions?bucket=REVISION_REQUIRED&page=1&pageSize=10")
+    assert list_response.status_code == 200
+    row = list_response.json()["data"][0]
+    assert row["assignmentId"] == returned_assignment_id
+    assert row["taskTitle"] == "Stage 3 contribution task"
+    assert row["latestSubmissionVersion"] == 1
+    assert row["canRevise"] is True
+    assert row["reviewFeedback"]["reason"] == returned_reason
+
+    context_response = client.get(f"/api/assignments/{returned_assignment_id}")
+    assert context_response.status_code == 200
+    assert context_response.json()["reviewFeedback"]["reason"] == returned_reason
+
+
+def test_returned_assignment_can_be_revised_without_losing_submission_history(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 revise task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+    first = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "first answer"},
+            "idempotencyKey": "submit-stage3-revise-1",
+            "clientDraftVersion": assignment["version"],
+        },
+    )
+    assert first.status_code == 201
+
+    now = datetime.now(UTC)
+    with session_factory() as session:
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        assert stored_assignment is not None
+        stored_assignment.status = AssignmentStatus.RETURNED.value
+        stored_assignment.updated_at = now
+        stored_submission = session.get(SubmissionEntity, stored_assignment.current_submission_id)
+        assert stored_submission is not None
+        stored_submission.status = "RETURNED"
+        session.add(
+            AuditLogEntity(
+                id="audit_stage3_revise_returned",
+                entity_type=AuditEntityType.ASSIGNMENT.value,
+                entity_id=stored_assignment.id,
+                actor_id="user_reviewer_demo",
+                actor_role="REVIEWER",
+                action=AuditAction.STATE_TRANSITION.value,
+                from_state=AssignmentStatus.SUBMITTED.value,
+                to_state=AssignmentStatus.RETURNED.value,
+                reason="请修正答案。",
+                metadata_json={"source": "HUMAN_REVIEW", "assignmentId": stored_assignment.id},
+                request_id="req_stage3_revise_returned",
+                created_at=now,
+            )
+        )
+        session.commit()
+
+    context = client.get(f"/api/assignments/{assignment['id']}").json()
+    second = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "revised answer"},
+            "idempotencyKey": "submit-stage3-revise-2",
+            "clientDraftVersion": context["assignment"]["version"],
+        },
+    )
+
+    assert second.status_code == 201
+    assert second.json()["submissionVersion"] == 2
+    assert second.json()["values"] == {"answer": "revised answer"}
+    with session_factory() as session:
+        submission_count = session.scalar(
+            select(func.count()).select_from(SubmissionEntity).where(SubmissionEntity.assignment_id == assignment["id"])
+        )
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        assert submission_count == 2
+        assert stored_assignment is not None
+        assert stored_assignment.status == AssignmentStatus.SUBMITTED.value
+        assert stored_assignment.current_submission_id == second.json()["id"]
 
 
 def test_marketplace_hides_tasks_without_ready_publish_dependencies(

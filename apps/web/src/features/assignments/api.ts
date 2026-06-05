@@ -3,11 +3,16 @@ import type { PageVO } from "../../shared/types/api";
 import type {
   AssignmentContextVO,
   AssignmentVO,
+  ContributionItemVO,
+  ContributionStatsVO,
   CreateAssignmentRequest,
+  CreateSubmissionRequest,
   ListAssignmentsRequest,
+  ListContributionsRequest,
   ListMarketplaceTasksRequest,
   MarketplaceTaskVO,
   SaveAssignmentDraftRequest,
+  SubmissionVO,
 } from "./types";
 
 export function listMarketplaceTasks(
@@ -40,6 +45,23 @@ export function listAssignments(request: ListAssignmentsRequest = {}): Promise<P
   );
 }
 
+export function getContributionStats(): Promise<ContributionStatsVO> {
+  return apiRequest<ContributionStatsVO>("/api/me/contribution-stats");
+}
+
+export function listContributions(
+  request: ListContributionsRequest = {},
+): Promise<PageVO<ContributionItemVO>> {
+  return apiRequest<PageVO<ContributionItemVO>>(
+    withQuery("/api/me/contributions", {
+      page: request.page,
+      pageSize: request.pageSize,
+      bucket: request.bucket,
+      keyword: request.keyword,
+    }),
+  );
+}
+
 export function getAssignmentContext(assignmentId: string): Promise<AssignmentContextVO> {
   return apiRequest<AssignmentContextVO>(`/api/assignments/${assignmentId}`);
 }
@@ -50,6 +72,16 @@ export function saveAssignmentDraft(
 ): Promise<AssignmentVO> {
   return apiRequest<AssignmentVO>(`/api/assignments/${assignmentId}/draft`, {
     method: "PUT",
+    body: JSON.stringify(request),
+  });
+}
+
+export function createSubmission(
+  assignmentId: string,
+  request: CreateSubmissionRequest,
+): Promise<SubmissionVO> {
+  return apiRequest<SubmissionVO>(`/api/assignments/${assignmentId}/submissions`, {
+    method: "POST",
     body: JSON.stringify(request),
   });
 }

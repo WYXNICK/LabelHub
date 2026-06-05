@@ -14,7 +14,7 @@ import type { MenuProps } from "antd";
 import { navigate } from "../app/routes";
 import { useAuthStore } from "../features/auth/store";
 import type { UserRole, UserVO } from "../features/auth/types";
-import { matchLabelerAssignmentPath } from "../features/assignments/view";
+import { matchLabelerAssignmentPath, matchLabelerAssignmentRevisePath } from "../features/assignments/view";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
 import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
@@ -26,6 +26,7 @@ import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
 import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
+import { LabelerContributionsPage } from "./LabelerContributionsPage";
 import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
 import { RoleHomePage } from "./RoleHomePage";
 
@@ -64,9 +65,12 @@ export function RoleShell({ user, path }: RoleShellProps) {
   const logout = useAuthStore((state) => state.logout);
   const role = user.role === "SYSTEM" ? "OWNER" : user.role;
   const labelerAssignmentId = matchLabelerAssignmentPath(path);
-  const isLabelerWorkspaceFocus = user.role === "LABELER" && Boolean(labelerAssignmentId);
+  const labelerReviseAssignmentId = matchLabelerAssignmentRevisePath(path);
+  const isLabelerWorkspaceFocus = user.role === "LABELER" && Boolean(labelerAssignmentId || labelerReviseAssignmentId);
   const selectedMenuKey = matchOwnerTaskDesignerPath(path)
     ? "/owner/templates"
+    : labelerReviseAssignmentId
+      ? "/labeler/contributions"
     : labelerAssignmentId
       ? "/labeler/marketplace"
     : path.startsWith("/owner/tasks")
@@ -167,7 +171,14 @@ function renderRoleContent(user: UserVO, path: string) {
   if (user.role === "LABELER" && path === "/labeler/marketplace") {
     return <LabelerMarketplacePage />;
   }
+  if (user.role === "LABELER" && path === "/labeler/contributions") {
+    return <LabelerContributionsPage />;
+  }
   if (user.role === "LABELER") {
+    const reviseAssignmentId = matchLabelerAssignmentRevisePath(path);
+    if (reviseAssignmentId) {
+      return <LabelerAssignmentWorkspacePage assignmentId={reviseAssignmentId} mode="revise" />;
+    }
     const assignmentId = matchLabelerAssignmentPath(path);
     if (assignmentId) {
       return <LabelerAssignmentWorkspacePage assignmentId={assignmentId} />;

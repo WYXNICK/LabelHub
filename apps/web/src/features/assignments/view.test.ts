@@ -4,12 +4,19 @@ import type { MarketplaceTaskVO } from "./types";
 import type { AssignmentVO } from "./types";
 import {
   buildLabelerAssignmentPath,
+  buildLabelerAssignmentRevisePath,
+  contributionBucketTabs,
+  buildSubmissionIdempotencyKey,
   draftSaveStatusMeta,
+  formatContributionVersion,
   formatAssignmentQueueLabel,
   formatRewardRule,
+  getContributionAction,
   getAssignmentProgressText,
   getClaimButtonText,
+  isAssignmentEditable,
   matchLabelerAssignmentPath,
+  matchLabelerAssignmentRevisePath,
   summarizeAssignmentQueue,
   summarizeMarketplace,
 } from "./view";
@@ -75,7 +82,10 @@ describe("assignment marketplace view helpers", () => {
 
   it("builds and matches labeler assignment routes", () => {
     expect(buildLabelerAssignmentPath("assignment_1")).toBe("/labeler/assignments/assignment_1");
+    expect(buildLabelerAssignmentRevisePath("assignment_1")).toBe("/labeler/assignments/assignment_1/revise");
     expect(matchLabelerAssignmentPath("/labeler/assignments/assignment_1")).toBe("assignment_1");
+    expect(matchLabelerAssignmentPath("/labeler/assignments/assignment_1/revise")).toBeNull();
+    expect(matchLabelerAssignmentRevisePath("/labeler/assignments/assignment_1/revise")).toBe("assignment_1");
     expect(matchLabelerAssignmentPath("/labeler/marketplace")).toBeNull();
   });
 
@@ -133,5 +143,50 @@ describe("assignment marketplace view helpers", () => {
     expect(draftSaveStatusMeta.dirty.label).toBe("待保存");
     expect(draftSaveStatusMeta.saving.message).toContain("正在保存");
     expect(draftSaveStatusMeta.conflict.message).toContain("重新加载");
+  });
+
+  it("builds submission idempotency key and editable status guard", () => {
+    expect(buildSubmissionIdempotencyKey("assignment_1")).toContain("stage3-submit:assignment_1:");
+    expect(isAssignmentEditable("CLAIMED")).toBe(true);
+    expect(isAssignmentEditable("DRAFT_SAVED")).toBe(true);
+    expect(isAssignmentEditable("RETURNED")).toBe(true);
+    expect(isAssignmentEditable("SUBMITTED")).toBe(false);
+    expect(isAssignmentEditable("APPROVED")).toBe(false);
+  });
+
+  it("derives contribution tabs and primary actions", () => {
+    const returnedContribution = {
+      assignmentId: "assignment_1",
+      taskId: "task_1",
+      taskTitle: "Task",
+      taskDescription: null,
+      datasetItemId: "dataset_item_1",
+      datasetItemPreview: "Question",
+      status: "RETURNED" as const,
+      latestSubmissionId: "submission_1",
+      latestSubmissionVersion: 2,
+      latestSubmissionStatus: "RETURNED" as const,
+      claimedAt: "2026-06-05T00:00:00Z",
+      draftSavedAt: null,
+      submittedAt: "2026-06-05T00:00:00Z",
+      updatedAt: "2026-06-05T00:00:00Z",
+      canContinue: false,
+      canRevise: true,
+      reviewFeedback: null,
+    };
+    expect(contributionBucketTabs.map((tab) => tab.key)).toEqual([
+      "ALL",
+      "DRAFT",
+      "IN_REVIEW",
+      "APPROVED",
+      "RETURNED",
+      "REVISION_REQUIRED",
+    ]);
+    expect(getContributionAction(returnedContribution)).toEqual({
+      label: "修改并提交",
+      path: "/labeler/assignments/assignment_1/revise",
+    });
+    expect(formatContributionVersion(returnedContribution)).toBe("v2");
+    expect(formatContributionVersion({ ...returnedContribution, latestSubmissionVersion: null })).toBe("暂无提交");
   });
 });

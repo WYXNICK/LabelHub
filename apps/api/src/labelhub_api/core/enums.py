@@ -70,6 +70,15 @@ class SubmissionStatus(StrEnum):
     APPROVED = "APPROVED"
 
 
+class ContributionBucket(StrEnum):
+    ALL = "ALL"
+    DRAFT = "DRAFT"
+    IN_REVIEW = "IN_REVIEW"
+    APPROVED = "APPROVED"
+    RETURNED = "RETURNED"
+    REVISION_REQUIRED = "REVISION_REQUIRED"
+
+
 class LlmActionRunStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"

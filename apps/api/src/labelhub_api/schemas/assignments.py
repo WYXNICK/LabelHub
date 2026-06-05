@@ -5,7 +5,13 @@ from typing import Any
 
 from pydantic import Field
 
-from labelhub_api.core.enums import AssignmentStatus, ContributionBucket, DistributionStrategy, SubmissionStatus
+from labelhub_api.core.enums import (
+    AssignmentStatus,
+    ContributionBucket,
+    DistributionStrategy,
+    LlmActionRunStatus,
+    SubmissionStatus,
+)
 from labelhub_api.schemas.common import CamelModel
 from labelhub_api.schemas.tasks import TaskVO
 from labelhub_api.schemas.templates import TemplateSchemaVO
@@ -47,6 +53,12 @@ class CreateSubmissionRequest(CamelModel):
     client_draft_version: int | None = Field(default=None, ge=0)
 
 
+class RunLlmActionRequest(CamelModel):
+    input_values: dict[str, Any] = Field(default_factory=dict)
+    target_field_key: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, max_length=128)
+
+
 class AssignmentVO(CamelModel):
     id: str
     task_id: str
@@ -79,6 +91,20 @@ class SubmissionVO(CamelModel):
     submitted_at: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class LlmActionRunVO(CamelModel):
+    id: str
+    assignment_id: str
+    task_id: str
+    component_id: str
+    status: LlmActionRunStatus
+    input_values: dict[str, Any]
+    output_value: Any | None = None
+    output_values: dict[str, Any] | None = None
+    error_message: str | None = None
+    idempotency_key: str | None = None
+    created_at: datetime
 
 
 class ReviewFeedbackVO(CamelModel):

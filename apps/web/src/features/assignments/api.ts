@@ -7,10 +7,12 @@ import type {
   ContributionStatsVO,
   CreateAssignmentRequest,
   CreateSubmissionRequest,
+  LlmActionRunVO,
   ListAssignmentsRequest,
   ListContributionsRequest,
   ListMarketplaceTasksRequest,
   MarketplaceTaskVO,
+  RunLlmActionRequest,
   SaveAssignmentDraftRequest,
   SubmissionVO,
 } from "./types";
@@ -84,4 +86,18 @@ export function createSubmission(
     method: "POST",
     body: JSON.stringify(request),
   });
+}
+
+export function runLlmAction(
+  assignmentId: string,
+  componentId: string,
+  request: RunLlmActionRequest,
+): Promise<LlmActionRunVO> {
+  return apiRequest<LlmActionRunVO>(
+    `/api/assignments/${assignmentId}/llm-actions/${encodeURIComponent(componentId)}:run`,
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+  );
 }

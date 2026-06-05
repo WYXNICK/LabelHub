@@ -1,10 +1,11 @@
 import {
+  CheckOutlined,
   CodeOutlined,
   FileImageOutlined,
   ThunderboltOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Checkbox, Empty, Form, Input, Radio, Select, Space, Tabs, Tag, Tooltip, Typography, Upload } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 
@@ -32,6 +33,18 @@ interface TemplateRendererProps {
   readonly?: boolean;
   serverErrors?: TemplateSubmissionError[];
   onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
+}
+
+export interface TemplateLlmActionRunResult {
+  status: "SUCCEEDED" | "FAILED";
+  outputValue: unknown | null;
+  outputValues: TemplateSubmissionValue | null;
+  errorMessage?: string | null;
+  createdAt?: string;
 }
 
 export function TemplateRenderer({
@@ -42,6 +55,7 @@ export function TemplateRenderer({
   readonly = false,
   serverErrors = [],
   onUploadFile,
+  onRunLlmAction,
 }: TemplateRendererProps) {
   const renderableItems = useMemo(() => getRenderableLayoutItems(schema), [schema]);
   const errorsByField = useMemo(
@@ -71,6 +85,7 @@ export function TemplateRenderer({
           errorsByField={errorsByField}
           readonly={readonly}
           onUploadFile={onUploadFile}
+          onRunLlmAction={onRunLlmAction}
           onChange={onChange}
         />
       ))}
@@ -85,6 +100,7 @@ function RendererLayoutItem({
   errorsByField,
   readonly,
   onUploadFile,
+  onRunLlmAction,
   onChange,
 }: {
   item: RenderableLayoutItem;
@@ -93,6 +109,10 @@ function RendererLayoutItem({
   errorsByField: Map<string, string[]>;
   readonly: boolean;
   onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
   if ("missingId" in item) {
@@ -123,6 +143,7 @@ function RendererLayoutItem({
               errorsByField={errorsByField}
               readonly={readonly}
               onUploadFile={onUploadFile}
+              onRunLlmAction={onRunLlmAction}
               onChange={onChange}
             />
           ))}
@@ -155,6 +176,7 @@ function RendererLayoutItem({
                       errorsByField={errorsByField}
                       readonly={readonly}
                       onUploadFile={onUploadFile}
+                      onRunLlmAction={onRunLlmAction}
                       onChange={onChange}
                     />
                   ))
@@ -177,6 +199,7 @@ function RendererLayoutItem({
       errorsByField={errorsByField}
       readonly={readonly}
       onUploadFile={onUploadFile}
+      onRunLlmAction={onRunLlmAction}
       onChange={onChange}
     />
   );
@@ -189,6 +212,7 @@ function RendererField({
   errorsByField,
   readonly,
   onUploadFile,
+  onRunLlmAction,
   onChange,
 }: {
   component: TemplateComponentDTO;
@@ -197,6 +221,10 @@ function RendererField({
   errorsByField: Map<string, string[]>;
   readonly: boolean;
   onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
   if (component.type === "SHOW_ITEM") {
@@ -204,7 +232,15 @@ function RendererField({
   }
 
   if (component.type === "LLM_ACTION") {
-    return <LlmAction component={component} readonly={readonly} />;
+    return (
+      <LlmAction
+        component={component}
+        value={value}
+        readonly={readonly}
+        onChange={onChange}
+        onRunLlmAction={onRunLlmAction}
+      />
+    );
   }
 
   if (!component.fieldKey) {
@@ -642,13 +678,58 @@ function getSafePreviewUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : undefined;
 }
 
-function LlmAction({ component, readonly }: { component: TemplateComponentDTO; readonly: boolean }) {
+function LlmAction({
+  component,
+  value,
+  readonly,
+  onChange,
+  onRunLlmAction,
+}: {
+  component: TemplateComponentDTO;
+  value: TemplateSubmissionValue;
+  readonly: boolean;
+  onChange: (nextValue: TemplateSubmissionValue) => void;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
+}) {
+  const [result, setResult] = useState<TemplateLlmActionRunResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
   const outputFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : "";
   const promptTemplate = typeof component.props.promptTemplate === "string" ? component.props.promptTemplate : "";
+  const outputValues = useMemo(() => coerceOutputValues(result?.outputValues), [result]);
+  const canApply = !readonly && result?.status === "SUCCEEDED" && outputValues && Object.keys(outputValues).length > 0;
+
+  const handleRun = useCallback(async () => {
+    if (!onRunLlmAction || running) {
+      return;
+    }
+    setRunning(true);
+    setRunError(null);
+    try {
+      const nextResult = await onRunLlmAction(component, value);
+      setResult(nextResult);
+      setRunError(nextResult.status === "FAILED" ? nextResult.errorMessage ?? "LLM 辅助生成失败，请稍后重试。" : null);
+    } catch (error) {
+      setRunError(getRuntimeErrorMessage(error));
+    } finally {
+      setRunning(false);
+    }
+  }, [component, onRunLlmAction, running, value]);
+
+  const handleApply = useCallback(() => {
+    if (!outputValues) {
+      return;
+    }
+    onChange({ ...value, ...outputValues });
+  }, [onChange, outputValues, value]);
+
   return (
-    <section className="labelhub-template-llm-action">
-      <Space align="start" size={12}>
+    <section className="labelhub-template-llm-action" data-status={result?.status.toLowerCase() ?? "idle"}>
+      <Space className="labelhub-template-llm-head" align="start" size={12}>
         <span className="labelhub-template-llm-icon">
           <ThunderboltOutlined />
         </span>
@@ -662,18 +743,66 @@ function LlmAction({ component, readonly }: { component: TemplateComponentDTO; r
       <div className="labelhub-template-llm-meta">
         <Tag color="purple">输入：{inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"}</Tag>
         <Tag color="blue">输出：{outputFieldKey || "未配置"}</Tag>
-        <Tag>阶段 3.6 接入真实调用</Tag>
+        <Tag>OpenAI 兼容调用</Tag>
       </div>
       {promptTemplate && (
         <pre className="labelhub-template-llm-prompt">
           <CodeOutlined /> {promptTemplate}
         </pre>
       )}
-      <Button disabled={readonly} icon={<ThunderboltOutlined />}>
-        {typeof component.props.actionLabel === "string" ? component.props.actionLabel : "生成参考建议"}
-      </Button>
+      {result?.status === "SUCCEEDED" && (
+        <div className="labelhub-template-llm-result">
+          <Typography.Text strong>模型建议</Typography.Text>
+          <pre>{formatLlmOutput(result.outputValue)}</pre>
+          {result.createdAt && (
+            <Typography.Text type="secondary">生成时间：{new Date(result.createdAt).toLocaleString()}</Typography.Text>
+          )}
+        </div>
+      )}
+      {runError && <Alert type="warning" showIcon message={runError} />}
+      <Space className="labelhub-template-llm-actions" wrap>
+        <Button
+          disabled={readonly || !onRunLlmAction}
+          icon={<ThunderboltOutlined />}
+          loading={running}
+          onClick={() => void handleRun()}
+        >
+          {typeof component.props.actionLabel === "string" ? component.props.actionLabel : "生成参考建议"}
+        </Button>
+        {canApply && (
+          <Button type="primary" ghost icon={<CheckOutlined />} onClick={handleApply}>
+            {outputFieldKey ? `采纳到 ${outputFieldKey}` : "采纳建议"}
+          </Button>
+        )}
+      </Space>
     </section>
   );
+}
+
+function coerceOutputValues(value: TemplateSubmissionValue | null | undefined): TemplateSubmissionValue | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value).filter(([key]) => key.trim());
+  return entries.length > 0 ? (Object.fromEntries(entries) as TemplateSubmissionValue) : null;
+}
+
+function formatLlmOutput(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value ?? "");
+  }
+}
+
+function getRuntimeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "LLM 辅助生成失败，请稍后重试。";
 }
 
 function getStringArrayProp(value: unknown): string[] {

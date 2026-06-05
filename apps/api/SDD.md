@@ -939,7 +939,7 @@ LLM 边界：
 | `CreateSubmissionRequest` | `values`、`idempotencyKey`、`clientDraftVersion` |
 | `SubmissionVO` | `id`、`assignmentId`、`submissionVersion`、`values`、`status`、`submittedAt` |
 | `RunLlmActionRequest` | `inputValues`、`targetFieldKey`、`idempotencyKey` |
-| `LlmActionRunVO` | `id`、`assignmentId`、`componentId`、`status`、`outputValue`、`outputValues`、`errorMessage`、`createdAt` |
+| `LlmActionRunVO` | `id`、`assignmentId`、`taskId`、`componentId`、`status`、`inputValues`、`outputValue`、`outputValues`、`errorMessage`、`idempotencyKey`、`createdAt` |
 
 任务广场与领取规则：
 
@@ -1040,8 +1040,14 @@ LLM 边界：
 题目级 LLM 辅助：
 
 - `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
-- 请求使用 OpenAI API 兼容配置，必须关闭 thinking；输出只作为参考或预填，不自动提交。
-- 后端必须记录调用输入、输出、错误和幂等键，避免重复扣费或重复写入。
+- `RunLlmActionRequest.inputValues` 使用当前 Renderer 提交值快照；`targetFieldKey` 为空时以后端模板 `LLM_ACTION.props.outputFieldKey` 为准。
+- 后端必须用 assignment 固化的 `template_version_id` 定位组件，不能读取任务当前草稿或最新模板；组件不存在、组件类型不是 `LLM_ACTION`、输出字段不在当前 schema 中都返回结构化错误。
+- 请求使用 OpenAI API 兼容 Chat Completions 格式，配置从 `OPENAI_API_KEY`、`BASE_URL`/`OPENAI_BASE_URL`、`MODEL_NAME`/`OPENAI_MODEL_NAME` 读取；真实密钥不得进入仓库。
+- thinking 必须关闭：服务端系统提示禁止输出思考过程；如供应商需要显式参数，通过 `LLM_EXTRA_BODY_JSON` 注入，例如当前 MiMo 可配置 `{"chat_template_kwargs":{"enable_thinking":false}}`。默认请求体保持标准 OpenAI 兼容字段，保证后续更换同协议 Provider 时仍可请求。
+- 模型输出必须解析为结构化 JSON，优先读取 `outputValues[targetFieldKey]`，其次读取 `outputValue`、目标字段同名字段或 `text`；解析失败时把原始文本作为 `outputValue`。
+- 输出只作为参考或预填草稿，不自动提交。前端采纳后仍需 Labeler 手动保存/提交，后端提交接口继续做最终模板校验。
+- 后端必须记录调用输入、输出、错误和幂等键；同一 `idempotencyKey` 重试直接返回既有 `LlmActionRunVO`，避免重复扣费或重复写入。
+- Provider 调用失败也要落 `llm_action_runs.status=FAILED` 并返回 `LlmActionRunVO`，前端用 `errorMessage` 告知用户，不把一次模型失败伪装成提交失败。
 
 ### 9.15 阶段 3.5 我的贡献与返修入口契约
 

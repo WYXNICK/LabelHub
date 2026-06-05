@@ -1004,6 +1004,20 @@ body {
   border-radius: 8px;
 }
 
+.labelhub-template-llm-action[data-status="succeeded"] {
+  border-color: #b7eb8f;
+  background: linear-gradient(180deg, #fcfffb 0%, #f7ffef 100%);
+}
+
+.labelhub-template-llm-action[data-status="failed"] {
+  border-color: #ffd591;
+  background: linear-gradient(180deg, #fffdfa 0%, #fff7e6 100%);
+}
+
+.labelhub-template-llm-head {
+  min-width: 0;
+}
+
 .labelhub-template-llm-icon {
   display: inline-grid;
   width: 34px;
@@ -1035,6 +1049,32 @@ body {
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.labelhub-template-llm-result {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  color: #1f2329;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #d9f7be;
+  border-radius: 8px;
+}
+
+.labelhub-template-llm-result pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: #fbfffa;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.labelhub-template-llm-actions {
+  align-items: center;
 }
 
 .labelhub-renderer-summary {

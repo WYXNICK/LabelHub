@@ -28,7 +28,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { navigate } from "../app/routes";
-import { claimAssignment, createSubmission, getAssignmentContext, listAssignments, saveAssignmentDraft } from "../features/assignments/api";
+import {
+  claimAssignment,
+  createSubmission,
+  getAssignmentContext,
+  listAssignments,
+  runLlmAction,
+  saveAssignmentDraft,
+} from "../features/assignments/api";
 import type { AssignmentContextVO, AssignmentVO } from "../features/assignments/types";
 import {
   assignmentStatusMeta,
@@ -36,6 +43,7 @@ import {
   buildClaimIdempotencyKey,
   buildLabelerAssignmentPath,
   buildLabelerAssignmentRevisePath,
+  buildLlmActionIdempotencyKey,
   draftSaveStatusMeta,
   formatAssignmentQueueLabel,
   getAssignmentProgressText,
@@ -203,6 +211,27 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
         message.error(getErrorMessage(uploadError));
         throw uploadError;
       }
+    },
+    [context, message],
+  );
+
+  const handleRunTemplateLlmAction = useCallback(
+    async (component: TemplateComponentDTO, inputValues: TemplateSubmissionValue) => {
+      if (!context) {
+        throw new Error("作答上下文尚未加载");
+      }
+      const targetFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : null;
+      const result = await runLlmAction(context.assignment.id, component.id, {
+        inputValues,
+        targetFieldKey,
+        idempotencyKey: buildLlmActionIdempotencyKey(context.assignment.id, component.id),
+      });
+      if (result.status === "SUCCEEDED") {
+        message.success(targetFieldKey ? `AI 建议已生成，可采纳到 ${targetFieldKey}` : "AI 建议已生成");
+      } else {
+        message.warning(result.errorMessage ?? "AI 辅助生成失败，请稍后重试。");
+      }
+      return result;
     },
     [context, message],
   );
@@ -578,6 +607,7 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
               readonly={!editable || draftStatus === "conflict" || submitting}
               serverErrors={submitErrors}
               onUploadFile={handleEvidenceFileUpload}
+              onRunLlmAction={handleRunTemplateLlmAction}
             />
           </Space>
         </Card>

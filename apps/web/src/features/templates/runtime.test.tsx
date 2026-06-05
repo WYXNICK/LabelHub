@@ -266,7 +266,7 @@ describe("template runtime helpers", () => {
     expect(html).toContain("附件");
     expect(html).toContain("结构化信息");
     expect(html).toContain("AI 参考建议");
-    expect(html).toContain("阶段 3.6 接入真实调用");
+    expect(html).toContain("OpenAI 兼容调用");
   });
 
   it("evaluates stage 2.6 layout, visibility and linked validation rules", () => {

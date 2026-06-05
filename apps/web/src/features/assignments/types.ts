@@ -26,6 +26,8 @@ export type ContributionBucket =
   | "RETURNED"
   | "REVISION_REQUIRED";
 
+export type LlmActionRunStatus = "SUCCEEDED" | "FAILED";
+
 export interface MarketplaceTaskVO {
   id: string;
   title: string;
@@ -61,6 +63,20 @@ export interface SubmissionVO {
   submittedAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LlmActionRunVO {
+  id: string;
+  assignmentId: string;
+  taskId: string;
+  componentId: string;
+  status: LlmActionRunStatus;
+  inputValues: TemplateSubmissionValue;
+  outputValue: unknown | null;
+  outputValues: TemplateSubmissionValue | null;
+  errorMessage: string | null;
+  idempotencyKey: string | null;
+  createdAt: string;
 }
 
 export interface AssignmentNavigationVO {
@@ -157,6 +173,12 @@ export interface CreateSubmissionRequest {
   values: TemplateSubmissionValue;
   idempotencyKey?: string | null;
   clientDraftVersion?: number | null;
+}
+
+export interface RunLlmActionRequest {
+  inputValues: TemplateSubmissionValue;
+  targetFieldKey?: string | null;
+  idempotencyKey?: string | null;
 }
 
 export interface AssignmentVO {

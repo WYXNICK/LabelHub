@@ -666,7 +666,7 @@ Renderer 行为：
 - `RICH_TEXT` 渲染轻量富文本编辑区，提交值为字符串；本阶段不引入额外富文本依赖。
 - `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域，阶段 2.5 只在预览中记录本地文件名，真实证据文件上传在阶段 3 作答链路接入。
 - `JSON_EDITOR` 渲染等宽 JSON 编辑区，默认值可以是 JSON Object/Array；输入过程允许暂存字符串，最终提交校验放在阶段 3。
-- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；真实调用由阶段 3.6 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入。
+- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；阶段 3.6 起通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 运行题目级模型辅助。
 
 交互规则：
 
@@ -878,7 +878,11 @@ export interface ContributionItemVO {
 - 阶段 3.2 作答页只负责上下文读取、Renderer 本地编辑和题目导航；Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，防抖保存草稿在阶段 3.3 接入。
 - 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。正式提交按钮在阶段 3.4 接入。
 - 文件/图片上传物料在阶段 3 需要调用现有 `createFileObject`，提交值保存文件对象 ID 数组和必要展示名，不保存浏览器本地临时路径。
-- `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`；返回值只作为参考或写入目标字段草稿，必须由 Labeler 手动提交。
+- `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`。
+- `RunLlmActionRequest` 使用 `{ inputValues, targetFieldKey, idempotencyKey }`，其中 `inputValues` 必须是当前 Renderer 值快照，`targetFieldKey` 优先使用组件 `props.outputFieldKey`。
+- `LlmActionRunVO` 返回 `{ id, assignmentId, taskId, componentId, status, inputValues, outputValue, outputValues, errorMessage, idempotencyKey, createdAt }`。
+- Renderer 不自动覆盖字段：模型成功后先展示建议结果，再由 Labeler 点击“采纳到字段”写入目标字段草稿；若无输出字段则仅展示参考文本。采纳后的草稿仍走阶段 3.3 自动保存，正式提交仍走阶段 3.4。
+- 模型失败时展示 `errorMessage` 和可重试按钮，不阻断其他字段作答；Console 不应出现未捕获异常。
 
 验收标准：
 

@@ -19,6 +19,7 @@ from labelhub_api.core.enums import (
     DatasetSourceFormat,
     DatasetStatus,
     DatasetType,
+    LlmActionRunStatus,
     ReviewConfigVersionStatus,
     TaskStatus,
     TemplateVersionStatus,
@@ -26,12 +27,13 @@ from labelhub_api.core.enums import (
 from labelhub_api.db.base import Base
 from labelhub_api.db.session import get_db_session
 from labelhub_api.main import create_app
-from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
+from labelhub_api.models.assignment import AssignmentEntity, LlmActionRunEntity, SubmissionEntity
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.dataset import DatasetEntity, DatasetItemEntity
 from labelhub_api.models.review_config import ReviewConfigVersionEntity
 from labelhub_api.models.task import TaskEntity
 from labelhub_api.models.template import TemplateVersionEntity
+from labelhub_api.services.llm_client import LlmClientError, OpenAICompatibleLlmClient
 
 
 STAGE3_PATHS = {
@@ -41,6 +43,7 @@ STAGE3_PATHS = {
     "/api/assignments/{assignmentId}": {"get"},
     "/api/assignments/{assignmentId}/draft": {"put"},
     "/api/assignments/{assignmentId}/submissions": {"post"},
+    "/api/assignments/{assignmentId}/llm-actions/{componentId}:run": {"post"},
     "/api/me/contribution-stats": {"get"},
     "/api/me/contributions": {"get"},
 }
@@ -191,6 +194,33 @@ def prepare_claimable_task(session_factory: sessionmaker[Session], task_id: str,
         session.commit()
 
 
+def attach_llm_action_to_stage3_template(session_factory: sessionmaker[Session]) -> None:
+    with session_factory() as session:
+        template = session.get(TemplateVersionEntity, "template_version_stage3")
+        assert template is not None
+        schema = dict(template.schema_json)
+        schema["components"] = [
+            *schema["components"],
+            {
+                "id": "answer_assistant",
+                "type": "LLM_ACTION",
+                "label": "Answer assistant",
+                "props": {
+                    "actionLabel": "Generate suggestion",
+                    "promptTemplate": "Improve the answer using the question context.",
+                    "inputFieldKeys": ["answer"],
+                    "outputFieldKey": "answer",
+                    "helperText": "Reference only; labeler confirms before submit.",
+                },
+                "validation": {},
+                "visibility": {},
+            },
+        ]
+        schema["layout"] = {"root": [*schema["layout"]["root"], "answer_assistant"]}
+        template.schema_json = schema
+        session.commit()
+
+
 def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
     with TestClient(create_app()) as client:
         response = client.get("/api/openapi.json")
@@ -207,9 +237,11 @@ def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
         "CreateAssignmentRequest",
         "SaveAssignmentDraftRequest",
         "CreateSubmissionRequest",
+        "RunLlmActionRequest",
         "AssignmentVO",
         "AssignmentContextVO",
         "AssignmentNavigationVO",
+        "LlmActionRunVO",
         "ContributionItemVO",
         "ContributionStatsVO",
         "ReviewFeedbackVO",
@@ -622,6 +654,103 @@ def test_submit_assignment_is_idempotent_for_same_assignment(
     with session_factory() as session:
         submission_count = session.scalar(select(func.count()).select_from(SubmissionEntity))
         assert submission_count == 1
+
+
+def test_labeler_can_run_llm_action_with_idempotent_trace(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 llm action task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    attach_llm_action_to_stage3_template(session_factory)
+    captured: dict[str, object] = {"callCount": 0}
+
+    def fake_complete(_self: OpenAICompatibleLlmClient, *, messages: list[dict[str, str]]) -> str:
+        captured["callCount"] = int(captured["callCount"]) + 1
+        captured["messages"] = messages
+        return '{"outputValue":"refined answer","outputValues":{"answer":"refined answer"}}'
+
+    monkeypatch.setattr(OpenAICompatibleLlmClient, "complete", fake_complete)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+    payload = {
+        "inputValues": {"answer": "rough"},
+        "targetFieldKey": "answer",
+        "idempotencyKey": "llm-stage3-idempotent",
+    }
+
+    first = client.post(
+        f"/api/assignments/{assignment['id']}/llm-actions/answer_assistant:run",
+        json=payload,
+        headers={"X-Request-ID": "req_stage3_llm"},
+    )
+    second = client.post(f"/api/assignments/{assignment['id']}/llm-actions/answer_assistant:run", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    result = first.json()
+    assert result["status"] == LlmActionRunStatus.SUCCEEDED.value
+    assert result["inputValues"] == {"answer": "rough"}
+    assert result["outputValue"] == "refined answer"
+    assert result["outputValues"] == {"answer": "refined answer"}
+    assert result["id"] == second.json()["id"]
+    assert captured["callCount"] == 1
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    assert "Do not output reasoning" in messages[0]["content"]
+
+    with session_factory() as session:
+        run_count = session.scalar(select(func.count()).select_from(LlmActionRunEntity))
+        run = session.scalar(select(LlmActionRunEntity).where(LlmActionRunEntity.component_id == "answer_assistant"))
+        audit_log = session.scalar(
+            select(AuditLogEntity).where(
+                AuditLogEntity.entity_type == AuditEntityType.LLM_ACTION_RUN.value,
+                AuditLogEntity.action == AuditAction.LLM_ACTION_RUN.value,
+            )
+        )
+        assert run_count == 1
+        assert run is not None
+        assert run.status == LlmActionRunStatus.SUCCEEDED.value
+        assert run.output_values == {"answer": "refined answer"}
+        assert audit_log is not None
+        assert audit_log.request_id == "req_stage3_llm"
+        assert audit_log.metadata_json["targetFieldKey"] == "answer"
+
+
+def test_llm_action_provider_failure_is_recorded_without_blocking_assignment(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 llm failure task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    attach_llm_action_to_stage3_template(session_factory)
+
+    def fake_complete(_self: OpenAICompatibleLlmClient, *, messages: list[dict[str, str]]) -> str:
+        raise LlmClientError("provider unavailable")
+
+    monkeypatch.setattr(OpenAICompatibleLlmClient, "complete", fake_complete)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    response = client.post(
+        f"/api/assignments/{assignment['id']}/llm-actions/answer_assistant:run",
+        json={"inputValues": {"answer": "rough"}, "targetFieldKey": "answer"},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == LlmActionRunStatus.FAILED.value
+    assert result["outputValue"] is None
+    assert result["errorMessage"] == "provider unavailable"
+    with session_factory() as session:
+        run = session.scalar(select(LlmActionRunEntity))
+        assert run is not None
+        assert run.status == LlmActionRunStatus.FAILED.value
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        assert stored_assignment is not None
+        assert stored_assignment.status == AssignmentStatus.CLAIMED.value
 
 
 def test_labeler_can_view_contribution_stats_list_and_return_feedback(

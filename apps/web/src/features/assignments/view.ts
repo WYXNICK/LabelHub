@@ -75,6 +75,11 @@ export function buildSubmissionIdempotencyKey(assignmentId: string): string {
   return `stage3-submit:${assignmentId}:${randomPart}`;
 }
 
+export function buildLlmActionIdempotencyKey(assignmentId: string, componentId: string): string {
+  const randomPart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
+  return `stage3-llm:${assignmentId}:${componentId}:${randomPart}`;
+}
+
 export function isAssignmentEditable(status: AssignmentStatus): boolean {
   return status === "CLAIMED" || status === "DRAFT_SAVED" || status === "RETURNED";
 }

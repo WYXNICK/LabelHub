@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from math import ceil
 from typing import Any
@@ -16,12 +17,14 @@ from labelhub_api.core.enums import (
     ContributionBucket,
     DatasetItemStatus,
     DistributionStrategy,
+    LlmActionRunStatus,
     SubmissionStatus,
     TaskStatus,
+    TemplateComponentType,
     UserRole,
 )
 from labelhub_api.core.errors import ApiException
-from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
+from labelhub_api.models.assignment import AssignmentEntity, LlmActionRunEntity, SubmissionEntity
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.dataset import DatasetItemEntity
 from labelhub_api.models.task import TaskEntity
@@ -34,15 +37,18 @@ from labelhub_api.schemas.assignments import (
     ContributionStatsVO,
     CreateAssignmentRequest,
     CreateSubmissionRequest,
+    LlmActionRunVO,
     MarketplaceTaskVO,
     ReviewFeedbackVO,
+    RunLlmActionRequest,
     SaveAssignmentDraftRequest,
     SubmissionVO,
 )
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
 from labelhub_api.schemas.tasks import TaskVO
-from labelhub_api.schemas.templates import TemplateSchemaVO
+from labelhub_api.schemas.templates import TemplateComponentDTO, TemplateSchemaVO
+from labelhub_api.services.llm_client import LlmClientError, OpenAICompatibleLlmClient
 from labelhub_api.services.submission_validation import validate_submission_value
 
 
@@ -561,6 +567,277 @@ class AssignmentService:
         assert submission_vo is not None
         return submission_vo
 
+    def run_llm_action(
+        self,
+        *,
+        assignment_id: str,
+        component_id: str,
+        user: UserVO,
+        body: RunLlmActionRequest,
+        request_id: str,
+    ) -> LlmActionRunVO:
+        self._require_labeler(user)
+        assignment = self._db.get(AssignmentEntity, assignment_id)
+        if assignment is None or assignment.labeler_id != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="领取记录不存在。", request_id=request_id)
+
+        if body.idempotency_key:
+            existing_run = self._db.scalar(
+                select(LlmActionRunEntity).where(LlmActionRunEntity.idempotency_key == body.idempotency_key)
+            )
+            if existing_run is not None:
+                if existing_run.assignment_id != assignment.id or existing_run.component_id != component_id:
+                    raise ApiException(
+                        status_code=409,
+                        code="LLM_ACTION_IDEMPOTENCY_CONFLICT",
+                        message="LLM 动作幂等键已被其他题目或组件使用。",
+                        request_id=request_id,
+                    )
+                return self._to_llm_action_run_vo(existing_run)
+
+        if assignment.status not in {
+            AssignmentStatus.CLAIMED.value,
+            AssignmentStatus.DRAFT_SAVED.value,
+            AssignmentStatus.RETURNED.value,
+        }:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_NOT_EDITABLE",
+                message="当前题目状态不可运行 LLM 辅助。",
+                request_id=request_id,
+            )
+
+        task = self._db.get(TaskEntity, assignment.task_id)
+        item = self._db.get(DatasetItemEntity, assignment.dataset_item_id)
+        template_version = self._db.get(TemplateVersionEntity, assignment.template_version_id)
+        if task is None or item is None or template_version is None:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_CONTEXT_INCOMPLETE",
+                message="作答上下文不完整，请刷新或联系任务负责人。",
+                request_id=request_id,
+            )
+
+        schema = TemplateSchemaVO.model_validate(template_version.schema_json)
+        component = self._get_llm_action_component(schema, component_id, request_id=request_id)
+        target_field_key = self._resolve_llm_target_field(
+            schema=schema,
+            component=component,
+            requested_target=body.target_field_key,
+            request_id=request_id,
+        )
+        messages = self._build_llm_action_messages(
+            component=component,
+            target_field_key=target_field_key,
+            item_payload=item.payload if isinstance(item.payload, dict) else {},
+            input_values=body.input_values,
+        )
+
+        now = datetime.now(UTC)
+        status = LlmActionRunStatus.SUCCEEDED
+        output_value: Any | None = None
+        output_values: dict[str, Any] | None = None
+        error_message: str | None = None
+        try:
+            content = OpenAICompatibleLlmClient().complete(messages=messages)
+            output_value, output_values = self._parse_llm_action_output(content, target_field_key)
+        except LlmClientError as exc:
+            status = LlmActionRunStatus.FAILED
+            error_message = str(exc)
+
+        run = LlmActionRunEntity(
+            id=self._new_id("llm_action_run"),
+            assignment_id=assignment.id,
+            task_id=assignment.task_id,
+            component_id=component.id,
+            input_values=body.input_values,
+            output_value=output_value,
+            output_values=output_values,
+            status=status.value,
+            error_message=error_message,
+            idempotency_key=body.idempotency_key,
+            created_at=now,
+        )
+        self._db.add(run)
+        self._append_audit(
+            entity_type=AuditEntityType.LLM_ACTION_RUN,
+            entity_id=run.id,
+            actor=user,
+            action=AuditAction.LLM_ACTION_RUN,
+            request_id=request_id,
+            to_state=status.value,
+            metadata={
+                "taskId": assignment.task_id,
+                "assignmentId": assignment.id,
+                "datasetItemId": assignment.dataset_item_id,
+                "templateVersionId": assignment.template_version_id,
+                "componentId": component.id,
+                "targetFieldKey": target_field_key,
+                "inputFieldKeys": self._get_llm_input_field_keys(component),
+                "idempotencyKey": body.idempotency_key,
+            },
+        )
+        try:
+            self._db.commit()
+        except IntegrityError as exc:
+            self._db.rollback()
+            if body.idempotency_key:
+                existing_run = self._db.scalar(
+                    select(LlmActionRunEntity).where(LlmActionRunEntity.idempotency_key == body.idempotency_key)
+                )
+                if existing_run is not None and existing_run.assignment_id == assignment_id:
+                    return self._to_llm_action_run_vo(existing_run)
+            raise ApiException(
+                status_code=409,
+                code="LLM_ACTION_RUN_CONFLICT",
+                message="LLM 动作记录写入发生冲突，请刷新后重试。",
+                request_id=request_id,
+            ) from exc
+
+        self._db.refresh(run)
+        return self._to_llm_action_run_vo(run)
+
+    def _get_llm_action_component(
+        self,
+        schema: TemplateSchemaVO,
+        component_id: str,
+        *,
+        request_id: str,
+    ) -> TemplateComponentDTO:
+        component = next((item for item in schema.components if item.id == component_id), None)
+        if component is None:
+            raise ApiException(
+                status_code=404,
+                code="LLM_ACTION_NOT_FOUND",
+                message="当前题目的模板中不存在该 LLM 动作组件。",
+                request_id=request_id,
+            )
+        if component.type != TemplateComponentType.LLM_ACTION.value:
+            raise ApiException(
+                status_code=422,
+                code="INVALID_LLM_ACTION_COMPONENT",
+                message="指定组件不是 LLM 动作组件。",
+                request_id=request_id,
+            )
+        return component
+
+    def _resolve_llm_target_field(
+        self,
+        *,
+        schema: TemplateSchemaVO,
+        component: TemplateComponentDTO,
+        requested_target: str | None,
+        request_id: str,
+    ) -> str | None:
+        target = (requested_target or self._get_string_prop(component.props.get("outputFieldKey")) or "").strip()
+        if not target:
+            return None
+        field_keys = {item.field_key for item in schema.components if item.field_key}
+        if target not in field_keys:
+            raise ApiException(
+                status_code=422,
+                code="LLM_OUTPUT_FIELD_INVALID",
+                message="LLM 动作输出字段不属于当前模板采集字段。",
+                request_id=request_id,
+            )
+        return target
+
+    def _build_llm_action_messages(
+        self,
+        *,
+        component: TemplateComponentDTO,
+        target_field_key: str | None,
+        item_payload: dict[str, Any],
+        input_values: dict[str, Any],
+    ) -> list[dict[str, str]]:
+        input_field_keys = self._get_llm_input_field_keys(component)
+        scoped_values = (
+            {key: input_values.get(key) for key in input_field_keys if key in input_values}
+            if input_field_keys
+            else input_values
+        )
+        prompt_template = self._get_string_prop(component.props.get("promptTemplate")) or ""
+        payload = {
+            "component": {
+                "id": component.id,
+                "label": component.label,
+                "targetFieldKey": target_field_key,
+            },
+            "promptTemplate": prompt_template,
+            "datasetItemPayload": item_payload,
+            "selectedInputValues": scoped_values,
+            "allInputValues": input_values,
+        }
+        # 系统提示同时承担“关闭 thinking”的跨供应商兜底约束。
+        system_prompt = (
+            "You are a LabelHub question-level annotation assistant. "
+            "Use only the provided JSON context. Do not output reasoning, thinking, analysis, or markdown. "
+            "Return one JSON object with keys outputValue and outputValues. "
+            "If targetFieldKey is present, outputValues must include that field key."
+        )
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": self._compact_json(payload)},
+        ]
+
+    def _parse_llm_action_output(
+        self,
+        content: str,
+        target_field_key: str | None,
+    ) -> tuple[Any | None, dict[str, Any] | None]:
+        parsed = self._try_parse_json_object(content)
+        if parsed is None:
+            text = content.strip()
+            return text, {target_field_key: text} if target_field_key and text else None
+
+        output_values = parsed.get("outputValues") if isinstance(parsed.get("outputValues"), dict) else {}
+        output_value = None
+        if target_field_key and target_field_key in output_values:
+            output_value = output_values[target_field_key]
+        elif "outputValue" in parsed:
+            output_value = parsed["outputValue"]
+        elif target_field_key and target_field_key in parsed:
+            output_value = parsed[target_field_key]
+        elif isinstance(parsed.get("text"), str):
+            output_value = parsed["text"]
+        else:
+            output_value = parsed
+
+        if target_field_key and output_value is not None and target_field_key not in output_values:
+            output_values = {**output_values, target_field_key: output_value}
+        return output_value, output_values or None
+
+    def _try_parse_json_object(self, content: str) -> dict[str, Any] | None:
+        text = content.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        for candidate in (text, text[text.find("{") : text.rfind("}") + 1] if "{" in text and "}" in text else ""):
+            if not candidate:
+                continue
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return None
+
+    def _get_llm_input_field_keys(self, component: TemplateComponentDTO) -> list[str]:
+        raw = component.props.get("inputFieldKeys")
+        return [item for item in raw if isinstance(item, str) and item.strip()] if isinstance(raw, list) else []
+
+    def _compact_json(self, value: dict[str, Any], *, max_length: int = 12000) -> str:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+        return text if len(text) <= max_length else f"{text[:max_length]}...<truncated>"
+
+    def _get_string_prop(self, value: Any) -> str | None:
+        return value if isinstance(value, str) else None
+
     def _claimable_task_query(self, *, keyword: str | None) -> Select[tuple[TaskEntity]]:
         now = datetime.now(UTC)
         query = select(TaskEntity).where(
@@ -694,6 +971,21 @@ class AssignmentService:
             submitted_at=submission.submitted_at,
             created_at=submission.created_at,
             updated_at=submission.updated_at,
+        )
+
+    def _to_llm_action_run_vo(self, run: LlmActionRunEntity) -> LlmActionRunVO:
+        return LlmActionRunVO(
+            id=run.id,
+            assignment_id=run.assignment_id,
+            task_id=run.task_id,
+            component_id=run.component_id,
+            status=LlmActionRunStatus(run.status),
+            input_values=run.input_values,
+            output_value=run.output_value,
+            output_values=run.output_values,
+            error_message=run.error_message,
+            idempotency_key=run.idempotency_key,
+            created_at=run.created_at,
         )
 
     def _to_contribution_item_vo(self, assignment: AssignmentEntity) -> ContributionItemVO:

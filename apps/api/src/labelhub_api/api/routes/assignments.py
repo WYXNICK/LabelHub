@@ -13,7 +13,9 @@ from labelhub_api.schemas.assignments import (
     ContributionStatsVO,
     CreateAssignmentRequest,
     CreateSubmissionRequest,
+    LlmActionRunVO,
     MarketplaceTaskVO,
+    RunLlmActionRequest,
     SaveAssignmentDraftRequest,
     SubmissionVO,
 )
@@ -146,6 +148,29 @@ def create_submission(
     request_id = str(getattr(request.state, "request_id", "req_unknown"))
     return AssignmentService(db).create_submission(
         assignment_id=assignmentId,
+        user=user,
+        body=body,
+        request_id=request_id,
+    )
+
+
+@assignment_router.post(
+    "/{assignmentId}/llm-actions/{componentId}:run",
+    response_model=LlmActionRunVO,
+    response_model_by_alias=True,
+)
+def run_llm_action(
+    assignmentId: str,
+    componentId: str,
+    body: RunLlmActionRequest,
+    request: Request,
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> LlmActionRunVO:
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return AssignmentService(db).run_llm_action(
+        assignment_id=assignmentId,
+        component_id=componentId,
         user=user,
         body=body,
         request_id=request_id,

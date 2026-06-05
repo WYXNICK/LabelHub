@@ -31,6 +31,7 @@ from labelhub_api.schemas.assignments import (
     AssignmentVO,
     CreateAssignmentRequest,
     MarketplaceTaskVO,
+    SaveAssignmentDraftRequest,
     SubmissionVO,
 )
 from labelhub_api.schemas.auth import UserVO
@@ -247,6 +248,92 @@ class AssignmentService:
             review_feedback=None,
             navigation=self._build_navigation(assignment, task),
         )
+
+    def save_assignment_draft(
+        self,
+        *,
+        assignment_id: str,
+        user: UserVO,
+        body: SaveAssignmentDraftRequest,
+        request_id: str,
+    ) -> AssignmentVO:
+        self._require_labeler(user)
+        assignment = self._db.get(AssignmentEntity, assignment_id)
+        if assignment is None or assignment.labeler_id != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="领取记录不存在。", request_id=request_id)
+
+        if assignment.status not in {
+            AssignmentStatus.CLAIMED.value,
+            AssignmentStatus.DRAFT_SAVED.value,
+            AssignmentStatus.RETURNED.value,
+        }:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_NOT_EDITABLE",
+                message="当前题目状态不可保存草稿。",
+                request_id=request_id,
+            )
+
+        if body.client_version != assignment.version:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_VERSION_CONFLICT",
+                message="草稿已被更新，请重新加载后再继续编辑。",
+                details={"currentVersion": assignment.version},
+                request_id=request_id,
+            )
+
+        now = datetime.now(UTC)
+        previous_status = assignment.status
+        next_status = (
+            AssignmentStatus.DRAFT_SAVED.value
+            if assignment.status == AssignmentStatus.CLAIMED.value
+            else assignment.status
+        )
+        save_result = self._db.execute(
+            update(AssignmentEntity)
+            .where(
+                AssignmentEntity.id == assignment.id,
+                AssignmentEntity.version == body.client_version,
+            )
+            .values(
+                draft_values=body.values,
+                draft_saved_at=now,
+                status=next_status,
+                version=AssignmentEntity.version + 1,
+                updated_at=now,
+            )
+        )
+        if save_result.rowcount != 1:
+            current_version = self._db.scalar(
+                select(AssignmentEntity.version).where(AssignmentEntity.id == assignment.id)
+            )
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_VERSION_CONFLICT",
+                message="草稿已被更新，请重新加载后再继续编辑。",
+                details={"currentVersion": current_version if current_version is not None else assignment.version},
+                request_id=request_id,
+            )
+
+        self._append_audit(
+            entity_id=assignment.id,
+            actor=user,
+            action=AuditAction.ASSIGNMENT_DRAFT_SAVE,
+            request_id=request_id,
+            from_state=previous_status,
+            to_state=next_status,
+            metadata={
+                "taskId": assignment.task_id,
+                "datasetItemId": assignment.dataset_item_id,
+                "fieldKeys": sorted(body.values.keys()),
+                "clientVersion": body.client_version,
+                "serverVersion": body.client_version + 1,
+            },
+        )
+        self._db.commit()
+        self._db.refresh(assignment)
+        return self._to_assignment_vo(assignment)
 
     def _claimable_task_query(self, *, keyword: str | None) -> Select[tuple[TaskEntity]]:
         now = datetime.now(UTC)
@@ -475,6 +562,9 @@ class AssignmentService:
         actor: UserVO,
         request_id: str,
         metadata: dict[str, Any],
+        action: AuditAction = AuditAction.ASSIGNMENT_CLAIM,
+        from_state: str | None = None,
+        to_state: str | None = AssignmentStatus.CLAIMED.value,
     ) -> None:
         self._db.add(
             AuditLogEntity(
@@ -483,9 +573,9 @@ class AssignmentService:
                 entity_id=entity_id,
                 actor_id=actor.id,
                 actor_role=actor.role,
-                action=AuditAction.ASSIGNMENT_CLAIM.value,
-                from_state=None,
-                to_state=AssignmentStatus.CLAIMED.value,
+                action=action.value,
+                from_state=from_state,
+                to_state=to_state,
                 reason=None,
                 metadata_json=metadata,
                 request_id=request_id,

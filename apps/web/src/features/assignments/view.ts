@@ -2,6 +2,8 @@ import { getTemplateInitialValue } from "../templates/runtime";
 import type { TemplateSubmissionValue } from "../templates/types";
 import type { AssignmentContextVO, AssignmentNavigationVO, AssignmentStatus, AssignmentVO, MarketplaceTaskVO } from "./types";
 
+export type DraftSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error" | "conflict";
+
 export const assignmentStatusMeta: Record<AssignmentStatus, { label: string; color: string }> = {
   CLAIMED: { label: "待作答", color: "processing" },
   DRAFT_SAVED: { label: "草稿已保存", color: "blue" },
@@ -9,6 +11,18 @@ export const assignmentStatusMeta: Record<AssignmentStatus, { label: string; col
   RETURNED: { label: "已打回", color: "warning" },
   APPROVED: { label: "已通过", color: "success" },
   CANCELLED: { label: "已取消", color: "default" },
+};
+
+export const draftSaveStatusMeta: Record<
+  DraftSaveStatus,
+  { label: string; color: string; message: string }
+> = {
+  idle: { label: "未保存", color: "default", message: "开始编辑后会自动保存草稿。" },
+  dirty: { label: "待保存", color: "warning", message: "已检测到改动，稍后自动保存。" },
+  saving: { label: "保存中", color: "processing", message: "正在保存草稿，请稍候。" },
+  saved: { label: "已保存", color: "success", message: "草稿已同步到服务端。" },
+  error: { label: "保存失败", color: "error", message: "网络或服务异常，当前输入仍保留在页面中。" },
+  conflict: { label: "版本冲突", color: "error", message: "服务端已有更新，请重新加载题目后继续编辑。" },
 };
 
 export function formatRewardRule(rewardRule: MarketplaceTaskVO["rewardRule"]): string {

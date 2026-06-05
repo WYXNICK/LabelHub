@@ -972,6 +972,23 @@ LLM 边界：
 - `latestSubmission` 取同一 assignment 下 `submissionVersion` 最大的一条；阶段 3.2 可为空，阶段 3.4 提交后复用。
 - `canClaimNext` 必须继续复用任务发布、截止时间、配额和可用题目检查；前端不可自行推断。
 
+阶段 3.3 草稿自动保存契约：
+
+| 名称 | 字段/规则 |
+| --- | --- |
+| `PUT /api/assignments/{assignmentId}/draft` | 当前 Labeler 保存本人领取题目的作答草稿；非本人领取不可访问 |
+| `SaveAssignmentDraftRequest` | `values` 为 JSON Object；`clientVersion` 必须等于当前 `assignments.version` |
+| `AssignmentVO` | 保存成功后返回最新 assignment，包含递增后的 `version`、`draftValues`、`draftSavedAt` 和 `status` |
+
+保存规则：
+
+- 草稿保存不做 required 完整性校验，允许半成品内容落库；最终提交校验放在阶段 3.4。
+- 后端仍只接受 JSON Object，拒绝数组、字符串等非对象根值，避免提交协议漂移。
+- 只允许 `CLAIMED`、`DRAFT_SAVED`、`RETURNED` 状态保存草稿；`SUBMITTED`、`APPROVED`、`CANCELLED` 返回 `409 ASSIGNMENT_NOT_EDITABLE`。
+- `clientVersion` 与当前 `assignment.version` 不一致时返回 `409 ASSIGNMENT_VERSION_CONFLICT`，`details.currentVersion` 给前端展示冲突和重新加载。
+- 首次保存从 `CLAIMED` 迁移到 `DRAFT_SAVED`；后续保存保持当前可编辑状态。
+- 每次保存写入 `audit_logs.action=ASSIGNMENT_DRAFT_SAVE`，`metadata` 至少记录 `taskId`、`datasetItemId`、`fieldKeys`。
+
 新增枚举：
 
 | 枚举 | 值 |
@@ -988,6 +1005,8 @@ LLM 边界：
 | `TASK_NOT_CLAIMABLE` | 任务不是发布中、已过期、缺模板版本、缺审核配置或分发策略暂不支持 |
 | `NO_AVAILABLE_ITEMS` | 任务没有可领取题目或配额已满 |
 | `CLAIM_CONFLICT` | 并发领取时目标题目已被其他 Labeler 抢先锁定 |
+| `ASSIGNMENT_NOT_EDITABLE` | assignment 已提交、已通过、已取消或处于不可编辑状态 |
+| `ASSIGNMENT_VERSION_CONFLICT` | 草稿保存时 `clientVersion` 已落后服务端版本 |
 
 草稿与提交规则：
 

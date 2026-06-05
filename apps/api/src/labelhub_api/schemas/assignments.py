@@ -36,6 +36,11 @@ class CreateAssignmentRequest(CamelModel):
     idempotency_key: str | None = Field(default=None, max_length=128)
 
 
+class SaveAssignmentDraftRequest(CamelModel):
+    values: dict[str, Any] = Field(default_factory=dict)
+    client_version: int = Field(ge=0)
+
+
 class AssignmentVO(CamelModel):
     id: str
     task_id: str

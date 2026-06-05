@@ -4,6 +4,7 @@ import type { MarketplaceTaskVO } from "./types";
 import type { AssignmentVO } from "./types";
 import {
   buildLabelerAssignmentPath,
+  draftSaveStatusMeta,
   formatAssignmentQueueLabel,
   formatRewardRule,
   getAssignmentProgressText,
@@ -126,5 +127,11 @@ describe("assignment marketplace view helpers", () => {
 
   it("formats assignment queue labels from stable index and dataset item id", () => {
     expect(formatAssignmentQueueLabel(makeAssignment(), 7)).toBe("#008 dataset_item_");
+  });
+
+  it("keeps autosave status copy explicit for labeler workspace", () => {
+    expect(draftSaveStatusMeta.dirty.label).toBe("待保存");
+    expect(draftSaveStatusMeta.saving.message).toContain("正在保存");
+    expect(draftSaveStatusMeta.conflict.message).toContain("重新加载");
   });
 });

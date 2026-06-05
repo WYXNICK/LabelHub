@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 from labelhub_api.api.deps import get_current_user
 from labelhub_api.core.enums import AssignmentStatus
 from labelhub_api.db.session import get_db_session
-from labelhub_api.schemas.assignments import AssignmentContextVO, AssignmentVO, CreateAssignmentRequest, MarketplaceTaskVO
+from labelhub_api.schemas.assignments import (
+    AssignmentContextVO,
+    AssignmentVO,
+    CreateAssignmentRequest,
+    MarketplaceTaskVO,
+    SaveAssignmentDraftRequest,
+)
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.services.assignment_service import AssignmentService
@@ -69,6 +75,27 @@ def list_assignments(
         page=page,
         page_size=page_size,
         status=status,
+    )
+
+
+@assignment_router.put(
+    "/{assignmentId}/draft",
+    response_model=AssignmentVO,
+    response_model_by_alias=True,
+)
+def save_assignment_draft(
+    assignmentId: str,
+    body: SaveAssignmentDraftRequest,
+    request: Request,
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> AssignmentVO:
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return AssignmentService(db).save_assignment_draft(
+        assignment_id=assignmentId,
+        user=user,
+        body=body,
+        request_id=request_id,
     )
 
 

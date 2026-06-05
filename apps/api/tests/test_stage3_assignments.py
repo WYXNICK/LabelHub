@@ -39,6 +39,7 @@ STAGE3_PATHS = {
     "/api/tasks/{taskId}/assignments": {"post"},
     "/api/assignments": {"get"},
     "/api/assignments/{assignmentId}": {"get"},
+    "/api/assignments/{assignmentId}/draft": {"put"},
 }
 
 STAGE3_TABLES = {"assignments", "submissions", "llm_action_runs"}
@@ -201,6 +202,7 @@ def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
     for schema_name in [
         "MarketplaceTaskVO",
         "CreateAssignmentRequest",
+        "SaveAssignmentDraftRequest",
         "AssignmentVO",
         "AssignmentContextVO",
         "AssignmentNavigationVO",
@@ -331,6 +333,78 @@ def test_labeler_can_open_assignment_context_and_navigate_claimed_items(
     second_navigation = second_context_response.json()["navigation"]
     assert second_navigation["previousAssignmentId"] == first["id"]
     assert second_navigation["nextAssignmentId"] is None
+
+
+def test_labeler_can_save_assignment_draft_and_restore_from_context(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 draft task", quota=2)
+    prepare_claimable_task(session_factory, task["id"], item_count=2)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(
+        f"/api/tasks/{task['id']}/assignments",
+        json={"idempotencyKey": "claim-stage3-draft"},
+    ).json()
+
+    response = client.put(
+        f"/api/assignments/{assignment['id']}/draft",
+        json={"values": {"answer": "第一版草稿"}, "clientVersion": assignment["version"]},
+        headers={"X-Request-ID": "req_stage3_draft"},
+    )
+
+    assert response.status_code == 200
+    saved = response.json()
+    assert saved["status"] == AssignmentStatus.DRAFT_SAVED.value
+    assert saved["draftValues"] == {"answer": "第一版草稿"}
+    assert saved["draftSavedAt"] is not None
+    assert saved["version"] == assignment["version"] + 1
+
+    context_response = client.get(f"/api/assignments/{assignment['id']}")
+    assert context_response.status_code == 200
+    assert context_response.json()["assignment"]["draftValues"] == {"answer": "第一版草稿"}
+
+    with session_factory() as session:
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        audit_log = session.scalar(
+            select(AuditLogEntity).where(
+                AuditLogEntity.entity_type == AuditEntityType.ASSIGNMENT.value,
+                AuditLogEntity.entity_id == assignment["id"],
+                AuditLogEntity.action == AuditAction.ASSIGNMENT_DRAFT_SAVE.value,
+            )
+        )
+
+        assert stored_assignment is not None
+        assert stored_assignment.status == AssignmentStatus.DRAFT_SAVED.value
+        assert stored_assignment.draft_values == {"answer": "第一版草稿"}
+        assert audit_log is not None
+        assert audit_log.request_id == "req_stage3_draft"
+        assert audit_log.metadata_json["fieldKeys"] == ["answer"]
+
+
+def test_save_assignment_draft_rejects_stale_client_version(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 draft conflict task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    with session_factory() as session:
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        assert stored_assignment is not None
+        stored_assignment.version = 3
+        session.commit()
+
+    response = client.put(
+        f"/api/assignments/{assignment['id']}/draft",
+        json={"values": {"answer": "stale"}, "clientVersion": assignment["version"]},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "ASSIGNMENT_VERSION_CONFLICT"
+    assert response.json()["error"]["details"] == {"currentVersion": 3}
 
 
 def test_marketplace_hides_tasks_without_ready_publish_dependencies(

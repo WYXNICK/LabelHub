@@ -91,6 +91,11 @@ export interface CreateAssignmentRequest {
   idempotencyKey?: string | null;
 }
 
+export interface SaveAssignmentDraftRequest {
+  values: TemplateSubmissionValue;
+  clientVersion: number;
+}
+
 export interface AssignmentVO {
   id: string;
   taskId: string;
@@ -99,7 +104,7 @@ export interface AssignmentVO {
   reviewConfigVersionId: string;
   labelerId: string;
   status: AssignmentStatus;
-  draftValues: JsonObject | null;
+  draftValues: TemplateSubmissionValue | null;
   draftSavedAt: string | null;
   currentSubmissionId: string | null;
   claimedAt: string;

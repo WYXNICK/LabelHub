@@ -862,6 +862,15 @@ export interface AssignmentContextVO {
 - 页面主体直接复用阶段 2 `TemplateRenderer`，并在右侧展示题目进度、模板版本、领取时间和原始 payload 摘要，避免 Labeler 在多个页面间查上下文。
 - 当前粒度不落库草稿和提交，但必须保留本地编辑值，切换题目时重新按后端上下文初始化。
 
+阶段 3.3 草稿自动保存产品规则：
+
+- `TemplateRenderer` 的每次值变更先经过其隐藏字段清理逻辑，再由作答页以约 1 秒防抖调用 `saveAssignmentDraft`。
+- 请求体为 `SaveAssignmentDraftRequest { values, clientVersion }`，其中 `clientVersion` 使用当前 `AssignmentVO.version`；保存成功后用返回的 `AssignmentVO` 更新本地上下文版本。
+- 页面顶部、底部和右侧历史区必须展示可理解的草稿状态：待保存、保存中、已保存时间、保存失败可重试、版本冲突需重新加载。
+- 刷新页面时继续遵循初始化优先级 `assignment.draftValues > latestSubmission.values > getTemplateInitialValue(templateSchema)`，确保草稿能从 MySQL 恢复。
+- 网络失败不清空本地输入；“保存草稿”按钮作为立即保存/重试入口。`ASSIGNMENT_VERSION_CONFLICT` 不盲目覆盖远端草稿，而提示重新加载当前题目。
+- 阶段 3.3 不接入正式提交；“提交本题”继续保持阶段 3.4 待接入状态。
+
 任务广场产品规则：
 
 - 主信息区域用卡片/列表承载任务，不复用 Owner 任务表格，避免 Labeler 被暴露模板、审核配置等管理操作。
@@ -873,6 +882,15 @@ export interface AssignmentContextVO {
 - 任务广场卡片新增 `activeAssignmentId` 继续作答入口；领取新题后直接进入 `/labeler/assignments/:assignmentId`。
 - 标注工作台已接入 `GET /api/assignments/{assignmentId}`，展示 assignment 快照模板、题目 payload、本地 Renderer 作答、上一题/下一题、跳题下拉和领取下一题。
 - 已通过 Chrome DevTools MCP 检查 `1280×800` 与大屏尺寸无横向溢出，Network 中上下文和列表接口均返回 200，Console 无非预期错误。
+
+阶段 3.3 前端落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/assignments/types.ts` | 增加 `SaveAssignmentDraftRequest`，保持 `values/clientVersion` 与后端一致 |
+| `src/features/assignments/api.ts` | 增加 `saveAssignmentDraft`，调用 `PUT /api/assignments/{assignmentId}/draft` |
+| `src/features/assignments/view.ts` | 增加草稿状态文案 helper，便于页面与测试复用；时间展示继续复用 `formatTaskTime` |
+| `src/pages/LabelerAssignmentWorkspacePage.tsx` | 接入防抖自动保存、手动保存/重试、冲突重新加载和右侧历史状态 |
 
 ## 10. 前后端字段映射检查清单
 

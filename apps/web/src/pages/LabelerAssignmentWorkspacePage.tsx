@@ -7,6 +7,7 @@ import {
   FileDoneOutlined,
   LeftOutlined,
   ReloadOutlined,
+  SaveOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import {
@@ -24,19 +25,21 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { navigate } from "../app/routes";
-import { claimAssignment, getAssignmentContext, listAssignments } from "../features/assignments/api";
+import { claimAssignment, getAssignmentContext, listAssignments, saveAssignmentDraft } from "../features/assignments/api";
 import type { AssignmentContextVO, AssignmentVO } from "../features/assignments/types";
 import {
   assignmentStatusMeta,
   buildClaimIdempotencyKey,
   buildLabelerAssignmentPath,
+  draftSaveStatusMeta,
   formatAssignmentQueueLabel,
   getAssignmentProgressText,
   resolveAssignmentInitialValue,
   summarizeAssignmentQueue,
+  type DraftSaveStatus,
 } from "../features/assignments/view";
 import { TemplateRenderer } from "../features/templates/TemplateRenderer";
 import type { TemplateSubmissionValue } from "../features/templates/types";
@@ -47,6 +50,8 @@ interface LabelerAssignmentWorkspacePageProps {
   assignmentId: string;
 }
 
+const DRAFT_AUTOSAVE_DELAY_MS = 1000;
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     return error.payload?.error.message ?? error.message;
@@ -55,6 +60,14 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return "请求失败，请稍后重试。";
+}
+
+function getErrorCode(error: unknown): string | null {
+  return error instanceof ApiClientError ? error.payload?.error.code ?? null : null;
+}
+
+function serializeDraftValue(value: TemplateSubmissionValue): string {
+  return JSON.stringify(value);
 }
 
 function formatPayload(payload: unknown): string {
@@ -81,7 +94,20 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
   const [loading, setLoading] = useState(false);
   const [claimingNext, setClaimingNext] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftStatus, setDraftStatus] = useState<DraftSaveStatus>("idle");
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInFlightRef = useRef(false);
+  const lastSavedDraftRef = useRef("");
+  const lastFailedDraftRef = useRef("");
   const queueSummary = useMemo(() => summarizeAssignmentQueue(jumpAssignments), [jumpAssignments]);
+
+  const clearDraftTimer = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  }, []);
 
   const loadJumpCandidates = useCallback(async (taskId: string) => {
     const response = await listAssignments({ page: 1, pageSize: 100 });
@@ -94,8 +120,13 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
     setError(null);
     try {
       const nextContext = await getAssignmentContext(assignmentId);
+      const initialValue = resolveAssignmentInitialValue(nextContext);
       setContext(nextContext);
-      setValue(resolveAssignmentInitialValue(nextContext));
+      setValue(initialValue);
+      lastSavedDraftRef.current = serializeDraftValue(initialValue);
+      lastFailedDraftRef.current = "";
+      setDraftStatus(nextContext.assignment.draftSavedAt ? "saved" : "idle");
+      setDraftError(null);
       await loadJumpCandidates(nextContext.task.id);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -109,6 +140,69 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
   useEffect(() => {
     void fetchContext();
   }, [fetchContext]);
+
+  useEffect(() => clearDraftTimer, [clearDraftTimer]);
+
+  const persistDraft = useCallback(
+    async (nextValue: TemplateSubmissionValue, source: "auto" | "manual") => {
+      if (!context || saveInFlightRef.current) {
+        return;
+      }
+      saveInFlightRef.current = true;
+      clearDraftTimer();
+      setDraftStatus("saving");
+      setDraftError(null);
+      try {
+        const savedAssignment = await saveAssignmentDraft(context.assignment.id, {
+          values: nextValue,
+          clientVersion: context.assignment.version,
+        });
+        setContext((current) =>
+          current?.assignment.id === savedAssignment.id
+            ? { ...current, assignment: savedAssignment }
+            : current,
+        );
+        lastSavedDraftRef.current = serializeDraftValue(savedAssignment.draftValues ?? nextValue);
+        lastFailedDraftRef.current = "";
+        setDraftStatus("saved");
+        if (source === "manual") {
+          message.success("草稿已保存");
+        }
+      } catch (requestError) {
+        const isConflict = getErrorCode(requestError) === "ASSIGNMENT_VERSION_CONFLICT";
+        lastFailedDraftRef.current = serializeDraftValue(nextValue);
+        setDraftStatus(isConflict ? "conflict" : "error");
+        setDraftError(getErrorMessage(requestError));
+        if (source === "manual") {
+          message.error(getErrorMessage(requestError));
+        }
+      } finally {
+        saveInFlightRef.current = false;
+      }
+    },
+    [clearDraftTimer, context, message],
+  );
+
+  useEffect(() => {
+    if (!context || draftStatus === "conflict" || draftStatus === "saving") {
+      return;
+    }
+    const serializedValue = serializeDraftValue(value);
+    if (serializedValue === lastSavedDraftRef.current) {
+      return;
+    }
+    if (draftStatus === "error" && serializedValue === lastFailedDraftRef.current) {
+      return;
+    }
+    setDraftStatus("dirty");
+    setDraftError(null);
+    clearDraftTimer();
+    // 防抖保存避免每个按键都打到后端，同时保留底部显式保存入口。
+    saveTimerRef.current = setTimeout(() => {
+      void persistDraft(value, "auto");
+    }, DRAFT_AUTOSAVE_DELAY_MS);
+    return clearDraftTimer;
+  }, [clearDraftTimer, context, draftStatus, persistDraft, value]);
 
   async function handleClaimNext() {
     if (!context?.navigation.nextClaimableTaskId) {
@@ -126,6 +220,14 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
     } finally {
       setClaimingNext(false);
     }
+  }
+
+  function handleSaveDraftNow() {
+    if (draftStatus === "conflict") {
+      void fetchContext();
+      return;
+    }
+    void persistDraft(value, "manual");
   }
 
   if (loading && !context) {
@@ -158,8 +260,9 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
 
   const { assignment, navigation, task } = context;
   const statusMeta = assignmentStatusMeta[assignment.status];
+  const draftMeta = draftSaveStatusMeta[draftStatus];
   const currentJumpValue = jumpAssignments.some((item) => item.id === assignment.id) ? assignment.id : undefined;
-  const currentIndex = jumpAssignments.findIndex((item) => item.id === assignment.id);
+  const draftTimeText = assignment.draftSavedAt ? formatTaskTime(assignment.draftSavedAt) : "尚未保存";
 
   return (
     <div className="labelhub-assignment-workspace">
@@ -212,6 +315,7 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
                   返回任务广场
                 </Button>
                 <Tag color={statusMeta.color}>{statusMeta.label}</Tag>
+                <Tag color={draftMeta.color}>{draftMeta.label}</Tag>
                 <Tag color="blue">模板 {assignment.templateVersionId.slice(0, 18)}</Tag>
               </Space>
               <Typography.Title level={2} style={{ margin: "14px 0 6px" }}>
@@ -242,9 +346,20 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
         <Card className="labelhub-assignment-main-card">
           <Space direction="vertical" size={14} style={{ width: "100%" }}>
             <Alert
-              type="info"
+              type={draftStatus === "error" || draftStatus === "conflict" ? "warning" : "info"}
               showIcon
-              message="阶段 3.2 已接入作答上下文、本地编辑和题目导航；草稿自动保存与正式提交将在后续粒度接入。"
+              message={
+                draftStatus === "saved"
+                  ? `草稿已自动保存：${draftTimeText}`
+                  : draftError ?? draftMeta.message
+              }
+              action={
+                draftStatus === "error" || draftStatus === "conflict" ? (
+                  <Button size="small" onClick={() => void handleSaveDraftNow()}>
+                    {draftStatus === "conflict" ? "重新加载" : "重试保存"}
+                  </Button>
+                ) : null
+              }
             />
             <TemplateRenderer
               schema={context.templateSchema}
@@ -274,9 +389,17 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
               </Button>
             </Space>
             <Space wrap>
-              <Typography.Text type="secondary">当前为本地编辑态，离开页面前请等待后续草稿能力接入。</Typography.Text>
-              <Tooltip title="阶段 3.3 接入草稿自动保存">
-                <Button disabled>保存草稿</Button>
+              <Typography.Text type="secondary">
+                {draftStatus === "saved" ? `上次保存：${draftTimeText}` : draftMeta.message}
+              </Typography.Text>
+              <Tooltip title={draftStatus === "conflict" ? "服务端已有更新，先重新加载避免覆盖他人草稿" : "立即保存当前草稿"}>
+                <Button
+                  icon={draftStatus === "conflict" ? <ReloadOutlined /> : <SaveOutlined />}
+                  loading={draftStatus === "saving"}
+                  onClick={() => void handleSaveDraftNow()}
+                >
+                  {draftStatus === "conflict" ? "重新加载题目" : "保存草稿"}
+                </Button>
               </Tooltip>
               <Tooltip title="阶段 3.4 接入提交校验和提交版本">
                 <Button type="primary" disabled>
@@ -328,6 +451,10 @@ export function LabelerAssignmentWorkspacePage({ assignmentId }: LabelerAssignme
                 <span>{formatTaskTime(assignment.draftSavedAt)}</span>
               </div>
             )}
+            <div>
+              <strong>{draftMeta.label}</strong>
+              <span>{draftStatus === "saved" ? draftTimeText : draftMeta.message}</span>
+            </div>
           </div>
         </Card>
 

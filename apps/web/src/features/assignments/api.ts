@@ -7,6 +7,7 @@ import type {
   ListAssignmentsRequest,
   ListMarketplaceTasksRequest,
   MarketplaceTaskVO,
+  SaveAssignmentDraftRequest,
 } from "./types";
 
 export function listMarketplaceTasks(
@@ -41,4 +42,14 @@ export function listAssignments(request: ListAssignmentsRequest = {}): Promise<P
 
 export function getAssignmentContext(assignmentId: string): Promise<AssignmentContextVO> {
   return apiRequest<AssignmentContextVO>(`/api/assignments/${assignmentId}`);
+}
+
+export function saveAssignmentDraft(
+  assignmentId: string,
+  request: SaveAssignmentDraftRequest,
+): Promise<AssignmentVO> {
+  return apiRequest<AssignmentVO>(`/api/assignments/${assignmentId}/draft`, {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
 }

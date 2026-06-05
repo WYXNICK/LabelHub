@@ -15,17 +15,28 @@ from labelhub_api.core.enums import (
     AuditEntityType,
     DatasetItemStatus,
     DistributionStrategy,
+    SubmissionStatus,
     TaskStatus,
     UserRole,
 )
 from labelhub_api.core.errors import ApiException
-from labelhub_api.models.assignment import AssignmentEntity
+from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.dataset import DatasetItemEntity
 from labelhub_api.models.task import TaskEntity
-from labelhub_api.schemas.assignments import AssignmentVO, CreateAssignmentRequest, MarketplaceTaskVO
+from labelhub_api.models.template import TemplateVersionEntity
+from labelhub_api.schemas.assignments import (
+    AssignmentContextVO,
+    AssignmentNavigationVO,
+    AssignmentVO,
+    CreateAssignmentRequest,
+    MarketplaceTaskVO,
+    SubmissionVO,
+)
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
+from labelhub_api.schemas.tasks import TaskVO
+from labelhub_api.schemas.templates import TemplateSchemaVO
 
 
 class AssignmentService:
@@ -58,6 +69,37 @@ class AssignmentService:
         start = (page - 1) * page_size
         return PageVO(
             data=task_views[start : start + page_size],
+            pagination=PaginationVO(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=ceil(total_items / page_size) if total_items else 0,
+            ),
+        )
+
+    def list_assignments(
+        self,
+        *,
+        user: UserVO,
+        page: int,
+        page_size: int,
+        status: AssignmentStatus | None,
+    ) -> PageVO[AssignmentVO]:
+        self._require_labeler(user)
+        query = select(AssignmentEntity).where(AssignmentEntity.labeler_id == user.id)
+        if status is not None:
+            query = query.where(AssignmentEntity.status == status.value)
+
+        total_items = self._db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
+        assignments = list(
+            self._db.scalars(
+                query.order_by(AssignmentEntity.updated_at.desc(), AssignmentEntity.claimed_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return PageVO(
+            data=[self._to_assignment_vo(assignment) for assignment in assignments],
             pagination=PaginationVO(
                 page=page,
                 page_size=page_size,
@@ -173,6 +215,39 @@ class AssignmentService:
         self._db.refresh(assignment)
         return self._to_assignment_vo(assignment)
 
+    def get_assignment_context(
+        self,
+        *,
+        assignment_id: str,
+        user: UserVO,
+        request_id: str,
+    ) -> AssignmentContextVO:
+        self._require_labeler(user)
+        assignment = self._db.get(AssignmentEntity, assignment_id)
+        if assignment is None or assignment.labeler_id != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="领取记录不存在。", request_id=request_id)
+
+        task = self._db.get(TaskEntity, assignment.task_id)
+        item = self._db.get(DatasetItemEntity, assignment.dataset_item_id)
+        template_version = self._db.get(TemplateVersionEntity, assignment.template_version_id)
+        if task is None or item is None or template_version is None:
+            raise ApiException(
+                status_code=409,
+                code="ASSIGNMENT_CONTEXT_INCOMPLETE",
+                message="作答上下文不完整，请刷新或联系任务负责人。",
+                request_id=request_id,
+            )
+
+        return AssignmentContextVO(
+            assignment=self._to_assignment_vo(assignment),
+            task=self._to_task_vo(task),
+            dataset_item_payload=item.payload,
+            template_schema=TemplateSchemaVO.model_validate(template_version.schema_json),
+            latest_submission=self._to_submission_vo(self._get_latest_submission(assignment.id)),
+            review_feedback=None,
+            navigation=self._build_navigation(assignment, task),
+        )
+
     def _claimable_task_query(self, *, keyword: str | None) -> Select[tuple[TaskEntity]]:
         now = datetime.now(UTC)
         query = select(TaskEntity).where(
@@ -242,6 +317,7 @@ class AssignmentService:
                 user.id,
                 statuses=[AssignmentStatus.SUBMITTED, AssignmentStatus.RETURNED, AssignmentStatus.APPROVED],
             ),
+            active_assignment_id=self._find_active_assignment_id(task.id, user.id),
             deadline_at=task.deadline_at,
             distribution_strategy=DistributionStrategy(task.distribution_strategy),
             current_template_version_id=str(task.current_template_version_id),
@@ -268,6 +344,77 @@ class AssignmentService:
             updated_at=assignment.updated_at,
         )
 
+    def _to_task_vo(self, task: TaskEntity) -> TaskVO:
+        return TaskVO(
+            id=task.id,
+            title=task.title,
+            description=task.description,
+            tags=task.tags,
+            quota=task.quota,
+            claimed_count=task.claimed_count,
+            submitted_count=task.submitted_count,
+            approved_count=task.approved_count,
+            deadline_at=task.deadline_at,
+            distribution_strategy=DistributionStrategy(task.distribution_strategy),
+            status=TaskStatus(task.status),
+            current_template_version_id=task.current_template_version_id,
+            current_review_config_version_id=task.current_review_config_version_id,
+            created_by=task.created_by,
+            created_at=task.created_at,
+            updated_at=task.updated_at,
+        )
+
+    def _to_submission_vo(self, submission: SubmissionEntity | None) -> SubmissionVO | None:
+        if submission is None:
+            return None
+        return SubmissionVO(
+            id=submission.id,
+            assignment_id=submission.assignment_id,
+            task_id=submission.task_id,
+            dataset_item_id=submission.dataset_item_id,
+            labeler_id=submission.labeler_id,
+            template_version_id=submission.template_version_id,
+            submission_version=submission.submission_version,
+            values=submission.values,
+            status=SubmissionStatus(submission.status),
+            idempotency_key=submission.idempotency_key,
+            submitted_at=submission.submitted_at,
+            created_at=submission.created_at,
+            updated_at=submission.updated_at,
+        )
+
+    def _get_latest_submission(self, assignment_id: str) -> SubmissionEntity | None:
+        return self._db.scalar(
+            select(SubmissionEntity)
+            .where(SubmissionEntity.assignment_id == assignment_id)
+            .order_by(SubmissionEntity.submission_version.desc(), SubmissionEntity.created_at.desc())
+            .limit(1)
+        )
+
+    def _build_navigation(self, assignment: AssignmentEntity, task: TaskEntity) -> AssignmentNavigationVO:
+        assignments = list(
+            self._db.scalars(
+                select(AssignmentEntity)
+                .where(
+                    AssignmentEntity.task_id == assignment.task_id,
+                    AssignmentEntity.labeler_id == assignment.labeler_id,
+                    AssignmentEntity.status != AssignmentStatus.CANCELLED.value,
+                )
+                .order_by(AssignmentEntity.claimed_at.asc(), AssignmentEntity.id.asc())
+            )
+        )
+        ids = [item.id for item in assignments]
+        current_index = ids.index(assignment.id) if assignment.id in ids else 0
+        can_claim_next = self._can_claim_next(task)
+        return AssignmentNavigationVO(
+            previous_assignment_id=ids[current_index - 1] if current_index > 0 else None,
+            next_assignment_id=ids[current_index + 1] if current_index + 1 < len(ids) else None,
+            current_index=current_index + 1 if ids else 1,
+            total_count=len(ids),
+            can_claim_next=can_claim_next,
+            next_claimable_task_id=task.id if can_claim_next else None,
+        )
+
     def _count_available_items(self, task_id: str) -> int:
         return int(
             self._db.scalar(
@@ -289,6 +436,36 @@ class AssignmentService:
                 )
             )
             or 0
+        )
+
+    def _find_active_assignment_id(self, task_id: str, labeler_id: str) -> str | None:
+        return self._db.scalar(
+            select(AssignmentEntity.id)
+            .where(
+                AssignmentEntity.task_id == task_id,
+                AssignmentEntity.labeler_id == labeler_id,
+                AssignmentEntity.status.in_(
+                    [
+                        AssignmentStatus.CLAIMED.value,
+                        AssignmentStatus.DRAFT_SAVED.value,
+                        AssignmentStatus.RETURNED.value,
+                    ]
+                ),
+            )
+            .order_by(AssignmentEntity.updated_at.desc(), AssignmentEntity.claimed_at.desc())
+            .limit(1)
+        )
+
+    def _can_claim_next(self, task: TaskEntity) -> bool:
+        return (
+            task.status == TaskStatus.PUBLISHED.value
+            and bool(task.current_template_version_id)
+            and bool(task.current_review_config_version_id)
+            and task.distribution_strategy == DistributionStrategy.FIRST_COME_FIRST_SERVED.value
+            and task.deadline_at is not None
+            and self._is_future(task.deadline_at)
+            and task.claimed_count < task.quota
+            and self._count_available_items(task.id) > 0
         )
 
     def _append_audit(

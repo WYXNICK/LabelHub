@@ -296,8 +296,8 @@ class LogoutResponseVO:
 | 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
 | 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 已实现 |
 | 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 已实现 |
-| 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2/3.5 实现 |
-| 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 实现 |
+| 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2 已实现，阶段 3.5 继续复用 |
+| 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 已实现 |
 | 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 实现 |
 | 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 实现 |
 | 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 实现 |
@@ -931,7 +931,7 @@ LLM 边界：
 
 | 契约 | 字段 |
 | --- | --- |
-| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`deadlineAt`、`quota`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount` |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`deadlineAt`、`quota`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`activeAssignmentId` |
 | `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`status`、`draftValues`、`draftSavedAt`、`version`、`createdAt`、`updatedAt` |
 | `AssignmentContextVO` | `assignment`、`task`、`datasetItemPayload`、`templateSchema`、`latestSubmission`、`reviewFeedback`、`navigation` |
 | `SaveAssignmentDraftRequest` | `values`、`clientVersion` |
@@ -951,9 +951,26 @@ LLM 边界：
 
 | 名称 | 字段 |
 | --- | --- |
-| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt` |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`activeAssignmentId`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt` |
 | `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`labelerId`、`status`、`draftValues`、`draftSavedAt`、`currentSubmissionId`、`claimedAt`、`submittedAt`、`version`、`createdAt`、`updatedAt` |
 | `CreateAssignmentRequest` | `idempotencyKey?`，用于后续防重复点击；阶段 3.1 可为空 |
+
+阶段 3.2 作答上下文契约：
+
+| 名称 | 字段/规则 |
+| --- | --- |
+| `GET /api/assignments` | 仅返回当前 Labeler 的领取列表，支持 `status`、`page`、`pageSize`，用于后续“我的贡献”和跳题候选 |
+| `GET /api/assignments/{assignmentId}` | 返回当前 Labeler 对该 assignment 的完整作答上下文；非本人领取不可访问 |
+| `AssignmentContextVO` | `assignment`、`task`、`datasetItemPayload`、`templateSchema`、`latestSubmission`、`reviewFeedback`、`navigation` |
+| `SubmissionVO` | `id`、`assignmentId`、`taskId`、`datasetItemId`、`templateVersionId`、`submissionVersion`、`values`、`status`、`submittedAt`、`createdAt`、`updatedAt` |
+| `AssignmentNavigationVO` | `previousAssignmentId`、`nextAssignmentId`、`currentIndex`、`totalCount`、`canClaimNext`、`nextClaimableTaskId` |
+
+导航规则：
+
+- 上一题/下一题限定在当前 Labeler、当前任务、未取消的 assignment 内，按 `claimedAt`、`id` 稳定排序。
+- `datasetItemPayload` 使用领取时绑定的题目原始 payload；`templateSchema` 使用 assignment 上的不可变 `templateVersionId`，不得读取任务当前草稿。
+- `latestSubmission` 取同一 assignment 下 `submissionVersion` 最大的一条；阶段 3.2 可为空，阶段 3.4 提交后复用。
+- `canClaimNext` 必须继续复用任务发布、截止时间、配额和可用题目检查；前端不可自行推断。
 
 新增枚举：
 

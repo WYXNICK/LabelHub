@@ -5,8 +5,10 @@ from typing import Any
 
 from pydantic import Field
 
-from labelhub_api.core.enums import AssignmentStatus, DistributionStrategy
+from labelhub_api.core.enums import AssignmentStatus, DistributionStrategy, SubmissionStatus
 from labelhub_api.schemas.common import CamelModel
+from labelhub_api.schemas.tasks import TaskVO
+from labelhub_api.schemas.templates import TemplateSchemaVO
 
 
 class MarketplaceTaskVO(CamelModel):
@@ -22,6 +24,7 @@ class MarketplaceTaskVO(CamelModel):
     available_item_count: int
     claimed_by_me_count: int
     submitted_by_me_count: int
+    active_assignment_id: str | None = None
     deadline_at: datetime | None
     distribution_strategy: DistributionStrategy
     current_template_version_id: str
@@ -49,3 +52,38 @@ class AssignmentVO(CamelModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class SubmissionVO(CamelModel):
+    id: str
+    assignment_id: str
+    task_id: str
+    dataset_item_id: str
+    labeler_id: str
+    template_version_id: str
+    submission_version: int
+    values: dict[str, Any]
+    status: SubmissionStatus
+    idempotency_key: str | None = None
+    submitted_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssignmentNavigationVO(CamelModel):
+    previous_assignment_id: str | None = None
+    next_assignment_id: str | None = None
+    current_index: int
+    total_count: int
+    can_claim_next: bool
+    next_claimable_task_id: str | None = None
+
+
+class AssignmentContextVO(CamelModel):
+    assignment: AssignmentVO
+    task: TaskVO
+    dataset_item_payload: dict[str, Any]
+    template_schema: TemplateSchemaVO
+    latest_submission: SubmissionVO | None = None
+    review_feedback: dict[str, Any] | None = None
+    navigation: AssignmentNavigationVO

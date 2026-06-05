@@ -1,8 +1,10 @@
 import { apiRequest, withQuery } from "../../shared/api/client";
 import type { PageVO } from "../../shared/types/api";
 import type {
+  AssignmentContextVO,
   AssignmentVO,
   CreateAssignmentRequest,
+  ListAssignmentsRequest,
   ListMarketplaceTasksRequest,
   MarketplaceTaskVO,
 } from "./types";
@@ -25,4 +27,18 @@ export function claimAssignment(taskId: string, request: CreateAssignmentRequest
     method: "POST",
     body: JSON.stringify(request),
   });
+}
+
+export function listAssignments(request: ListAssignmentsRequest = {}): Promise<PageVO<AssignmentVO>> {
+  return apiRequest<PageVO<AssignmentVO>>(
+    withQuery("/api/assignments", {
+      page: request.page,
+      pageSize: request.pageSize,
+      status: request.status,
+    }),
+  );
+}
+
+export function getAssignmentContext(assignmentId: string): Promise<AssignmentContextVO> {
+  return apiRequest<AssignmentContextVO>(`/api/assignments/${assignmentId}`);
 }

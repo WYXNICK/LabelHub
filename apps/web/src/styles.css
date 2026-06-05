@@ -417,6 +417,24 @@ body {
   font-weight: 700;
 }
 
+.labelhub-role-sider {
+  background: #fff !important;
+  border-right: 1px solid #eff0f1;
+}
+
+.labelhub-role-sider .ant-menu {
+  background: transparent;
+}
+
+.labelhub-role-sider-focus > .ant-layout-sider-children > .ant-flex {
+  padding-inline: 8px !important;
+}
+
+.labelhub-role-sider-focus .ant-space {
+  justify-content: center;
+  width: 100%;
+}
+
 .labelhub-brand-logo {
   background: linear-gradient(135deg, #3370ff, #1d5cff);
   box-shadow: 0 8px 22px rgba(51, 112, 255, 0.3);
@@ -544,6 +562,14 @@ body {
 
 .labelhub-page {
   padding: 24px;
+}
+
+.labelhub-page-focus {
+  padding: 20px;
+}
+
+.labelhub-loading-block {
+  min-height: 96px;
 }
 
 .labelhub-card-grid {
@@ -1588,6 +1614,335 @@ body {
   gap: 6px;
 }
 
+.labelhub-assignment-hero {
+  border-radius: 8px;
+}
+
+.labelhub-assignment-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-assignment-main-card,
+.labelhub-assignment-side {
+  min-width: 0;
+}
+
+.labelhub-assignment-main-card .ant-card-body {
+  padding: 18px;
+}
+
+.labelhub-assignment-side {
+  position: sticky;
+  top: 76px;
+  display: grid;
+  gap: 16px;
+}
+
+.labelhub-assignment-side .ant-descriptions-item-label {
+  width: 82px;
+  color: #646a73;
+}
+
+.labelhub-assignment-side .ant-descriptions-item-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.labelhub-assignment-payload {
+  max-height: 300px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: #1f2329;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.labelhub-stat-card .ant-card-body {
+  min-height: 116px;
+}
+
+.labelhub-market-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-market-main,
+.labelhub-market-side {
+  min-width: 0;
+}
+
+.labelhub-market-main {
+  display: grid;
+  gap: 16px;
+}
+
+.labelhub-market-side {
+  position: sticky;
+  top: 76px;
+  display: grid;
+  gap: 16px;
+}
+
+.labelhub-market-filter-card .ant-card-body {
+  padding: 14px 16px;
+}
+
+.labelhub-market-table-card {
+  overflow: hidden;
+}
+
+.labelhub-market-table-card .ant-card-body {
+  padding: 0;
+}
+
+.labelhub-market-table-head,
+.labelhub-market-row {
+  display: grid;
+  grid-template-columns:
+    minmax(280px, 1.25fr)
+    88px
+    minmax(150px, 0.72fr)
+    140px
+    minmax(150px, 0.66fr)
+    minmax(178px, 0.7fr);
+  gap: 16px;
+  align-items: center;
+  border-bottom: 1px solid #eff0f1;
+}
+
+.labelhub-market-table-head {
+  min-height: 50px;
+  padding: 0 16px;
+  color: #646a73;
+  background: #fbfcff;
+  font-weight: 700;
+}
+
+.labelhub-market-row {
+  min-height: 126px;
+  padding: 16px;
+  transition: background 0.2s ease;
+}
+
+.labelhub-market-row:hover {
+  background: #fbfcff;
+}
+
+.labelhub-market-row-main {
+  min-width: 0;
+}
+
+.labelhub-market-metric,
+.labelhub-market-quality {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.labelhub-market-row-actions {
+  justify-content: flex-start;
+}
+
+.labelhub-market-queue-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eff0f1;
+}
+
+.labelhub-market-queue-item:last-child {
+  border-bottom: 0;
+}
+
+.labelhub-market-mini-stats,
+.labelhub-assignment-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-market-mini-stats > div,
+.labelhub-assignment-mini-stats > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.labelhub-market-mini-stats .anticon,
+.labelhub-assignment-mini-stats .anticon {
+  color: #3370ff;
+}
+
+.labelhub-market-mini-stats strong,
+.labelhub-assignment-mini-stats strong {
+  color: #245bdb;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.labelhub-market-mini-stats span,
+.labelhub-assignment-mini-stats span {
+  color: #646a73;
+  font-size: 12px;
+}
+
+.labelhub-assignment-workspace {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-assignment-rail,
+.labelhub-assignment-side {
+  position: sticky;
+  top: 76px;
+  min-width: 0;
+}
+
+.labelhub-assignment-center {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.labelhub-assignment-side {
+  display: grid;
+  gap: 16px;
+}
+
+.labelhub-assignment-toolbar .ant-card-body {
+  padding: 18px;
+}
+
+.labelhub-assignment-question-list {
+  display: grid;
+  gap: 6px;
+  max-height: calc(100vh - 248px);
+  overflow: auto;
+}
+
+.labelhub-assignment-question-item {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  color: #646a73;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.labelhub-assignment-question-item:hover,
+.labelhub-assignment-question-item[data-active="true"] {
+  color: #245bdb;
+  background: #f2f7ff;
+  border-color: #a8c5ff;
+}
+
+.labelhub-assignment-question-item > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-assignment-history {
+  display: grid;
+  gap: 10px;
+}
+
+.labelhub-assignment-history > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  color: #646a73;
+}
+
+.labelhub-assignment-history strong {
+  color: #1f2329;
+}
+
+.labelhub-assignment-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  box-shadow: 0 -8px 24px rgba(31, 35, 41, 0.06);
+}
+
+.labelhub-assignment-footer .ant-card-body {
+  padding: 12px 16px;
+}
+
+@media (max-width: 1500px) {
+  .labelhub-market-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-market-side {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .labelhub-market-table-head,
+  .labelhub-market-row {
+    grid-template-columns:
+      minmax(260px, 1.25fr)
+      84px
+      minmax(148px, 0.7fr)
+      136px
+      minmax(160px, 0.72fr);
+  }
+
+  .labelhub-market-table-head > :nth-child(5),
+  .labelhub-market-row > :nth-child(5) {
+    display: none;
+  }
+
+  .labelhub-assignment-workspace {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+
+  .labelhub-assignment-side {
+    position: static;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1101px) {
+  .labelhub-page-focus .labelhub-assignment-workspace {
+    grid-template-columns: 210px minmax(0, 1fr) 300px;
+  }
+
+  .labelhub-page-focus .labelhub-assignment-side {
+    position: sticky;
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1280px) {
   .labelhub-showcase {
     grid-template-columns: 1fr;
@@ -1628,6 +1983,45 @@ body {
   }
 
   .labelhub-market-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .labelhub-market-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-market-side {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .labelhub-market-table-head,
+  .labelhub-market-row {
+    grid-template-columns:
+      minmax(260px, 1.25fr)
+      84px
+      minmax(148px, 0.7fr)
+      136px
+      minmax(160px, 0.72fr);
+  }
+
+  .labelhub-market-table-head > :nth-child(5),
+  .labelhub-market-row > :nth-child(5) {
+    display: none;
+  }
+
+  .labelhub-assignment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-assignment-workspace {
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .labelhub-assignment-side {
+    position: static;
+    grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1748,8 +2142,29 @@ body {
   }
 
   .labelhub-market-summary-grid,
-  .labelhub-market-grid {
+  .labelhub-market-grid,
+  .labelhub-assignment-grid,
+  .labelhub-assignment-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .labelhub-market-side,
+  .labelhub-assignment-rail,
+  .labelhub-assignment-side {
+    position: static;
+  }
+
+  .labelhub-market-side {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-market-table-head {
+    display: none;
+  }
+
+  .labelhub-market-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .labelhub-dataset-grid,

@@ -14,6 +14,7 @@ import type { MenuProps } from "antd";
 import { navigate } from "../app/routes";
 import { useAuthStore } from "../features/auth/store";
 import type { UserRole, UserVO } from "../features/auth/types";
+import { matchLabelerAssignmentPath } from "../features/assignments/view";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
 import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
@@ -24,6 +25,7 @@ import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
+import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
 import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
 import { RoleHomePage } from "./RoleHomePage";
 
@@ -61,8 +63,12 @@ interface RoleShellProps {
 export function RoleShell({ user, path }: RoleShellProps) {
   const logout = useAuthStore((state) => state.logout);
   const role = user.role === "SYSTEM" ? "OWNER" : user.role;
+  const labelerAssignmentId = matchLabelerAssignmentPath(path);
+  const isLabelerWorkspaceFocus = user.role === "LABELER" && Boolean(labelerAssignmentId);
   const selectedMenuKey = matchOwnerTaskDesignerPath(path)
     ? "/owner/templates"
+    : labelerAssignmentId
+      ? "/labeler/marketplace"
     : path.startsWith("/owner/tasks")
       ? "/owner/tasks"
       : path;
@@ -74,19 +80,27 @@ export function RoleShell({ user, path }: RoleShellProps) {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Layout.Sider width={248} breakpoint="lg" collapsedWidth={0}>
+      <Layout.Sider
+        className={isLabelerWorkspaceFocus ? "labelhub-role-sider labelhub-role-sider-focus" : "labelhub-role-sider"}
+        width={248}
+        breakpoint="lg"
+        collapsed={isLabelerWorkspaceFocus}
+        collapsedWidth={isLabelerWorkspaceFocus ? 64 : 0}
+      >
         <Flex vertical style={{ height: "100%", padding: 16 }}>
           <Space style={{ padding: "8px 8px 24px" }}>
             <span className="labelhub-shell-logo">L</span>
-            <div>
-              <Typography.Text strong style={{ color: "#1f2329" }}>
-                LabelHub
-              </Typography.Text>
-              <br />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                企业工作空间
-              </Typography.Text>
-            </div>
+            {!isLabelerWorkspaceFocus && (
+              <div>
+                <Typography.Text strong style={{ color: "#1f2329" }}>
+                  LabelHub
+                </Typography.Text>
+                <br />
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  企业工作空间
+                </Typography.Text>
+              </div>
+            )}
           </Space>
           <Menu
             mode="inline"
@@ -114,7 +128,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
             </Space>
           </Flex>
         </Layout.Header>
-        <Layout.Content className="labelhub-page">
+        <Layout.Content className={isLabelerWorkspaceFocus ? "labelhub-page labelhub-page-focus" : "labelhub-page"}>
           {renderRoleContent(user, path)}
         </Layout.Content>
       </Layout>
@@ -152,6 +166,12 @@ function renderRoleContent(user: UserVO, path: string) {
   }
   if (user.role === "LABELER" && path === "/labeler/marketplace") {
     return <LabelerMarketplacePage />;
+  }
+  if (user.role === "LABELER") {
+    const assignmentId = matchLabelerAssignmentPath(path);
+    if (assignmentId) {
+      return <LabelerAssignmentWorkspacePage assignmentId={assignmentId} />;
+    }
   }
   return <RoleHomePage path={path} user={user} />;
 }

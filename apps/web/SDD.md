@@ -186,7 +186,7 @@ export interface LogoutResponseVO {
 | 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 |
 | 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 已实现 |
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 已实现 |
-| 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 实现 |
+| 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 已实现 |
 | 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 实现 |
 | 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 实现 |
 | 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 实现 |
@@ -784,6 +784,10 @@ VO 字段映射：
 
 阶段 3 前端必须直接复用阶段 2 的 `TemplateRenderer`、`TemplateSubmissionValue`、`pruneHiddenSubmissionValue` 和 `validateTemplateSubmissionValue`。Labeler 作答页不得复制一套新的表单渲染逻辑；后端仍是最终校验者。
 
+阶段 3 的前端视觉与信息架构基准以 `ui-prototypes/phase3` 为准。当前已实现到阶段 3.2，因此正式代码先对齐 `marketplace` 与 `workspace` 两个原型：任务广场采用“统计概览 + 任务列表 + 当前队列/表现侧栏”，标注工作台采用“题目导航 + 动态 Renderer 作答区 + 任务上下文侧栏 + 底部操作条”。`contributions` 与 `revise` 原型作为后续 3.3-3.7 的目标态参考，不在 3.2 阶段提前接入未完成接口。
+
+进入 `/labeler/assignments/:assignmentId` 后，角色壳左侧全局导航必须自动收起为窄图标栏，让标注工作台获得更宽的主作答区域；工作台内部的题目导航不收起，继续作为题目级操作导航。后续阶段 3 的草稿、提交、LLM 辅助和返修页也沿用该聚焦模式。
+
 页面与路由：
 
 | 页面 | 路由 | 行为 |
@@ -801,12 +805,16 @@ export interface MarketplaceTaskVO {
   title: string;
   description?: string | null;
   tags: string[];
-  rewardRule?: string | null;
+  rewardRule?: JsonObject | null;
   deadlineAt: string;
   quota: number;
+  claimedCount: number;
+  submittedCount: number;
+  approvedCount: number;
   availableItemCount: number;
   claimedByMeCount: number;
   submittedByMeCount: number;
+  activeAssignmentId?: string | null;
 }
 
 export interface AssignmentContextVO {
@@ -825,8 +833,8 @@ export interface AssignmentContextVO {
 - 任务广场只展示后端返回的可领取任务；前端不自行猜测任务是否可领。
 - 领取成功后进入 `/labeler/assignments/:assignmentId`；如果当前 Labeler 已有未提交 assignment，卡片提供“继续作答”入口。
 - 作答页初始化值优先级：后端 `assignment.draftValues` > `latestSubmission.values` > `getTemplateInitialValue(templateSchema)`。
-- Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，再防抖调用保存草稿接口。
-- 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。
+- 阶段 3.2 作答页只负责上下文读取、Renderer 本地编辑和题目导航；Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，防抖保存草稿在阶段 3.3 接入。
+- 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。正式提交按钮在阶段 3.4 接入。
 - 文件/图片上传物料在阶段 3 需要调用现有 `createFileObject`，提交值保存文件对象 ID 数组和必要展示名，不保存浏览器本地临时路径。
 - `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`；返回值只作为参考或写入目标字段草稿，必须由 Labeler 手动提交。
 
@@ -841,17 +849,30 @@ export interface AssignmentContextVO {
 | 页面/模块 | 路由 | 行为 |
 | --- | --- | --- |
 | Labeler 任务广场 | `/labeler/marketplace` | 搜索可领取任务、展示剩余题量/截止时间/奖励规则/个人领取提交数，点击领取调用 `POST /api/tasks/{taskId}/assignments` |
-| 领取结果 | 任务卡片内反馈 | 阶段 3.1 只完成领取写入与状态反馈；正式作答页在 3.2 接入后再跳转到 assignment 详情 |
+| 领取结果 | 任务卡片内反馈 | 阶段 3.1 只完成领取写入与状态反馈；阶段 3.2 起领取成功跳转到 assignment 作答页 |
 
-`MarketplaceTaskVO` 字段必须与后端一致：`id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt`。
+`MarketplaceTaskVO` 字段必须与后端一致：`id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`activeAssignmentId`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt`。
 
 `AssignmentVO` 字段必须与后端一致：`id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`labelerId`、`status`、`draftValues`、`draftSavedAt`、`currentSubmissionId`、`claimedAt`、`submittedAt`、`version`、`createdAt`、`updatedAt`。
+
+阶段 3.2 标注工作台产品规则：
+
+- 作答页入口只接受 `assignmentId`，所有任务、题目、模板和导航数据都来自 `GET /api/assignments/{assignmentId}`。
+- 顶部操作区提供返回任务广场、上一题、下一题和领取下一题；上一题/下一题不可用时必须明确置灰，不显示无效链接。
+- 页面主体直接复用阶段 2 `TemplateRenderer`，并在右侧展示题目进度、模板版本、领取时间和原始 payload 摘要，避免 Labeler 在多个页面间查上下文。
+- 当前粒度不落库草稿和提交，但必须保留本地编辑值，切换题目时重新按后端上下文初始化。
 
 任务广场产品规则：
 
 - 主信息区域用卡片/列表承载任务，不复用 Owner 任务表格，避免 Labeler 被暴露模板、审核配置等管理操作。
 - 领取按钮只在 `availableItemCount > 0` 时可操作；请求中和成功后要有明确反馈，失败展示后端业务错误。
 - 页面需在 `1280×800` 与 `1920×1080` 下无横向溢出；任务卡片在窄屏自动换行。
+
+阶段 3.2 已落地：
+
+- 任务广场卡片新增 `activeAssignmentId` 继续作答入口；领取新题后直接进入 `/labeler/assignments/:assignmentId`。
+- 标注工作台已接入 `GET /api/assignments/{assignmentId}`，展示 assignment 快照模板、题目 payload、本地 Renderer 作答、上一题/下一题、跳题下拉和领取下一题。
+- 已通过 Chrome DevTools MCP 检查 `1280×800` 与大屏尺寸无横向溢出，Network 中上下文和列表接口均返回 200，Console 无非预期错误。
 
 ## 10. 前后端字段映射检查清单
 

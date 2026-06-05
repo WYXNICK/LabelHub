@@ -48,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(assignments.marketplace_router)
     app.include_router(assignments.task_assignment_router)
+    app.include_router(assignments.assignment_router)
     app.include_router(datasets.router)
     app.include_router(review_configs.router)
     app.include_router(templates.task_router)

@@ -1,6 +1,7 @@
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
+  FileDoneOutlined,
   GiftOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -22,10 +23,12 @@ import {
 } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { navigate } from "../app/routes";
 import { claimAssignment, listMarketplaceTasks } from "../features/assignments/api";
 import type { MarketplaceTaskVO } from "../features/assignments/types";
 import {
   buildClaimIdempotencyKey,
+  buildLabelerAssignmentPath,
   formatRewardRule,
   getClaimButtonText,
   summarizeMarketplace,
@@ -62,6 +65,30 @@ function getClaimProgress(task: MarketplaceTaskVO): number {
   return Math.min(Math.round((task.claimedCount / task.quota) * 100), 100);
 }
 
+function getQualitySignal(task: MarketplaceTaskVO): { label: string; color: string; desc: string } {
+  if (task.submittedCount <= 0) {
+    return { label: "等待首批提交", color: "default", desc: "可先小批量领取验证难度" };
+  }
+  const approvalRate = Math.round((task.approvedCount / task.submittedCount) * 100);
+  if (approvalRate >= 85) {
+    return { label: `通过率 ${approvalRate}%`, color: "success", desc: "适合连续领取" };
+  }
+  if (approvalRate >= 60) {
+    return { label: `通过率 ${approvalRate}%`, color: "warning", desc: "提交前需仔细自检" };
+  }
+  return { label: `通过率 ${approvalRate}%`, color: "error", desc: "建议先阅读任务说明" };
+}
+
+function getMarketplaceStatus(task: MarketplaceTaskVO): { label: string; color: string } {
+  if (task.activeAssignmentId) {
+    return { label: "进行中", color: "processing" };
+  }
+  if (task.availableItemCount <= 0) {
+    return { label: "已领完", color: "default" };
+  }
+  return { label: "可领取", color: "success" };
+}
+
 export function LabelerMarketplacePage() {
   const { message } = AntdApp.useApp();
   const [tasks, setTasks] = useState<MarketplaceTaskVO[]>([]);
@@ -75,6 +102,7 @@ export function LabelerMarketplacePage() {
   const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const summary = useMemo(() => summarizeMarketplace(tasks), [tasks]);
+  const activeTasks = useMemo(() => tasks.filter((task) => task.activeAssignmentId), [tasks]);
 
   const fetchMarketplace = useCallback(async () => {
     setLoading(true);
@@ -116,12 +144,30 @@ export function LabelerMarketplacePage() {
         idempotencyKey: buildClaimIdempotencyKey(task.id),
       });
       message.success(`已领取题目，领取单 ${assignment.id.slice(0, 18)} 已创建`);
-      reloadCurrentPage();
+      navigate(buildLabelerAssignmentPath(assignment.id));
     } catch (requestError) {
       message.error(getErrorMessage(requestError));
     } finally {
       setClaimingTaskId(null);
     }
+  }
+
+  function renderPrimaryAction(task: MarketplaceTaskVO) {
+    return (
+      <Button
+        type={task.activeAssignmentId ? "default" : "primary"}
+        icon={<ThunderboltOutlined />}
+        loading={claimingTaskId === task.id}
+        disabled={!task.activeAssignmentId && task.availableItemCount <= 0}
+        onClick={() =>
+          task.activeAssignmentId
+            ? navigate(buildLabelerAssignmentPath(task.activeAssignmentId))
+            : void handleClaim(task)
+        }
+      >
+        {getClaimButtonText(task)}
+      </Button>
+    );
   }
 
   return (
@@ -132,154 +178,218 @@ export function LabelerMarketplacePage() {
             任务广场
           </Typography.Title>
           <Typography.Text type="secondary">
-            浏览已发布且可领取的标注任务。领取时会锁定一个题目，并绑定当前模板版本与审核配置。
+            只展示可领取任务。领取会锁定题目，并固定当前模板版本与审核配置。
           </Typography.Text>
         </div>
-        <Tag color="blue">阶段 3.1 · 先到先得</Tag>
-      </Flex>
-
-      <div className="labelhub-market-summary-grid" aria-busy={loading}>
-        <Card>
-          <Statistic title="可领取任务" value={pagination.totalItems || summary.taskCount} />
-          <Typography.Text type="secondary">后端已过滤不可领取任务</Typography.Text>
-        </Card>
-        <Card>
-          <Statistic title="当前页剩余题目" value={summary.availableItemCount} valueStyle={{ color: "#245bdb" }} />
-          <Typography.Text type="secondary">按任务配额和未领取题目共同计算</Typography.Text>
-        </Card>
-        <Card>
-          <Statistic title="我已领取" value={summary.claimedByMeCount} />
-          <Typography.Text type="secondary">包含待作答、返修和已通过题目</Typography.Text>
-        </Card>
-        <Card>
-          <Statistic title="我已提交" value={summary.submittedByMeCount} />
-          <Typography.Text type="secondary">正式提交后会自动累计</Typography.Text>
-        </Card>
-      </div>
-
-      <Card>
-        <Flex align="center" justify="space-between" gap={12} wrap="wrap">
-          <Space wrap>
-            <Input
-              id="labeler-marketplace-keyword"
-              name="labelerMarketplaceKeyword"
-              autoComplete="off"
-              allowClear
-              prefix={<SearchOutlined />}
-              placeholder="搜索任务标题或描述"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              onPressEnter={submitQuery}
-              style={{ width: 280 }}
-            />
-            <Input
-              id="labeler-marketplace-tag"
-              name="labelerMarketplaceTag"
-              autoComplete="off"
-              allowClear
-              placeholder="按标签筛选，如 qa_quality"
-              value={tag}
-              onChange={(event) => setTag(event.target.value)}
-              onPressEnter={submitQuery}
-              style={{ width: 220 }}
-            />
-            <Button onClick={submitQuery}>查询</Button>
-          </Space>
+        <Space wrap>
+          <Tag color="blue">阶段 3.2 · 领取与作答入口</Tag>
           <Button icon={<ReloadOutlined />} onClick={reloadCurrentPage}>
             刷新
           </Button>
-        </Flex>
-      </Card>
+        </Space>
+      </Flex>
 
-      {error && (
-        <Card className="labelhub-error-card">
-          <Typography.Text type="danger">{error}</Typography.Text>
+      <div className="labelhub-market-summary-grid" aria-busy={loading}>
+        <Card className="labelhub-stat-card">
+          <Statistic title="可领取任务" value={pagination.totalItems || summary.taskCount} />
+          <Typography.Text type="secondary">后端已过滤不可领取任务</Typography.Text>
         </Card>
-      )}
+        <Card className="labelhub-stat-card">
+          <Statistic title="可领取题目" value={summary.availableItemCount} valueStyle={{ color: "#245bdb" }} />
+          <Typography.Text type="secondary">按配额和未领取题目共同计算</Typography.Text>
+        </Card>
+        <Card className="labelhub-stat-card">
+          <Statistic title="我的进行中" value={summary.claimedByMeCount} />
+          <Typography.Text type="secondary">含待作答、返修和待提交题目</Typography.Text>
+        </Card>
+        <Card className="labelhub-stat-card">
+          <Statistic title="我的提交" value={summary.submittedByMeCount} />
+          <Typography.Text type="secondary">正式提交后自动累计</Typography.Text>
+        </Card>
+      </div>
 
-      <div className="labelhub-market-grid">
-        {tasks.map((task) => (
-          <Card key={task.id} className="labelhub-market-task-card" loading={loading}>
-            <Flex justify="space-between" align="flex-start" gap={14}>
-              <Space direction="vertical" size={8} style={{ minWidth: 0 }}>
-                <Space size={8} wrap>
-                  <Tag color="processing">可领取 {formatMetric(task.availableItemCount)}</Tag>
-                  {task.claimedByMeCount > 0 && <Tag color="green">我已领 {task.claimedByMeCount}</Tag>}
-                </Space>
-                <Typography.Title level={4} className="labelhub-market-title">
-                  {task.title}
-                </Typography.Title>
-                <Typography.Paragraph type="secondary" className="labelhub-market-description">
-                  {task.description || "暂无任务描述"}
-                </Typography.Paragraph>
+      <div className="labelhub-market-workbench">
+        <section className="labelhub-market-main">
+          <Card className="labelhub-market-filter-card">
+            <Flex align="center" justify="space-between" gap={12} wrap="wrap">
+              <Space wrap>
+                <Input
+                  id="labeler-marketplace-keyword"
+                  name="labelerMarketplaceKeyword"
+                  autoComplete="off"
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  placeholder="搜索任务标题或描述"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  onPressEnter={submitQuery}
+                  style={{ width: 280 }}
+                />
+                <Input
+                  id="labeler-marketplace-tag"
+                  name="labelerMarketplaceTag"
+                  autoComplete="off"
+                  allowClear
+                  placeholder="按标签筛选，如 qa_quality"
+                  value={tag}
+                  onChange={(event) => setTag(event.target.value)}
+                  onPressEnter={submitQuery}
+                  style={{ width: 220 }}
+                />
+                <Button type="primary" onClick={submitQuery}>
+                  查询
+                </Button>
               </Space>
-              <Button
-                type="primary"
-                icon={<ThunderboltOutlined />}
-                loading={claimingTaskId === task.id}
-                disabled={task.availableItemCount <= 0}
-                onClick={() => void handleClaim(task)}
-              >
-                {getClaimButtonText(task)}
-              </Button>
+              <Typography.Text type="secondary">按更新时间排序</Typography.Text>
             </Flex>
+          </Card>
 
-            <Space size={6} wrap className="labelhub-market-tags">
-              {task.tags.length > 0 ? task.tags.map((item) => <Tag key={item}>{item}</Tag>) : <Tag>未设置标签</Tag>}
+          {error && (
+            <Card className="labelhub-error-card">
+              <Typography.Text type="danger">{error}</Typography.Text>
+            </Card>
+          )}
+
+          <Card className="labelhub-market-table-card" loading={loading}>
+            <div className="labelhub-market-table-head">
+              <span>任务</span>
+              <span>状态</span>
+              <span>数据摘要</span>
+              <span>截止时间</span>
+              <span>质量信号</span>
+              <span>操作</span>
+            </div>
+
+            {tasks.map((task) => {
+              const status = getMarketplaceStatus(task);
+              const quality = getQualitySignal(task);
+              return (
+                <article key={task.id} className="labelhub-market-row">
+                  <div className="labelhub-market-row-main">
+                    <Typography.Title level={5} className="labelhub-market-title">
+                      {task.title}
+                    </Typography.Title>
+                    <Typography.Paragraph type="secondary" className="labelhub-market-description">
+                      {task.description || "暂无任务描述"}
+                    </Typography.Paragraph>
+                    <Space size={6} wrap className="labelhub-market-tags">
+                      {task.tags.length > 0 ? task.tags.map((item) => <Tag key={item}>{item}</Tag>) : <Tag>未设置标签</Tag>}
+                    </Space>
+                  </div>
+                  <Tag color={status.color}>{status.label}</Tag>
+                  <div className="labelhub-market-metric">
+                    <Typography.Text strong>可领 {formatMetric(task.availableItemCount)}</Typography.Text>
+                    <Typography.Text type="secondary">
+                      我已领 {formatMetric(task.claimedByMeCount)} / 提交 {formatMetric(task.submittedByMeCount)}
+                    </Typography.Text>
+                    <Progress percent={getClaimProgress(task)} size="small" showInfo={false} />
+                  </div>
+                  <Typography.Text strong>{formatTaskTime(task.deadlineAt)}</Typography.Text>
+                  <div className="labelhub-market-quality">
+                    <Tag color={quality.color}>{quality.label}</Tag>
+                    <Typography.Text type="secondary">{quality.desc}</Typography.Text>
+                  </div>
+                  <Space size={8} wrap className="labelhub-market-row-actions">
+                    {renderPrimaryAction(task)}
+                    {task.activeAssignmentId && task.availableItemCount > 0 && (
+                      <Button loading={claimingTaskId === task.id} onClick={() => void handleClaim(task)}>
+                        领取下一题
+                      </Button>
+                    )}
+                  </Space>
+                </article>
+              );
+            })}
+
+            {!loading && tasks.length === 0 && (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="暂无可领取任务，稍后刷新或调整筛选条件。"
+                style={{ padding: "48px 0" }}
+              />
+            )}
+          </Card>
+
+          <Flex justify="flex-end">
+            <Pagination
+              current={pagination.page}
+              pageSize={pagination.pageSize}
+              total={pagination.totalItems}
+              showSizeChanger
+              pageSizeOptions={[6, 12, 24]}
+              showTotal={(total) => `共 ${total} 个可领取任务`}
+              onChange={(page, pageSize) =>
+                setQueryState((current) => ({ page, pageSize, requestId: current.requestId + 1 }))
+              }
+            />
+          </Flex>
+        </section>
+
+        <aside className="labelhub-market-side">
+          <Card title="当前工作队列">
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              {activeTasks.length > 0 ? (
+                activeTasks.slice(0, 3).map((task) => {
+                  const activeAssignmentId = task.activeAssignmentId;
+                  return (
+                    <div key={task.id} className="labelhub-market-queue-item">
+                      <div>
+                        <Typography.Text strong>{task.title}</Typography.Text>
+                        <br />
+                        <Typography.Text type="secondary">
+                          已领 {formatMetric(task.claimedByMeCount)} · 待继续作答
+                        </Typography.Text>
+                      </div>
+                      {activeAssignmentId && (
+                        <Button size="small" type="link" onClick={() => navigate(buildLabelerAssignmentPath(activeAssignmentId))}>
+                          继续
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前没有进行中的题目" />
+              )}
             </Space>
+          </Card>
 
-            <div className="labelhub-market-meta-grid">
+          <Card title="本页概览">
+            <div className="labelhub-market-mini-stats">
               <div>
-                <ClockCircleOutlined />
-                <span>截止 {formatTaskTime(task.deadlineAt)}</span>
-              </div>
-              <div>
-                <GiftOutlined />
-                <span>{formatRewardRule(task.rewardRule)}</span>
+                <FileDoneOutlined />
+                <strong>{formatMetric(summary.submittedByMeCount)}</strong>
+                <span>我的提交</span>
               </div>
               <div>
                 <CheckCircleOutlined />
-                <span>
-                  提交 {formatMetric(task.submittedCount)} / 通过 {formatMetric(task.approvedCount)}
-                </span>
+                <strong>{formatMetric(tasks.reduce((sum, task) => sum + task.approvedCount, 0))}</strong>
+                <span>累计通过</span>
+              </div>
+              <div>
+                <GiftOutlined />
+                <strong>{formatMetric(summary.availableItemCount)}</strong>
+                <span>可领题目</span>
               </div>
             </div>
-
-            <div className="labelhub-market-progress">
-              <Flex justify="space-between">
-                <Typography.Text type="secondary">领取进度</Typography.Text>
-                <Typography.Text type="secondary">
-                  {formatMetric(task.claimedCount)} / {formatMetric(task.quota)}
-                </Typography.Text>
-              </Flex>
-              <Progress percent={getClaimProgress(task)} size="small" showInfo={false} />
-            </div>
           </Card>
-        ))}
+
+          <Card title="任务选择建议">
+            <Space direction="vertical" size={10}>
+              <Typography.Text>
+                优先继续已有进行中的题目，避免同一任务上下文在多次切换后丢失判断标准。
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                首次领取建议先选择可领题量充足、通过率较高且截止时间更近的任务。
+              </Typography.Text>
+              <Space size={8}>
+                <ClockCircleOutlined />
+                <Typography.Text type="secondary">截止时间以北京时间展示</Typography.Text>
+              </Space>
+            </Space>
+          </Card>
+        </aside>
       </div>
-
-      {!loading && tasks.length === 0 && (
-        <Card>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="暂无可领取任务，稍后刷新或调整筛选条件。"
-          />
-        </Card>
-      )}
-
-      <Flex justify="flex-end">
-        <Pagination
-          current={pagination.page}
-          pageSize={pagination.pageSize}
-          total={pagination.totalItems}
-          showSizeChanger
-          pageSizeOptions={[6, 12, 24]}
-          showTotal={(total) => `共 ${total} 个可领取任务`}
-          onChange={(page, pageSize) =>
-            setQueryState((current) => ({ page, pageSize, requestId: current.requestId + 1 }))
-          }
-        />
-      </Flex>
     </Space>
   );
 }

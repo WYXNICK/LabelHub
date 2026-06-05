@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 3 · 任务广场原型</title>
+    <link rel="stylesheet" href="../assets/phase3.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="logo">L</span>
+          <div class="brand-title">
+            <strong>LabelHub</strong>
+            <span>标注员工作空间</span>
+          </div>
+        </div>
+        <div class="nav-section">数据生产</div>
+        <div class="nav-item active"><span class="nav-dot"></span>任务广场</div>
+        <div class="nav-item"><span class="nav-dot"></span>标注工作台</div>
+        <div class="nav-item"><span class="nav-dot"></span>我的贡献</div>
+        <div class="nav-section">质量反馈</div>
+        <div class="nav-item"><span class="nav-dot"></span>待修改</div>
+        <div class="nav-item"><span class="nav-dot"></span>审核记录</div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="breadcrumb"><strong>标注员后台</strong> / 任务广场</div>
+          <div class="userbar">
+            <span class="save-pill"><span class="dot green"></span>在线 2 小时 16 分</span>
+            <span class="avatar">李</span>
+            <span>李雷 · Labeler</span>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">任务广场</h1>
+              <p class="page-subtitle">
+                只展示可领取任务。任务领取会锁定题目，并固定当前模板版本与审核配置，保证后续草稿、提交和审核可复现。
+              </p>
+            </div>
+            <div class="actions">
+              <button class="btn">刷新</button>
+              <button class="btn ghost">查看我的待修改</button>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="stat-card">
+              <div class="stat-label">可领取任务</div>
+              <div class="stat-value">12</div>
+              <div class="stat-desc">3 个任务即将截止</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">可领取题目</div>
+              <div class="stat-value">486</div>
+              <div class="stat-desc">按配额与可用题目合并计算</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">我的进行中</div>
+              <div class="stat-value">8</div>
+              <div class="stat-desc">含草稿、打回和待提交</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">本周通过率</div>
+              <div class="stat-value">91.7%</div>
+              <div class="stat-desc">较上周提升 4.2%</div>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <section>
+              <div class="filterbar">
+                <div class="filter-left">
+                  <input class="input" name="taskKeyword" value="商品标题清洗" aria-label="搜索任务" />
+                  <select class="select" name="taskStatus" aria-label="任务状态">
+                    <option>全部可领取</option>
+                    <option>我已领取</option>
+                    <option>即将截止</option>
+                  </select>
+                  <select class="select" name="taskType" aria-label="任务类型">
+                    <option>全部类型</option>
+                    <option>文本清洗</option>
+                    <option>问答质检</option>
+                    <option>偏好比较</option>
+                  </select>
+                  <button class="btn primary">查询</button>
+                </div>
+                <span class="muted">按更新时间排序</span>
+              </div>
+
+              <div class="table-card">
+                <div class="table-head task-row">
+                  <span>任务</span>
+                  <span>状态</span>
+                  <span>数据摘要</span>
+                  <span>截止时间</span>
+                  <span>质量信号</span>
+                  <span>操作</span>
+                </div>
+
+                <article class="task-row">
+                  <div>
+                    <h2 class="task-title">商品标题清洗 v3 · 抖音电商</h2>
+                    <div class="task-meta">T-2041 · 模板 r12 · 审核配置 rc8 · 0.30 元 / 条</div>
+                    <div class="task-tags">
+                      <span class="tag blue">文本清洗</span>
+                      <span class="tag">中文</span>
+                      <span class="tag green">已有草稿</span>
+                    </div>
+                  </div>
+                  <span class="tag blue">发布中</span>
+                  <div class="metric-stack">
+                    <strong>可领 60</strong>
+                    <span class="muted">我已领 7 / 提交 6</span>
+                    <div class="progress"><span style="width: 76%"></span></div>
+                  </div>
+                  <strong>今日 23:59</strong>
+                  <div>
+                    <span class="tag green">通过率 94%</span>
+                    <div class="muted" style="margin-top: 6px">打回集中在格式空格</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn primary">继续作答</button>
+                    <button class="btn">领取下一题</button>
+                  </div>
+                </article>
+
+                <article class="task-row">
+                  <div>
+                    <h2 class="task-title">QA 回答质量评估 · 通用问答</h2>
+                    <div class="task-meta">T-2039 · 模板 r8 · 审核配置 rc5 · 0.20 元 / 条</div>
+                    <div class="task-tags">
+                      <span class="tag">知识问答</span>
+                      <span class="tag">准确性</span>
+                    </div>
+                  </div>
+                  <span class="tag blue">发布中</span>
+                  <div class="metric-stack">
+                    <strong>可领 128</strong>
+                    <span class="muted">我已领 0 / 提交 0</span>
+                    <div class="progress"><span style="width: 34%"></span></div>
+                  </div>
+                  <strong>明日 18:00</strong>
+                  <div>
+                    <span class="tag orange">需注意引用</span>
+                    <div class="muted" style="margin-top: 6px">题干较长，建议桌面完成</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn primary">领取题目</button>
+                  </div>
+                </article>
+
+                <article class="task-row">
+                  <div>
+                    <h2 class="task-title">偏好对比 · 创意写作双模型</h2>
+                    <div class="task-meta">T-2031 · 模板 r4 · 审核配置 rc3 · 0.25 元 / 条</div>
+                    <div class="task-tags">
+                      <span class="tag purple">偏好比较</span>
+                      <span class="tag">创意写作</span>
+                    </div>
+                  </div>
+                  <span class="tag blue">发布中</span>
+                  <div class="metric-stack">
+                    <strong>可领 298</strong>
+                    <span class="muted">我已领 1 / 提交 1</span>
+                    <div class="progress"><span style="width: 52%"></span></div>
+                  </div>
+                  <strong>06-08 23:59</strong>
+                  <div>
+                    <span class="tag green">低返修</span>
+                    <div class="muted" style="margin-top: 6px">适合连续领取</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn">领取下一题</button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <aside class="side-stack">
+              <div class="side-card">
+                <h3>当前工作队列</h3>
+                <div class="timeline">
+                  <div class="timeline-item">
+                    <div>
+                      <strong>商品标题清洗 v3</strong>
+                      <div class="muted">第 8 / 50 题，草稿已保存</div>
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div>
+                      <strong>偏好对比 · 创意写作</strong>
+                      <div class="muted">1 题待提交</div>
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div>
+                      <strong>QA 回答质量评估</strong>
+                      <div class="muted">推荐领取，截止充足</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="side-card">
+                <h3>我的本周表现</h3>
+                <div class="mini-stats">
+                  <div class="mini-stat"><strong>62</strong><span class="muted">提交</span></div>
+                  <div class="mini-stat"><strong>54</strong><span class="muted">通过</span></div>
+                  <div class="mini-stat"><strong>5</strong><span class="muted">打回</span></div>
+                </div>
+                <div class="alert blue" style="margin-top: 12px">
+                  建议先处理 2 条打回，再继续领取高优先级任务。
+                </div>
+              </div>
+
+              <div class="side-card">
+                <h3>任务选择建议</h3>
+                <div class="side-row"><span>最快完成</span><strong>QA 回答质量评估</strong></div>
+                <div class="side-row"><span>收益最高</span><strong>商品标题清洗 v3</strong></div>
+                <div class="side-row"><span>返修风险低</span><strong>偏好对比</strong></div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

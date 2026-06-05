@@ -37,6 +37,8 @@ from labelhub_api.models.template import TemplateVersionEntity
 STAGE3_PATHS = {
     "/api/marketplace/tasks": {"get"},
     "/api/tasks/{taskId}/assignments": {"post"},
+    "/api/assignments": {"get"},
+    "/api/assignments/{assignmentId}": {"get"},
 }
 
 STAGE3_TABLES = {"assignments", "submissions", "llm_action_runs"}
@@ -98,8 +100,26 @@ def prepare_claimable_task(session_factory: sessionmaker[Session], task_id: str,
             version_no=1,
             schema_json={
                 "schemaVersion": "labelhub-template/v1",
-                "components": [],
-                "layout": {"root": []},
+                "components": [
+                    {
+                        "id": "show_prompt",
+                        "type": "SHOW_ITEM",
+                        "label": "Prompt",
+                        "props": {"path": "$.prompt"},
+                        "validation": {},
+                        "visibility": {},
+                    },
+                    {
+                        "id": "answer",
+                        "type": "TEXT_INPUT",
+                        "fieldKey": "answer",
+                        "label": "Answer",
+                        "props": {"placeholder": "Write answer"},
+                        "validation": {"required": True},
+                        "visibility": {},
+                    },
+                ],
+                "layout": {"root": ["show_prompt", "answer"]},
                 "llmActions": [],
                 "showItems": [],
             },
@@ -178,7 +198,14 @@ def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
         assert methods.issubset(paths[path].keys())
 
     schemas = response.json()["components"]["schemas"]
-    for schema_name in ["MarketplaceTaskVO", "CreateAssignmentRequest", "AssignmentVO"]:
+    for schema_name in [
+        "MarketplaceTaskVO",
+        "CreateAssignmentRequest",
+        "AssignmentVO",
+        "AssignmentContextVO",
+        "AssignmentNavigationVO",
+        "SubmissionVO",
+    ]:
         assert schema_name in schemas
 
     assert STAGE3_TABLES.issubset(Base.metadata.tables.keys())
@@ -256,6 +283,54 @@ def test_labeler_can_list_marketplace_and_claim_first_available_item(
     after_claim_task = after_claim_response.json()["data"][0]
     assert after_claim_task["availableItemCount"] == 1
     assert after_claim_task["claimedByMeCount"] == 1
+    assert after_claim_task["activeAssignmentId"] == assignment["id"]
+
+
+def test_labeler_can_open_assignment_context_and_navigate_claimed_items(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 context task", quota=3)
+    prepare_claimable_task(session_factory, task["id"], item_count=3)
+    login(client, "labeler@labelhub.dev")
+
+    first = client.post(
+        f"/api/tasks/{task['id']}/assignments",
+        json={"idempotencyKey": "claim-stage3-context-1"},
+    ).json()
+    second = client.post(
+        f"/api/tasks/{task['id']}/assignments",
+        json={"idempotencyKey": "claim-stage3-context-2"},
+    ).json()
+
+    list_response = client.get("/api/assignments?page=1&pageSize=10&status=CLAIMED")
+    assert list_response.status_code == 200
+    assert [item["id"] for item in list_response.json()["data"]][:2] == [second["id"], first["id"]]
+
+    context_response = client.get(f"/api/assignments/{first['id']}")
+
+    assert context_response.status_code == 200
+    context = context_response.json()
+    assert context["assignment"]["id"] == first["id"]
+    assert context["task"]["id"] == task["id"]
+    assert context["datasetItemPayload"] == {"prompt": "Question 0"}
+    assert context["templateSchema"]["components"][1]["fieldKey"] == "answer"
+    assert context["latestSubmission"] is None
+    assert context["reviewFeedback"] is None
+    assert context["navigation"] == {
+        "previousAssignmentId": None,
+        "nextAssignmentId": second["id"],
+        "currentIndex": 1,
+        "totalCount": 2,
+        "canClaimNext": True,
+        "nextClaimableTaskId": task["id"],
+    }
+
+    second_context_response = client.get(f"/api/assignments/{second['id']}")
+    assert second_context_response.status_code == 200
+    second_navigation = second_context_response.json()["navigation"]
+    assert second_navigation["previousAssignmentId"] == first["id"]
+    assert second_navigation["nextAssignmentId"] is None
 
 
 def test_marketplace_hides_tasks_without_ready_publish_dependencies(
@@ -280,6 +355,10 @@ def test_non_labeler_cannot_use_marketplace_or_claim(
 
     list_response = client.get("/api/marketplace/tasks")
     claim_response = client.post(f"/api/tasks/{task['id']}/assignments", json={})
+    assignments_response = client.get("/api/assignments")
+    context_response = client.get("/api/assignments/assignment_missing")
 
     assert list_response.status_code == 403
     assert claim_response.status_code == 403
+    assert assignments_response.status_code == 403
+    assert context_response.status_code == 403

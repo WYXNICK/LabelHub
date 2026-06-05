@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 3 · 我的贡献原型</title>
+    <link rel="stylesheet" href="../assets/phase3.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="logo">L</span>
+          <div class="brand-title">
+            <strong>LabelHub</strong>
+            <span>标注员工作空间</span>
+          </div>
+        </div>
+        <div class="nav-section">数据生产</div>
+        <div class="nav-item"><span class="nav-dot"></span>任务广场</div>
+        <div class="nav-item"><span class="nav-dot"></span>标注工作台</div>
+        <div class="nav-item active"><span class="nav-dot"></span>我的贡献</div>
+        <div class="nav-section">质量反馈</div>
+        <div class="nav-item"><span class="nav-dot"></span>待修改</div>
+        <div class="nav-item"><span class="nav-dot"></span>审核记录</div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="breadcrumb"><strong>标注员后台</strong> / 我的贡献</div>
+          <div class="userbar">
+            <span class="avatar">李</span>
+            <span>李雷 · Labeler</span>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">我的贡献</h1>
+              <p class="page-subtitle">查看个人提交、通过、打回和待修改数据；打回项可直接进入返修详情。</p>
+            </div>
+            <button class="btn ghost">导出个人明细</button>
+          </div>
+
+          <div class="summary-grid">
+            <div class="stat-card">
+              <div class="stat-label">本周提交</div>
+              <div class="stat-value">62</div>
+              <div class="stat-desc">较上周 +18</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">通过</div>
+              <div class="stat-value">54</div>
+              <div class="stat-desc">可进入最终审核池</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">待修改</div>
+              <div class="stat-value" style="color: var(--warning)">5</div>
+              <div class="stat-desc">建议优先处理</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">通过率</div>
+              <div class="stat-value">87.1%</div>
+              <div class="stat-desc">目标线 85%</div>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <span class="tab active">全部</span>
+            <span class="tab">待提交</span>
+            <span class="tab">审核中</span>
+            <span class="tab">已通过</span>
+            <span class="tab">已打回</span>
+            <span class="tab">待修改</span>
+          </div>
+
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="contributionKeyword" value="商品标题清洗" aria-label="搜索任务或题目" />
+              <select class="select" name="contributionTask" aria-label="任务筛选">
+                <option>全部任务</option>
+                <option>商品标题清洗 v3</option>
+                <option>QA 回答质量评估</option>
+              </select>
+              <select class="select" name="contributionRange" aria-label="时间范围">
+                <option>最近 7 天</option>
+                <option>最近 30 天</option>
+                <option>全部</option>
+              </select>
+              <button class="btn primary">查询</button>
+            </div>
+            <span class="muted">共 128 条记录</span>
+          </div>
+
+          <div class="table-card">
+            <div class="table-head contribution-row">
+              <span>题目</span>
+              <span>状态</span>
+              <span>版本</span>
+              <span>最近更新</span>
+              <span>操作</span>
+            </div>
+
+            <article class="contribution-row">
+              <div>
+                <h2 class="task-title">#008 男女款居家服标题清洗</h2>
+                <div class="muted">商品标题清洗 v3 · Q-2041-008 · 清洗后标题待复审</div>
+                <div class="task-tags">
+                  <span class="tag orange">待修改</span>
+                  <span class="tag">关键词覆盖不足</span>
+                </div>
+              </div>
+              <span class="tag orange">已打回</span>
+              <strong>v2</strong>
+              <span>今天 18:02</span>
+              <div class="actions">
+                <button class="btn primary">修改并提交</button>
+                <button class="btn">查看意见</button>
+              </div>
+            </article>
+
+            <article class="contribution-row">
+              <div>
+                <h2 class="task-title">#021 月球距离问答质检</h2>
+                <div class="muted">QA 回答质量评估 · Q-2039-021 · 已进入人工复审</div>
+                <div class="task-tags">
+                  <span class="tag blue">审核中</span>
+                  <span class="tag">AI 建议通过</span>
+                </div>
+              </div>
+              <span class="tag blue">人工复审</span>
+              <strong>v1</strong>
+              <span>今天 15:40</span>
+              <div class="actions">
+                <button class="btn">查看详情</button>
+              </div>
+            </article>
+
+            <article class="contribution-row">
+              <div>
+                <h2 class="task-title">#017 儿童护眼台灯创意命名</h2>
+                <div class="muted">偏好对比 · Q-2031-017 · 终审通过</div>
+                <div class="task-tags">
+                  <span class="tag green">已通过</span>
+                  <span class="tag">可导出</span>
+                </div>
+              </div>
+              <span class="tag green">已通过</span>
+              <strong>v1</strong>
+              <span>昨天 21:16</span>
+              <div class="actions">
+                <button class="btn">查看提交</button>
+              </div>
+            </article>
+
+            <article class="contribution-row">
+              <div>
+                <h2 class="task-title">#044 折叠收纳箱商品标题</h2>
+                <div class="muted">商品标题清洗 v3 · Q-2041-044 · 草稿自动保存</div>
+                <div class="task-tags">
+                  <span class="tag blue">草稿</span>
+                  <span class="tag">未提交</span>
+                </div>
+              </div>
+              <span class="tag blue">待提交</span>
+              <strong>draft</strong>
+              <span>今天 12:10</span>
+              <div class="actions">
+                <button class="btn primary">继续作答</button>
+                <button class="btn danger">放弃领取</button>
+              </div>
+            </article>
+          </div>
+
+          <div class="alert blue" style="margin-top: 16px">
+            状态说明：提交后先进入 SUBMITTED；阶段 4 接入 AI 预审与人工审核后，会继续迁移到 AI_REVIEWING、HUMAN_REVIEWING、RETURNED 或 APPROVED。
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

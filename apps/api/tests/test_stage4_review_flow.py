@@ -6,11 +6,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from labelhub_api.core.enums import AuditAction, AuditEntityType, ReviewJobStatus, ReviewStatus, SubmissionStatus
+from labelhub_api.core.enums import AssignmentStatus, AuditAction, AuditEntityType, ReviewJobStatus, ReviewStatus, SubmissionStatus
 from labelhub_api.db.base import Base
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.review import ReviewEntity, ReviewJobEntity
-from labelhub_api.models.assignment import SubmissionEntity
+from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
 from labelhub_api.main import create_app
 
 from test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task  # noqa: F401
@@ -318,3 +318,112 @@ def test_system_agent_failure_retries_and_falls_back_to_human_review(
         assert job.attempt_count == 3
         assert review is not None
         assert review.status == ReviewStatus.PENDING_HUMAN_REVIEW.value
+
+
+def test_reviewer_filters_history_diff_and_state_link_for_review_detail(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 4.4 history diff task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    first_submission = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "old answer"},
+            "idempotencyKey": "submit-stage44-v1",
+            "clientDraftVersion": assignment["version"],
+        },
+    ).json()
+    first_job_id = client.post(
+        "/api/internal/review-jobs:claim",
+        json={"workerId": "agent-stage44"},
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+    ).json()["job"]["id"]
+    client.post(
+        f"/api/internal/review-jobs/{first_job_id}/results",
+        json={
+            "result": {
+                "conclusion": "RETURN",
+                "scores": {"accuracy": 2},
+                "summary": "第一轮答案过短，建议返修。",
+                "issues": [{"field": "answer", "code": "TOO_SHORT", "message": "答案缺少必要细节。"}],
+                "suggestions": "补充关键事实后再次提交。",
+                "rawOutput": {"conclusion": "RETURN"},
+                "promptSnapshot": '{"task":{"title":"Stage 4.4 history diff task"},"submissionValues":{"answer":"old answer"}}',
+            }
+        },
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+    )
+
+    with session_factory() as session:
+        stored_assignment = session.get(AssignmentEntity, assignment["id"])
+        stored_submission = session.get(SubmissionEntity, first_submission["id"])
+        assert stored_assignment is not None
+        assert stored_submission is not None
+        stored_assignment.status = AssignmentStatus.RETURNED.value
+        stored_submission.status = SubmissionStatus.RETURNED.value
+        session.commit()
+
+    second_submission = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "new answer with useful context"},
+            "idempotencyKey": "submit-stage44-v2",
+            "clientDraftVersion": assignment["version"] + 1,
+        },
+    ).json()
+    second_job_id = client.post(
+        "/api/internal/review-jobs:claim",
+        json={"workerId": "agent-stage44"},
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+    ).json()["job"]["id"]
+    client.post(
+        f"/api/internal/review-jobs/{second_job_id}/results",
+        json={
+            "result": {
+                "conclusion": "PASS",
+                "scores": {"accuracy": 5},
+                "summary": "第二轮已补充关键事实，建议通过。",
+                "issues": [],
+                "suggestions": None,
+                "rawOutput": {"conclusion": "PASS"},
+                "promptSnapshot": '{"task":{"title":"Stage 4.4 history diff task"},"submissionValues":{"answer":"new answer with useful context"}}',
+            }
+        },
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+    )
+
+    login(client, "reviewer@labelhub.dev")
+    pass_reviews = client.get("/api/reviews?page=1&pageSize=10&aiConclusion=PASS&keyword=history")
+    return_reviews = client.get("/api/reviews?page=1&pageSize=10&aiConclusion=RETURN&keyword=history")
+
+    assert pass_reviews.status_code == 200
+    assert return_reviews.status_code == 200
+    assert pass_reviews.json()["pagination"]["totalItems"] == 1
+    assert return_reviews.json()["pagination"]["totalItems"] == 1
+    listed_review = pass_reviews.json()["data"][0]
+    assert listed_review["submissionId"] == second_submission["id"]
+    assert listed_review["reviewRound"] == 2
+
+    detail_response = client.get(f"/api/reviews/{listed_review['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["stateLink"]["assignmentStatus"] == AssignmentStatus.SUBMITTED.value
+    assert detail["stateLink"]["submissionStatus"] == SubmissionStatus.HUMAN_REVIEWING.value
+    assert detail["stateLink"]["reviewJobStatus"] == ReviewJobStatus.SUCCEEDED.value
+    assert detail["stateLink"]["currentStep"] == "WAITING_HUMAN_REVIEW"
+    assert [item["submissionVersion"] for item in detail["reviewHistory"]] == [2, 1]
+    assert detail["reviewHistory"][0]["aiConclusion"] == "PASS"
+    assert detail["reviewHistory"][1]["aiConclusion"] == "RETURN"
+    assert detail["submissionDiff"] == [
+        {
+            "fieldKey": "answer",
+            "label": "Answer",
+            "previousValue": "old answer",
+            "currentValue": "new answer with useful context",
+            "changeType": "CHANGED",
+        }
+    ]

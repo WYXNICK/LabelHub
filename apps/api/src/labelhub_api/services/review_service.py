@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from math import ceil
+from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from labelhub_api.core.enums import (
@@ -36,8 +37,11 @@ from labelhub_api.schemas.reviews import (
     ClaimReviewJobResponse,
     CompleteReviewJobRequest,
     ReviewDetailVO,
+    ReviewHistoryItemVO,
     ReviewJobVO,
     ReviewPromptSnapshotSummaryVO,
+    ReviewStateLinkVO,
+    SubmissionDiffItemVO,
     ReviewTimelineItemVO,
     ReviewVO,
 )
@@ -131,6 +135,7 @@ class ReviewService:
         page_size: int,
         status: ReviewJobStatus | None = None,
         task_id: str | None = None,
+        keyword: str | None = None,
     ) -> PageVO[ReviewJobVO]:
         self._require_reviewer_or_system(user)
         query = select(ReviewJobEntity)
@@ -138,6 +143,10 @@ class ReviewService:
             query = query.where(ReviewJobEntity.status == status.value)
         if task_id:
             query = query.where(ReviewJobEntity.task_id == task_id)
+        if keyword and keyword.strip():
+            query = query.join(TaskEntity, ReviewJobEntity.task_id == TaskEntity.id).where(
+                self._task_keyword_clause(keyword.strip())
+            )
 
         total_items = self._db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
         jobs = list(
@@ -285,6 +294,7 @@ class ReviewService:
         page_size: int,
         status: ReviewStatus | None = None,
         task_id: str | None = None,
+        keyword: str | None = None,
         ai_conclusion: AiReviewConclusion | None = None,
     ) -> PageVO[ReviewVO]:
         self._require_reviewer_or_system(user)
@@ -293,6 +303,10 @@ class ReviewService:
             query = query.where(ReviewEntity.status == status.value)
         if task_id:
             query = query.where(ReviewEntity.task_id == task_id)
+        if keyword and keyword.strip():
+            query = query.join(TaskEntity, ReviewEntity.task_id == TaskEntity.id).where(
+                self._task_keyword_clause(keyword.strip())
+            )
         if ai_conclusion is not None:
             query = query.where(ReviewEntity.ai_conclusion == ai_conclusion.value)
 
@@ -324,6 +338,7 @@ class ReviewService:
         task = self._require_entity(self._db.get(TaskEntity, review.task_id), request_id)
         item = self._require_entity(self._db.get(DatasetItemEntity, assignment.dataset_item_id), request_id)
         template = self._require_entity(self._db.get(TemplateVersionEntity, assignment.template_version_id), request_id)
+        job = self._db.get(ReviewJobEntity, review.review_job_id)
         review_config = self._require_entity(
             self._db.get(ReviewConfigVersionEntity, assignment.review_config_version_id),
             request_id,
@@ -354,6 +369,12 @@ class ReviewService:
             template_schema=TemplateSchemaVO.model_validate(template.schema_json),
             review_config_version=self._to_review_config_version_vo(review_config),
             prompt_snapshot_summary=self._to_prompt_snapshot_summary_vo(review.prompt_snapshot),
+            state_link=self._build_state_link(review=review, assignment=assignment, submission=submission, job=job),
+            review_history=self._build_review_history(assignment_id=assignment.id),
+            submission_diff=self._build_submission_diff(
+                current_submission=submission,
+                template_schema=TemplateSchemaVO.model_validate(template.schema_json),
+            ),
             timeline=[self._to_timeline_item_vo(item) for item in timeline],
         )
 
@@ -392,6 +413,7 @@ class ReviewService:
         if submission is not None:
             submission.status = SubmissionStatus.HUMAN_REVIEWING.value
             submission.updated_at = now
+        review_round = submission.submission_version if submission is not None else 1
         review = ReviewEntity(
             id=self._new_id("review"),
             task_id=job.task_id,
@@ -410,7 +432,7 @@ class ReviewService:
             reviewer_id=None,
             human_comment=None,
             dimension_comments={},
-            review_round=1,
+            review_round=review_round,
             version=0,
             created_at=now,
             updated_at=now,
@@ -432,6 +454,7 @@ class ReviewService:
         if submission is not None:
             submission.status = SubmissionStatus.HUMAN_REVIEWING.value
             submission.updated_at = now
+        review_round = submission.submission_version if submission is not None else 1
         review = ReviewEntity(
             id=self._new_id("review"),
             task_id=job.task_id,
@@ -450,7 +473,7 @@ class ReviewService:
             reviewer_id=None,
             human_comment=None,
             dimension_comments={},
-            review_round=1,
+            review_round=review_round,
             version=0,
             created_at=now,
             updated_at=now,
@@ -609,6 +632,136 @@ class ReviewService:
             metadata=audit.metadata_json or {},
             created_at=audit.created_at,
         )
+
+    def _task_keyword_clause(self, keyword: str):
+        pattern = f"%{keyword}%"
+        return or_(TaskEntity.id.like(pattern), TaskEntity.title.like(pattern))
+
+    def _build_state_link(
+        self,
+        *,
+        review: ReviewEntity,
+        assignment: AssignmentEntity,
+        submission: SubmissionEntity,
+        job: ReviewJobEntity | None,
+    ) -> ReviewStateLinkVO:
+        if review.status == ReviewStatus.APPROVED.value:
+            current_step = "APPROVED"
+            next_action = "已通过，可进入后续导出"
+        elif review.status == ReviewStatus.RETURNED.value:
+            current_step = "RETURNED"
+            next_action = "等待标注员返修后再次提交"
+        elif job is not None and job.status in {ReviewJobStatus.QUEUED.value, ReviewJobStatus.RUNNING.value, ReviewJobStatus.FAILED.value}:
+            current_step = "AI_REVIEWING"
+            next_action = "等待 Agent 完成预审"
+        else:
+            current_step = "WAITING_HUMAN_REVIEW"
+            next_action = "等待 Reviewer 人工复核"
+
+        return ReviewStateLinkVO(
+            assignment_status=AssignmentStatus(assignment.status),
+            submission_status=SubmissionStatus(submission.status),
+            review_job_status=ReviewJobStatus(job.status) if job is not None else None,
+            review_status=ReviewStatus(review.status),
+            current_step=current_step,
+            next_action_label=next_action,
+        )
+
+    def _build_review_history(self, *, assignment_id: str) -> list[ReviewHistoryItemVO]:
+        submissions = list(
+            self._db.scalars(
+                select(SubmissionEntity)
+                .where(SubmissionEntity.assignment_id == assignment_id)
+                .order_by(SubmissionEntity.submission_version.desc())
+            )
+        )
+        reviews = list(
+            self._db.scalars(
+                select(ReviewEntity)
+                .where(ReviewEntity.assignment_id == assignment_id)
+                .order_by(ReviewEntity.review_round.desc(), ReviewEntity.created_at.desc())
+            )
+        )
+        review_by_submission: dict[str, ReviewEntity] = {}
+        for review in reviews:
+            review_by_submission.setdefault(review.submission_id, review)
+        history: list[ReviewHistoryItemVO] = []
+        for submission in submissions:
+            review = review_by_submission.get(submission.id)
+            review_config = None
+            if review is not None:
+                job = self._db.get(ReviewJobEntity, review.review_job_id)
+                if job is not None:
+                    review_config = self._db.get(ReviewConfigVersionEntity, job.review_config_version_id)
+            history.append(
+                ReviewHistoryItemVO(
+                    submission_id=submission.id,
+                    submission_version=submission.submission_version,
+                    submission_status=SubmissionStatus(submission.status),
+                    submitted_at=submission.submitted_at,
+                    review_id=review.id if review is not None else None,
+                    review_status=ReviewStatus(review.status) if review is not None else None,
+                    ai_conclusion=AiReviewConclusion(review.ai_conclusion) if review is not None and review.ai_conclusion else None,
+                    ai_score_total=self._calculate_score_total(review.ai_scores, review_config) if review is not None else None,
+                    ai_issue_count=len(review.ai_issues) if review is not None else 0,
+                    ai_comment=review.ai_comment if review is not None else None,
+                    human_conclusion=review.human_conclusion if review is not None else None,
+                    human_comment=review.human_comment if review is not None else None,
+                    review_round=review.review_round if review is not None else None,
+                )
+            )
+        return history
+
+    def _build_submission_diff(
+        self,
+        *,
+        current_submission: SubmissionEntity,
+        template_schema: TemplateSchemaVO,
+    ) -> list[SubmissionDiffItemVO]:
+        previous_submission = self._db.scalar(
+            select(SubmissionEntity)
+            .where(
+                SubmissionEntity.assignment_id == current_submission.assignment_id,
+                SubmissionEntity.submission_version < current_submission.submission_version,
+            )
+            .order_by(SubmissionEntity.submission_version.desc())
+            .limit(1)
+        )
+        if previous_submission is None:
+            return []
+
+        labels = self._field_label_map(template_schema)
+        previous_values = previous_submission.values or {}
+        current_values = current_submission.values or {}
+        diff_items: list[SubmissionDiffItemVO] = []
+        for field_key in sorted(set(previous_values.keys()) | set(current_values.keys())):
+            previous_value = previous_values.get(field_key)
+            current_value = current_values.get(field_key)
+            if previous_value == current_value:
+                continue
+            if field_key not in previous_values:
+                change_type = "ADDED"
+            elif field_key not in current_values:
+                change_type = "REMOVED"
+            else:
+                change_type = "CHANGED"
+            diff_items.append(
+                SubmissionDiffItemVO(
+                    field_key=field_key,
+                    label=labels.get(field_key, field_key),
+                    previous_value=previous_value,
+                    current_value=current_value,
+                    change_type=change_type,
+                )
+            )
+        return diff_items
+
+    def _field_label_map(self, template_schema: TemplateSchemaVO) -> dict[str, str]:
+        return {
+            str(component.field_key): component.label
+            for component in template_schema.components
+            if component.field_key
+        }
 
     def _append_review_suggestion_audit(
         self,

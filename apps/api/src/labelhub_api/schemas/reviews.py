@@ -7,9 +7,11 @@ from pydantic import Field
 
 from labelhub_api.core.enums import (
     AiReviewConclusion,
+    AssignmentStatus,
     HumanReviewDecision,
     ReviewJobStatus,
     ReviewStatus,
+    SubmissionStatus,
 )
 from labelhub_api.schemas.assignments import AssignmentVO, SubmissionVO
 from labelhub_api.schemas.common import CamelModel
@@ -123,6 +125,39 @@ class ReviewPromptSnapshotSummaryVO(CamelModel):
     prompt_excerpt: str | None = None
 
 
+class ReviewStateLinkVO(CamelModel):
+    assignment_status: AssignmentStatus
+    submission_status: SubmissionStatus
+    review_job_status: ReviewJobStatus | None = None
+    review_status: ReviewStatus
+    current_step: str
+    next_action_label: str
+
+
+class ReviewHistoryItemVO(CamelModel):
+    submission_id: str
+    submission_version: int
+    submission_status: SubmissionStatus
+    submitted_at: datetime
+    review_id: str | None = None
+    review_status: ReviewStatus | None = None
+    ai_conclusion: AiReviewConclusion | None = None
+    ai_score_total: float | None = None
+    ai_issue_count: int = 0
+    ai_comment: str | None = None
+    human_conclusion: HumanReviewDecision | None = None
+    human_comment: str | None = None
+    review_round: int | None = None
+
+
+class SubmissionDiffItemVO(CamelModel):
+    field_key: str
+    label: str
+    previous_value: Any | None = None
+    current_value: Any | None = None
+    change_type: str
+
+
 class ReviewDetailVO(CamelModel):
     review: ReviewVO
     task: TaskVO
@@ -132,6 +167,9 @@ class ReviewDetailVO(CamelModel):
     template_schema: TemplateSchemaVO
     review_config_version: ReviewConfigVersionVO
     prompt_snapshot_summary: ReviewPromptSnapshotSummaryVO | None = None
+    state_link: ReviewStateLinkVO
+    review_history: list[ReviewHistoryItemVO] = Field(default_factory=list)
+    submission_diff: list[SubmissionDiffItemVO] = Field(default_factory=list)
     timeline: list[ReviewTimelineItemVO]
 
 

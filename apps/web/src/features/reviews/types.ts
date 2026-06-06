@@ -85,6 +85,39 @@ export interface ReviewPromptSnapshotSummaryVO {
   promptExcerpt: string | null;
 }
 
+export interface ReviewStateLinkVO {
+  assignmentStatus: string;
+  submissionStatus: string;
+  reviewJobStatus: ReviewJobStatus | null;
+  reviewStatus: ReviewStatus;
+  currentStep: string;
+  nextActionLabel: string;
+}
+
+export interface ReviewHistoryItemVO {
+  submissionId: string;
+  submissionVersion: number;
+  submissionStatus: string;
+  submittedAt: string;
+  reviewId: string | null;
+  reviewStatus: ReviewStatus | null;
+  aiConclusion: AiReviewConclusion | null;
+  aiScoreTotal: number | null;
+  aiIssueCount: number;
+  aiComment: string | null;
+  humanConclusion: HumanReviewDecision | null;
+  humanComment: string | null;
+  reviewRound: number | null;
+}
+
+export interface SubmissionDiffItemVO {
+  fieldKey: string;
+  label: string;
+  previousValue: unknown;
+  currentValue: unknown;
+  changeType: "ADDED" | "REMOVED" | "CHANGED" | string;
+}
+
 export interface ReviewDetailVO {
   review: ReviewVO;
   task: TaskVO;
@@ -94,6 +127,9 @@ export interface ReviewDetailVO {
   templateSchema: TemplateSchemaVO;
   reviewConfigVersion: ReviewConfigVersionVO;
   promptSnapshotSummary: ReviewPromptSnapshotSummaryVO | null;
+  stateLink: ReviewStateLinkVO;
+  reviewHistory: ReviewHistoryItemVO[];
+  submissionDiff: SubmissionDiffItemVO[];
   timeline: ReviewTimelineItemVO[];
 }
 
@@ -102,6 +138,7 @@ export interface ListReviewJobsRequest {
   pageSize?: number;
   status?: ReviewJobStatus;
   taskId?: string;
+  keyword?: string;
 }
 
 export interface ListReviewsRequest {
@@ -109,5 +146,6 @@ export interface ListReviewsRequest {
   pageSize?: number;
   status?: ReviewStatus;
   taskId?: string;
+  keyword?: string;
   aiConclusion?: AiReviewConclusion;
 }

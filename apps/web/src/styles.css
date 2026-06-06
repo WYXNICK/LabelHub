@@ -2018,6 +2018,10 @@ body {
   gap: 12px;
 }
 
+.labelhub-reviewer-pagination {
+  padding-top: 4px;
+}
+
 .labelhub-reviewer-job-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 0.52fr);
@@ -2173,6 +2177,45 @@ body {
   flex-wrap: wrap;
   gap: 6px 0;
   margin-top: 6px;
+}
+
+.labelhub-review-diff-item {
+  padding: 12px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-review-diff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.labelhub-review-diff-grid > div {
+  min-width: 0;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #f0f1f4;
+  border-radius: 8px;
+}
+
+.labelhub-review-diff-grid pre {
+  margin: 6px 0 0;
+  overflow: auto;
+  color: #1f2329;
+  font: inherit;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.labelhub-review-history-item {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
 }
 
 @media (max-width: 1500px) {
@@ -2480,6 +2523,10 @@ body {
   }
 
   .labelhub-review-score-row {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-review-diff-grid {
     grid-template-columns: 1fr;
   }
 

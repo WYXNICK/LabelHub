@@ -191,8 +191,8 @@ export interface LogoutResponseVO {
 | 3/4 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 已实现；阶段 4.1 提交后进入 AI 预审队列 |
 | 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 已实现 |
 | 4 | AI 预审队列 | `ReviewJobVO` | `GET /api/review-jobs` | 阶段 4.0/4.1 已实现 |
-| 4 | Reviewer 待审列表 | `ReviewVO` | `GET /api/reviews` | 阶段 4.0 已实现基础契约 |
-| 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.0 已实现基础契约 |
+| 4 | Reviewer 待审列表 | `ReviewVO` | `GET /api/reviews` | 阶段 4.4 已深化为待审记录主视角，支持关键字、审核状态和 AI 结论筛选 |
+| 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.4 已补充状态链路、多轮历史和提交 diff |
 | 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 待实现 |
 | 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.0 待对齐 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
@@ -991,8 +991,8 @@ export interface ContributionItemVO {
 
 | 页面 | 路由 | 产品结构 |
 | --- | --- | --- |
-| 审核工作台 | `/reviewer/reviews` | 阶段 4.2 展示 AI 预审 job 统计、任务/状态筛选、Agent 锁定信息、重试次数、失败原因和阶段边界；批量人工操作在阶段 4.5 启用 |
-| 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与 diff，右侧人工决策、历史意见和审计时间线 |
+| 审核工作台 | `/reviewer/reviews` | 阶段 4.4 展示待人工复核统计、任务关键字/状态/AI 结论筛选、待审记录列表和 AI 预审运行队列；批量人工操作在阶段 4.5 启用 |
+| 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与提交 diff，右侧状态链路、历史意见、人工决策占位和审计时间线 |
 | 审核结果列表 | `/reviewer/review-results` | 已处理审核记录、按任务/结论/处理人筛选、可回看详情 |
 | Owner 数据验收 | `/owner/tasks/:taskId/acceptance` | 任务级提交、通过、打回、待审统计，AI 结论分布和抽样审核记录 |
 
@@ -1059,6 +1059,39 @@ export interface ReviewPromptSnapshotSummaryVO {
   promptExcerpt: string | null;
 }
 
+export interface ReviewStateLinkVO {
+  assignmentStatus: string;
+  submissionStatus: string;
+  reviewJobStatus: ReviewJobStatus | null;
+  reviewStatus: ReviewStatus;
+  currentStep: string;
+  nextActionLabel: string;
+}
+
+export interface ReviewHistoryItemVO {
+  submissionId: string;
+  submissionVersion: number;
+  submissionStatus: string;
+  submittedAt: string;
+  reviewId: string | null;
+  reviewStatus: ReviewStatus | null;
+  aiConclusion: AiReviewConclusion | null;
+  aiScoreTotal: number | null;
+  aiIssueCount: number;
+  aiComment: string | null;
+  humanConclusion: HumanReviewDecision | null;
+  humanComment: string | null;
+  reviewRound: number | null;
+}
+
+export interface SubmissionDiffItemVO {
+  fieldKey: string;
+  label: string;
+  previousValue: unknown;
+  currentValue: unknown;
+  changeType: "ADDED" | "REMOVED" | "CHANGED" | string;
+}
+
 export interface ReviewDetailVO {
   review: ReviewVO;
   task: TaskVO;
@@ -1068,6 +1101,9 @@ export interface ReviewDetailVO {
   templateSchema: TemplateSchemaVO;
   reviewConfigVersion: ReviewConfigVersionVO;
   promptSnapshotSummary: ReviewPromptSnapshotSummaryVO | null;
+  stateLink: ReviewStateLinkVO;
+  reviewHistory: ReviewHistoryItemVO[];
+  submissionDiff: SubmissionDiffItemVO[];
   timeline: ReviewTimelineItemVO[];
 }
 
@@ -1082,7 +1118,8 @@ export interface CreateReviewDecisionRequest {
 交互规则：
 
 - Reviewer 登录后的默认首页为 `/reviewer/reviews`，用于承接阶段 4 审核主链路。
-- 阶段 4.2 工作台展示 AI 预审队列、Agent 锁定信息、重试次数和失败原因；阶段 4.3 已提供 AI 建议详情页和 Prompt 摘要，人工通过/打回和批量审核分别在 4.5 继续启用。
+- 阶段 4.4 工作台主视角应优先展示 Reviewer 需要处理的 review 记录，支持任务关键字、审核状态、AI 结论筛选；AI job 队列作为运行状态侧栏保留，避免 Reviewer 被 Agent 内部流水号打断。
+- 阶段 4.4 详情页必须展示状态链路、多轮历史意见和当前提交相对上一版的 diff；人工通过/打回和批量审核分别在 4.5 继续启用。
 - Reviewer 队列列表与最近待审记录应优先展示任务标题、提交版本和审核配置版本；`reviewJobId`、`submissionId`、`idempotencyKey` 等内部追踪字段不得作为主标题，必要时只作为可复制的短流水号或详情追踪信息。
 - `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
 - 批量打回也必须提供统一理由，并在每条 review 上写独立审计。

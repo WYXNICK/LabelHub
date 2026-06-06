@@ -3,6 +3,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   FileTextOutlined,
+  HistoryOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import { Alert, Button, Card, Descriptions, Empty, Flex, Progress, Skeleton, Space, Tag, Timeline, Typography } from "antd";
@@ -15,8 +16,14 @@ import {
   aiConclusionMeta,
   formatAiScoreTotal,
   formatReviewConfigVersion,
+  formatReviewValue,
   formatSubmissionVersion,
+  reviewJobStatusMeta,
+  reviewerAssignmentStatusMeta,
+  reviewerSubmissionStatusMeta,
+  reviewStateStepMeta,
   reviewStatusMeta,
+  submissionDiffChangeMeta,
 } from "../features/reviews/view";
 import { TemplateRenderer } from "../features/templates/TemplateRenderer";
 import type { TemplateLayoutNodeDTO, TemplateSchemaVO, TemplateSubmissionValue } from "../features/templates/types";
@@ -72,7 +79,18 @@ export function ReviewerReviewDetailPage({ reviewId }: ReviewerReviewDetailPageP
 }
 
 function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
-  const { review, task, submission, datasetItemPayload, templateSchema, reviewConfigVersion, promptSnapshotSummary } = detail;
+  const {
+    review,
+    task,
+    submission,
+    datasetItemPayload,
+    templateSchema,
+    reviewConfigVersion,
+    promptSnapshotSummary,
+    stateLink,
+    reviewHistory,
+    submissionDiff,
+  } = detail;
   const readonlyValue = useMemo(() => submission.values as TemplateSubmissionValue, [submission.values]);
   const reviewSchema = useMemo(() => removeLlmActionComponents(templateSchema), [templateSchema]);
   const conclusion = review.aiConclusion ? aiConclusionMeta[review.aiConclusion] : null;
@@ -95,7 +113,7 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
                 {task.title}
               </Typography.Title>
               <Typography.Text type="secondary">
-                AI 建议已生成，当前仍等待 Reviewer 人工复核；阶段 4.5 会开放通过与打回决策。
+                {stateLink.nextActionLabel}；阶段 4.5 会开放通过与打回决策。
               </Typography.Text>
             </div>
           </Space>
@@ -176,6 +194,35 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
             </Space>
           </Card>
 
+          <Card title="本轮提交差异" extra={<Tag>{submissionDiff.length > 0 ? `${submissionDiff.length} 项变化` : "首轮或无变化"}</Tag>}>
+            {submissionDiff.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前提交暂无可对比变化。" />
+            ) : (
+              <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                {submissionDiff.map((item) => (
+                  <div key={item.fieldKey} className="labelhub-review-diff-item">
+                    <Flex align="center" justify="space-between" gap={8} wrap="wrap">
+                      <Typography.Text strong>{item.label}</Typography.Text>
+                      <Tag color={submissionDiffChangeMeta[item.changeType]?.color ?? "blue"}>
+                        {submissionDiffChangeMeta[item.changeType]?.label ?? item.changeType}
+                      </Tag>
+                    </Flex>
+                    <div className="labelhub-review-diff-grid">
+                      <div>
+                        <Typography.Text type="secondary">上一版</Typography.Text>
+                        <pre>{formatReviewValue(item.previousValue)}</pre>
+                      </div>
+                      <div>
+                        <Typography.Text type="secondary">当前版</Typography.Text>
+                        <pre>{formatReviewValue(item.currentValue)}</pre>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </Space>
+            )}
+          </Card>
+
           <Card title="AI 问题列表">
             {review.aiIssues.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="AI 未返回明确问题" />
@@ -198,7 +245,25 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
         <Space direction="vertical" size={16} className="labelhub-review-detail-side">
           <Card title="当前状态">
             <Descriptions column={1} size="small">
-              <Descriptions.Item label="审核状态">{reviewStatusMeta[review.status].label}</Descriptions.Item>
+              <Descriptions.Item label="当前节点">
+                <Tag color={reviewStateStepMeta[stateLink.currentStep]?.color ?? "blue"}>
+                  {reviewStateStepMeta[stateLink.currentStep]?.label ?? stateLink.currentStep}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="审核状态">{reviewStatusMeta[stateLink.reviewStatus].label}</Descriptions.Item>
+              <Descriptions.Item label="AI 队列">
+                {stateLink.reviewJobStatus ? reviewJobStatusMeta[stateLink.reviewJobStatus].label : "未关联"}
+              </Descriptions.Item>
+              <Descriptions.Item label="提交状态">
+                <Tag color={reviewerSubmissionStatusMeta[stateLink.submissionStatus]?.color ?? "default"}>
+                  {reviewerSubmissionStatusMeta[stateLink.submissionStatus]?.label ?? stateLink.submissionStatus}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="作答状态">
+                <Tag color={reviewerAssignmentStatusMeta[stateLink.assignmentStatus]?.color ?? "default"}>
+                  {reviewerAssignmentStatusMeta[stateLink.assignmentStatus]?.label ?? stateLink.assignmentStatus}
+                </Tag>
+              </Descriptions.Item>
               <Descriptions.Item label="AI 结论">{conclusion?.label ?? "暂无结论"}</Descriptions.Item>
               <Descriptions.Item label="任务">{task.title}</Descriptions.Item>
               <Descriptions.Item label="提交">{formatSubmissionVersion(submission.submissionVersion)}</Descriptions.Item>
@@ -228,6 +293,40 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
             ) : (
               <Typography.Text type="secondary">失败兜底或历史记录暂无 Prompt 快照。</Typography.Text>
             )}
+          </Card>
+
+          <Card
+            title={
+              <Space>
+                <HistoryOutlined />
+                <span>多轮历史意见</span>
+              </Space>
+            }
+          >
+            <Space direction="vertical" size={10} style={{ width: "100%" }}>
+              {reviewHistory.map((item) => (
+                <div key={item.submissionId} className="labelhub-review-history-item">
+                  <Flex align="center" justify="space-between" gap={8} wrap="wrap">
+                    <Typography.Text strong>{formatSubmissionVersion(item.submissionVersion)}</Typography.Text>
+                    <Space size={4} wrap>
+                      {item.aiConclusion && <Tag color={aiConclusionMeta[item.aiConclusion].color}>{aiConclusionMeta[item.aiConclusion].label}</Tag>}
+                      <Tag>{item.reviewRound ? `第 ${item.reviewRound} 轮` : "未预审"}</Tag>
+                    </Space>
+                  </Flex>
+                  <Typography.Text type="secondary">
+                    提交于 {formatTaskTime(item.submittedAt)} · 总分 {formatAiScoreTotal(item.aiScoreTotal)} · 问题 {item.aiIssueCount}
+                  </Typography.Text>
+                  {item.aiComment && (
+                    <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ margin: "6px 0 0" }}>
+                      {item.aiComment}
+                    </Typography.Paragraph>
+                  )}
+                  {item.humanComment && (
+                    <Alert type="warning" showIcon style={{ marginTop: 6 }} message="人工意见" description={item.humanComment} />
+                  )}
+                </div>
+              ))}
+            </Space>
           </Card>
 
           <Card title="审计时间线">

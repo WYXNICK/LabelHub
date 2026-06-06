@@ -29,6 +29,7 @@ def list_review_jobs(
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     status: ReviewJobStatus | None = Query(default=None),
     task_id: str | None = Query(default=None, alias="taskId"),
+    keyword: str | None = Query(default=None, max_length=120),
     user: UserVO = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> PageVO[ReviewJobVO]:
@@ -38,6 +39,7 @@ def list_review_jobs(
         page_size=page_size,
         status=status,
         task_id=task_id,
+        keyword=keyword,
     )
 
 
@@ -79,6 +81,7 @@ def list_reviews(
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     status: ReviewStatus | None = Query(default=None),
     task_id: str | None = Query(default=None, alias="taskId"),
+    keyword: str | None = Query(default=None, max_length=120),
     ai_conclusion: AiReviewConclusion | None = Query(default=None, alias="aiConclusion"),
     user: UserVO = Depends(get_current_user),
     db: Session = Depends(get_db_session),
@@ -89,6 +92,7 @@ def list_reviews(
         page_size=page_size,
         status=status,
         task_id=task_id,
+        keyword=keyword,
         ai_conclusion=ai_conclusion,
     )
 

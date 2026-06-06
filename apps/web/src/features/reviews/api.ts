@@ -9,6 +9,7 @@ export function listReviewJobs(request: ListReviewJobsRequest = {}): Promise<Pag
       pageSize: request.pageSize,
       status: request.status,
       taskId: request.taskId,
+      keyword: request.keyword,
     }),
   );
 }
@@ -20,6 +21,7 @@ export function listReviews(request: ListReviewsRequest = {}): Promise<PageVO<Re
       pageSize: request.pageSize,
       status: request.status,
       taskId: request.taskId,
+      keyword: request.keyword,
       aiConclusion: request.aiConclusion,
     }),
   );

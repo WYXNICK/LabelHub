@@ -4,15 +4,16 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   ReloadOutlined,
+  SearchOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, Flex, Input, Select, Space, Statistic, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Flex, Input, Pagination, Select, Space, Statistic, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { navigate } from "../app/routes";
 import { listReviewJobs, listReviews } from "../features/reviews/api";
-import type { ReviewJobStatus, ReviewJobVO, ReviewVO } from "../features/reviews/types";
+import type { AiReviewConclusion, ReviewJobStatus, ReviewJobVO, ReviewStatus, ReviewVO } from "../features/reviews/types";
 import {
   aiConclusionMeta,
   buildReviewerReviewDetailPath,
@@ -26,13 +27,27 @@ import {
 } from "../features/reviews/view";
 import { formatTaskTime } from "../features/tasks/view";
 
-const statusOptions: Array<{ label: string; value: ReviewJobStatus | "ALL" }> = [
-  { label: "全部状态", value: "ALL" },
+const jobStatusOptions: Array<{ label: string; value: ReviewJobStatus | "ALL" }> = [
+  { label: "全部队列状态", value: "ALL" },
   { label: "等待 AI 预审", value: "QUEUED" },
   { label: "AI 处理中", value: "RUNNING" },
   { label: "等待重试", value: "FAILED" },
   { label: "人工兜底", value: "NEEDS_HUMAN_REVIEW" },
   { label: "预审完成", value: "SUCCEEDED" },
+];
+
+const reviewStatusOptions: Array<{ label: string; value: ReviewStatus | "ALL" }> = [
+  { label: "全部审核状态", value: "ALL" },
+  { label: "待人工审核", value: "PENDING_HUMAN_REVIEW" },
+  { label: "已通过", value: "APPROVED" },
+  { label: "已打回", value: "RETURNED" },
+];
+
+const aiConclusionOptions: Array<{ label: string; value: AiReviewConclusion | "ALL" }> = [
+  { label: "全部 AI 结论", value: "ALL" },
+  { label: aiConclusionMeta.PASS.label, value: "PASS" },
+  { label: aiConclusionMeta.RETURN.label, value: "RETURN" },
+  { label: aiConclusionMeta.NEEDS_HUMAN_REVIEW.label, value: "NEEDS_HUMAN_REVIEW" },
 ];
 
 interface QueueState {
@@ -42,9 +57,15 @@ interface QueueState {
   totalReviews: number;
 }
 
+const reviewPageSize = 20;
+
 export function ReviewerReviewQueuePage() {
-  const [status, setStatus] = useState<ReviewJobStatus | "ALL">("ALL");
-  const [taskId, setTaskId] = useState("");
+  const [jobStatus, setJobStatus] = useState<ReviewJobStatus | "ALL">("ALL");
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus | "ALL">("PENDING_HUMAN_REVIEW");
+  const [aiConclusion, setAiConclusion] = useState<AiReviewConclusion | "ALL">("ALL");
+  const [keywordInput, setKeywordInput] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [reviewPage, setReviewPage] = useState(1);
   const [state, setState] = useState<QueueState>({ jobs: [], reviews: [], totalJobs: 0, totalReviews: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,20 +73,27 @@ export function ReviewerReviewQueuePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [jobPage, reviewPage] = await Promise.all([
+      const keywordValue = keyword.trim() || undefined;
+      const [jobPage, reviewResultPage] = await Promise.all([
         listReviewJobs({
           page: 1,
-          pageSize: 20,
-          status: status === "ALL" ? undefined : status,
-          taskId: taskId.trim() || undefined,
+          pageSize: 8,
+          status: jobStatus === "ALL" ? undefined : jobStatus,
+          keyword: keywordValue,
         }),
-        listReviews({ page: 1, pageSize: 8 }),
+        listReviews({
+          page: reviewPage,
+          pageSize: reviewPageSize,
+          status: reviewStatus === "ALL" ? undefined : reviewStatus,
+          aiConclusion: aiConclusion === "ALL" ? undefined : aiConclusion,
+          keyword: keywordValue,
+        }),
       ]);
       setState({
         jobs: jobPage.data,
-        reviews: reviewPage.data,
+        reviews: reviewResultPage.data,
         totalJobs: jobPage.pagination.totalItems,
-        totalReviews: reviewPage.pagination.totalItems,
+        totalReviews: reviewResultPage.pagination.totalItems,
       });
       setError(null);
     } catch (err) {
@@ -73,14 +101,21 @@ export function ReviewerReviewQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [status, taskId]);
+  }, [aiConclusion, jobStatus, keyword, reviewPage, reviewStatus]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const stats = useMemo(() => buildJobStats(state.jobs), [state.jobs]);
-  const reviewByJobId = useMemo(() => new Map(state.reviews.map((review) => [review.reviewJobId, review])), [state.reviews]);
+  const stats = useMemo(() => buildReviewStats(state.reviews), [state.reviews]);
+  const triggerSearch = () => {
+    const nextKeyword = keywordInput.trim();
+    setReviewPage(1);
+    setKeyword(nextKeyword);
+    if (reviewPage === 1 && keyword === nextKeyword) {
+      void load();
+    }
+  };
 
   return (
     <Space direction="vertical" size={18} style={{ width: "100%" }}>
@@ -90,11 +125,11 @@ export function ReviewerReviewQueuePage() {
             审核工作台
           </Typography.Title>
           <Typography.Text type="secondary">
-            阶段 4.3 已接入 AI 预审记录与建议详情；人工通过、打回和批量审核将在后续粒度启用。
+            阶段 4.4 聚焦待人工复核：按任务、AI 结论和状态筛选，进入详情查看多轮历史与提交差异。
           </Typography.Text>
         </div>
         <Space>
-          <Tag color="blue">Phase 4.3</Tag>
+          <Tag color="blue">Phase 4.4</Tag>
           <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
             刷新
           </Button>
@@ -103,20 +138,20 @@ export function ReviewerReviewQueuePage() {
 
       <div className="labelhub-reviewer-summary-grid">
         <Card className="labelhub-stat-card">
-          <Statistic title="预审任务" value={state.totalJobs} prefix={<ThunderboltOutlined />} />
-          <Typography.Text type="secondary">来自 Labeler 正式提交</Typography.Text>
+          <Statistic title="待审记录" value={state.totalReviews} prefix={<AuditOutlined />} />
+          <Typography.Text type="secondary">当前筛选下待人工处理</Typography.Text>
         </Card>
         <Card className="labelhub-stat-card">
-          <Statistic title="等待处理" value={stats.pending} valueStyle={{ color: "#245bdb" }} />
-          <Typography.Text type="secondary">等待 Agent 领取或重试</Typography.Text>
+          <Statistic title="当前页建议通过" value={stats.pass} valueStyle={{ color: "#13a867" }} />
+          <Typography.Text type="secondary">仍需 Reviewer 终审</Typography.Text>
         </Card>
         <Card className="labelhub-stat-card">
-          <Statistic title="处理中" value={stats.running} valueStyle={{ color: "#d46b08" }} />
-          <Typography.Text type="secondary">已被系统 Agent 锁定</Typography.Text>
+          <Statistic title="当前页建议打回" value={stats.return} valueStyle={{ color: "#d46b08" }} />
+          <Typography.Text type="secondary">重点查看问题与 diff</Typography.Text>
         </Card>
         <Card className="labelhub-stat-card">
-          <Statistic title="待人工记录" value={state.totalReviews} valueStyle={{ color: "#13a867" }} />
-          <Typography.Text type="secondary">AI 写回后进入 Reviewer 队列</Typography.Text>
+          <Statistic title="AI 运行队列" value={state.totalJobs} prefix={<ThunderboltOutlined />} />
+          <Typography.Text type="secondary">Agent job 运行态</Typography.Text>
         </Card>
       </div>
 
@@ -125,82 +160,97 @@ export function ReviewerReviewQueuePage() {
           <Space wrap>
             <Input
               allowClear
-              id="review-job-task-id-filter"
-              name="taskId"
-              aria-label="按任务 ID 精确筛选"
-              placeholder="按任务 ID 精确筛选"
-              value={taskId}
-              onChange={(event) => setTaskId(event.target.value)}
+              id="review-keyword-filter"
+              name="keyword"
+              aria-label="搜索任务标题或 ID"
+              prefix={<SearchOutlined />}
+              placeholder="搜索任务标题或 ID"
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              onPressEnter={triggerSearch}
               style={{ width: 260 }}
             />
-            <Select value={status} options={statusOptions} onChange={setStatus} style={{ width: 180 }} />
-            <Button type="primary" ghost onClick={() => void load()}>
+            <Select
+              value={reviewStatus}
+              options={reviewStatusOptions}
+              onChange={(value) => {
+                setReviewPage(1);
+                setReviewStatus(value);
+              }}
+              style={{ width: 172 }}
+            />
+            <Select
+              value={aiConclusion}
+              options={aiConclusionOptions}
+              onChange={(value) => {
+                setReviewPage(1);
+                setAiConclusion(value);
+              }}
+              style={{ width: 172 }}
+            />
+            <Select
+              value={jobStatus}
+              options={jobStatusOptions}
+              onChange={(value) => {
+                setReviewPage(1);
+                setJobStatus(value);
+              }}
+              style={{ width: 172 }}
+            />
+            <Button type="primary" ghost onClick={triggerSearch}>
               查询
             </Button>
           </Space>
-          <Typography.Text type="secondary">AI 结论只作为建议展示，最终通过/打回必须由人工审核落定。</Typography.Text>
+          <Typography.Text type="secondary">AI 建议只负责排序和提示，最终通过/打回仍由人工确认。</Typography.Text>
         </Flex>
       </Card>
 
       {error && <Alert showIcon type="warning" message="审核队列加载失败" description={error} />}
 
       <div className="labelhub-reviewer-workbench-grid">
-        <Card className="labelhub-reviewer-queue-card" title="AI 预审任务队列" loading={loading}>
-          {state.jobs.length === 0 ? (
-            <Empty description="暂无预审任务。Labeler 提交后会自动入队。" />
+        <Card className="labelhub-reviewer-queue-card" title="待人工复核记录" loading={loading}>
+          {state.reviews.length === 0 ? (
+            <Empty description="当前筛选下暂无待审记录。" />
           ) : (
             <div className="labelhub-reviewer-job-list">
-              {state.jobs.map((job) => (
-                <ReviewJobRow key={job.id} job={job} review={reviewByJobId.get(job.id)} />
+              {state.reviews.map((review) => (
+                <ReviewRecordRow key={review.id} review={review} />
               ))}
+              {state.totalReviews > reviewPageSize && (
+                <Flex justify="flex-end" className="labelhub-reviewer-pagination">
+                  <Pagination
+                    current={reviewPage}
+                    pageSize={reviewPageSize}
+                    total={state.totalReviews}
+                    showSizeChanger={false}
+                    showTotal={(total) => `共 ${total} 条待审记录`}
+                    onChange={setReviewPage}
+                  />
+                </Flex>
+              )}
             </div>
           )}
         </Card>
 
         <Space direction="vertical" size={16} className="labelhub-reviewer-side">
-          <Card title="运行说明">
-            <Space direction="vertical" size={12}>
-              <StepLine icon={<DatabaseOutlined />} title="提交入队" description="每个提交版本只创建一个有效 review job。" />
-              <StepLine icon={<ApiOutlined />} title="Agent 领取" description="uv 管理的 Agent 调用 OpenAI 兼容接口并写回 AI 建议。" />
-              <StepLine icon={<AuditOutlined />} title="人工终审" description="AI 结果写回后进入 Reviewer 人工审核，不自动终审。" />
-            </Space>
-          </Card>
-
-          <Card title="最近待审记录">
-            {state.reviews.length === 0 ? (
-              <Typography.Text type="secondary">AI 结果写回后，这里会展示可人工处理的审核记录。</Typography.Text>
+          <Card title="AI 预审运行队列" loading={loading}>
+            {state.jobs.length === 0 ? (
+              <Typography.Text type="secondary">暂无匹配的 AI job。</Typography.Text>
             ) : (
               <Space direction="vertical" size={10} style={{ width: "100%" }}>
-                {state.reviews.map((review) => (
-                  <div key={review.id} className="labelhub-reviewer-review-mini">
-                    <Flex align="center" justify="space-between" gap={8} wrap="wrap">
-                      <Typography.Text strong className="labelhub-reviewer-review-title">
-                        {review.taskTitle || "未命名任务"}
-                      </Typography.Text>
-                      <Tag color={reviewStatusMeta[review.status].color}>{reviewStatusMeta[review.status].label}</Tag>
-                    </Flex>
-                    <Space size={[4, 4]} wrap style={{ marginTop: 6 }}>
-                      {review.aiConclusion && (
-                        <Tag color={aiConclusionMeta[review.aiConclusion].color}>
-                          {aiConclusionMeta[review.aiConclusion].label} · {formatAiScoreTotal(review.aiScoreTotal)}
-                        </Tag>
-                      )}
-                      <Tag color="blue">{formatSubmissionVersion(review.submissionVersion)}</Tag>
-                      <Tag>{formatReviewConfigVersion(review.reviewConfigVersionNo)}</Tag>
-                      <Tag>第 {review.reviewRound} 轮审核</Tag>
-                    </Space>
-                    <Button
-                      size="small"
-                      type="link"
-                      style={{ paddingInline: 0, marginTop: 6 }}
-                      onClick={() => navigate(buildReviewerReviewDetailPath(review.id))}
-                    >
-                      查看详情
-                    </Button>
-                  </div>
+                {state.jobs.map((job) => (
+                  <ReviewJobCompact key={job.id} job={job} />
                 ))}
               </Space>
             )}
+          </Card>
+
+          <Card title="运行说明">
+            <Space direction="vertical" size={12}>
+              <StepLine icon={<DatabaseOutlined />} title="提交入队" description="每个提交版本只创建一个有效 review job。" />
+              <StepLine icon={<ApiOutlined />} title="Agent 领取" description="OpenAI 兼容调用完成后写回 AI 建议和评分。" />
+              <StepLine icon={<AuditOutlined />} title="人工终审" description="详情页展示历史与 diff，人工决策在阶段 4.5 启用。" />
+            </Space>
           </Card>
         </Space>
       </div>
@@ -208,53 +258,68 @@ export function ReviewerReviewQueuePage() {
   );
 }
 
-function ReviewJobRow({ job, review }: { job: ReviewJobVO; review?: ReviewVO }) {
-  const meta = reviewJobStatusMeta[job.status];
-  const taskTitle = job.taskTitle || "未命名任务";
+function ReviewRecordRow({ review }: { review: ReviewVO }) {
+  const status = reviewStatusMeta[review.status];
+  const conclusion = review.aiConclusion ? aiConclusionMeta[review.aiConclusion] : null;
   return (
-    <div className="labelhub-reviewer-job-row" data-tone={meta.tone}>
+    <div className="labelhub-reviewer-job-row" data-tone={conclusion?.color === "orange" ? "orange" : conclusion?.color === "green" ? "green" : "blue"}>
       <div className="labelhub-reviewer-job-main">
         <Flex align="center" gap={10} wrap="wrap">
           <Typography.Text strong className="labelhub-reviewer-job-title">
-            {taskTitle}
+            {review.taskTitle || "未命名任务"}
           </Typography.Text>
-          <Tag color={meta.color}>{meta.label}</Tag>
-          <Tag color="blue">{formatSubmissionVersion(job.submissionVersion)}</Tag>
-          <Tag>{formatReviewConfigVersion(job.reviewConfigVersionNo)}</Tag>
-          {review?.aiConclusion && (
-            <Tag color={aiConclusionMeta[review.aiConclusion].color}>
-              {aiConclusionMeta[review.aiConclusion].label} · {formatAiScoreTotal(review.aiScoreTotal)}
-            </Tag>
-          )}
+          <Tag color={status.color}>{status.label}</Tag>
+          {conclusion && <Tag color={conclusion.color}>{conclusion.label}</Tag>}
         </Flex>
+        <Space size={[6, 6]} wrap style={{ marginTop: 8 }}>
+          <Tag color="blue">{formatSubmissionVersion(review.submissionVersion)}</Tag>
+          <Tag>{formatReviewConfigVersion(review.reviewConfigVersionNo)}</Tag>
+          <Tag>第 {review.reviewRound} 轮</Tag>
+          <Tag>总分 {formatAiScoreTotal(review.aiScoreTotal)}</Tag>
+          <Tag color={review.aiIssueCount > 0 ? "orange" : "green"}>问题 {review.aiIssueCount}</Tag>
+        </Space>
         <Typography.Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
-          标注提交已完成 AI 预审，等待 Reviewer 人工复核。内部追踪信息已收起，可通过下方流水号复制定位。
+          {review.aiComment || "AI 暂无评语，建议进入详情查看上下文。"}
         </Typography.Paragraph>
       </div>
       <div className="labelhub-reviewer-job-meta">
         <span>
-          <ClockCircleOutlined /> 创建 {formatTaskTime(job.createdAt)}
+          <ClockCircleOutlined /> 更新 {formatTaskTime(review.updatedAt)}
         </span>
-        <span>
-          尝试 {job.attemptCount}/{job.maxAttempts}
-        </span>
-        {job.lockedBy && <span>Agent {truncateMiddle(job.lockedBy, 12, 8)}</span>}
-        <Typography.Text
-          type="secondary"
-          copyable={{ text: job.id, tooltips: ["复制完整预审流水号", "已复制"] }}
-          title={job.id}
-        >
-          预审流水 {formatReviewTraceCode(job.id)}
+        <Typography.Text type="secondary" copyable={{ text: review.id, tooltips: ["复制审核记录 ID", "已复制"] }}>
+          审核流水 {formatReviewTraceCode(review.id)}
         </Typography.Text>
-        {review && (
-          <Button size="small" type="primary" ghost onClick={() => navigate(buildReviewerReviewDetailPath(review.id))}>
-            查看 AI 建议
-          </Button>
-        )}
+        <Button size="small" type="primary" onClick={() => navigate(buildReviewerReviewDetailPath(review.id))}>
+          查看详情
+        </Button>
       </div>
+    </div>
+  );
+}
+
+function ReviewJobCompact({ job }: { job: ReviewJobVO }) {
+  const meta = reviewJobStatusMeta[job.status];
+  return (
+    <div className="labelhub-reviewer-review-mini">
+      <Flex align="center" justify="space-between" gap={8} wrap="wrap">
+        <Typography.Text strong className="labelhub-reviewer-review-title">
+          {job.taskTitle || "未命名任务"}
+        </Typography.Text>
+        <Tag color={meta.color}>{meta.label}</Tag>
+      </Flex>
+      <Space size={[4, 4]} wrap style={{ marginTop: 6 }}>
+        <Tag color="blue">{formatSubmissionVersion(job.submissionVersion)}</Tag>
+        <Tag>尝试 {job.attemptCount}/{job.maxAttempts}</Tag>
+        <Tag>{formatReviewTraceCode(job.id)}</Tag>
+      </Space>
+      {job.lockedBy && (
+        <Typography.Paragraph type="secondary" ellipsis={{ rows: 1 }} style={{ margin: "6px 0 0" }}>
+          Agent {truncateMiddle(job.lockedBy, 12, 8)}
+        </Typography.Paragraph>
+      )}
       {job.lastError && (
-        <Typography.Paragraph type="danger" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
-          失败原因：{job.lastError}
+        <Typography.Paragraph type="danger" ellipsis={{ rows: 2 }} style={{ margin: "6px 0 0" }}>
+          {job.lastError}
         </Typography.Paragraph>
       )}
     </div>
@@ -274,17 +339,14 @@ function StepLine({ icon, title, description }: { icon: ReactNode; title: string
   );
 }
 
-function buildJobStats(jobs: ReviewJobVO[]) {
-  return jobs.reduce(
-    (acc, job) => {
-      if (job.status === "QUEUED" || job.status === "FAILED") {
-        acc.pending += 1;
-      }
-      if (job.status === "RUNNING") {
-        acc.running += 1;
-      }
+function buildReviewStats(reviews: ReviewVO[]) {
+  return reviews.reduce(
+    (acc, review) => {
+      if (review.aiConclusion === "PASS") acc.pass += 1;
+      if (review.aiConclusion === "RETURN") acc.return += 1;
+      if (review.aiConclusion === "NEEDS_HUMAN_REVIEW") acc.manual += 1;
       return acc;
     },
-    { pending: 0, running: 0 },
+    { pass: 0, return: 0, manual: 0 },
   );
 }

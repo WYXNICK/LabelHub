@@ -20,6 +20,36 @@ export const reviewStatusMeta: Record<ReviewStatus, { label: string; color: stri
   RETURNED: { label: "已打回", color: "red" },
 };
 
+export const reviewStateStepMeta: Record<string, { label: string; color: string }> = {
+  AI_REVIEWING: { label: "AI 预审中", color: "blue" },
+  WAITING_HUMAN_REVIEW: { label: "等待人工复核", color: "processing" },
+  APPROVED: { label: "已通过", color: "green" },
+  RETURNED: { label: "已打回", color: "red" },
+};
+
+export const reviewerSubmissionStatusMeta: Record<string, { label: string; color: string }> = {
+  DRAFT: { label: "草稿", color: "default" },
+  SUBMITTED: { label: "已提交", color: "blue" },
+  AI_REVIEWING: { label: "AI 预审中", color: "processing" },
+  HUMAN_REVIEWING: { label: "待人工复核", color: "purple" },
+  APPROVED: { label: "已通过", color: "green" },
+  RETURNED: { label: "已打回", color: "red" },
+};
+
+export const reviewerAssignmentStatusMeta: Record<string, { label: string; color: string }> = {
+  CLAIMED: { label: "已领取", color: "blue" },
+  DRAFT_SAVED: { label: "草稿已保存", color: "default" },
+  SUBMITTED: { label: "审核中", color: "processing" },
+  RETURNED: { label: "待返修", color: "red" },
+  APPROVED: { label: "已通过", color: "green" },
+};
+
+export const submissionDiffChangeMeta: Record<string, { label: string; color: string }> = {
+  ADDED: { label: "新增", color: "green" },
+  REMOVED: { label: "删除", color: "red" },
+  CHANGED: { label: "已修改", color: "orange" },
+};
+
 const reviewerReviewDetailPattern = /^\/reviewer\/reviews\/([^/?#]+)$/;
 
 export function buildReviewerReviewDetailPath(reviewId: string): string {
@@ -45,6 +75,19 @@ export function formatAiScoreTotal(score: number | null): string {
 export function formatReviewTraceCode(id: string): string {
   const tail = id.split("_").pop() ?? id;
   return `#${tail.slice(-8).toUpperCase()}`;
+}
+
+export function formatReviewValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "未填写";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value, null, 2);
 }
 
 export function truncateMiddle(value: string, head = 10, tail = 8): string {

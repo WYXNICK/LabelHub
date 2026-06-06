@@ -21,9 +21,12 @@ from labelhub_api.schemas.templates import TemplateSchemaVO
 class ReviewJobVO(CamelModel):
     id: str
     task_id: str
+    task_title: str | None = None
     assignment_id: str
     submission_id: str
+    submission_version: int | None = None
     review_config_version_id: str
+    review_config_version_no: int | None = None
     status: ReviewJobStatus
     attempt_count: int
     max_attempts: int
@@ -75,9 +78,12 @@ class ClaimReviewJobResponse(CamelModel):
 class ReviewVO(CamelModel):
     id: str
     task_id: str
+    task_title: str | None = None
     submission_id: str
+    submission_version: int | None = None
     assignment_id: str
     review_job_id: str
+    review_config_version_no: int | None = None
     status: ReviewStatus
     ai_conclusion: AiReviewConclusion | None = None
     ai_scores: dict[str, int]

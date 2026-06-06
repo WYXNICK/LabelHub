@@ -1002,9 +1002,12 @@ export interface ContributionItemVO {
 export interface ReviewJobVO {
   id: string;
   taskId: string;
+  taskTitle: string | null;
   assignmentId: string;
   submissionId: string;
+  submissionVersion: number | null;
   reviewConfigVersionId: string;
+  reviewConfigVersionNo: number | null;
   status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "NEEDS_HUMAN_REVIEW";
   attemptCount: number;
   maxAttempts: number;
@@ -1021,9 +1024,12 @@ export interface ReviewJobVO {
 export interface ReviewVO {
   id: string;
   taskId: string;
+  taskTitle: string | null;
   submissionId: string;
+  submissionVersion: number | null;
   assignmentId: string;
   reviewJobId: string;
+  reviewConfigVersionNo: number | null;
   status: "PENDING_HUMAN_REVIEW" | "APPROVED" | "RETURNED";
   aiConclusion: "PASS" | "RETURN" | "NEEDS_HUMAN_REVIEW" | null;
   aiScores: Record<string, number>;
@@ -1052,6 +1058,7 @@ export interface CreateReviewDecisionRequest {
 
 - Reviewer 登录后的默认首页为 `/reviewer/reviews`，用于承接阶段 4 审核主链路。
 - 阶段 4.2 工作台展示 AI 预审队列、Agent 锁定信息、重试次数和失败原因；AI 写回后的审核详情、人工通过/打回和批量审核分别在 4.3-4.5 继续启用。
+- Reviewer 队列列表与最近待审记录应优先展示任务标题、提交版本和审核配置版本；`reviewJobId`、`submissionId`、`idempotencyKey` 等内部追踪字段不得作为主标题，必要时只作为可复制的短流水号或详情追踪信息。
 - `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
 - 批量打回也必须提供统一理由，并在每条 review 上写独立审计。
 - AI 结论只作为建议展示，不在前端直接决定终审状态。

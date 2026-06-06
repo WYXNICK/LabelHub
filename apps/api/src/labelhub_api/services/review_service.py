@@ -451,12 +451,18 @@ class ReviewService:
         return f"{submission_id}:{submission_version}:{review_config_version_id}"
 
     def _to_review_job_vo(self, job: ReviewJobEntity) -> ReviewJobVO:
+        task = self._db.get(TaskEntity, job.task_id)
+        submission = self._db.get(SubmissionEntity, job.submission_id)
+        review_config = self._db.get(ReviewConfigVersionEntity, job.review_config_version_id)
         return ReviewJobVO(
             id=job.id,
             task_id=job.task_id,
+            task_title=task.title if task is not None else None,
             assignment_id=job.assignment_id,
             submission_id=job.submission_id,
+            submission_version=submission.submission_version if submission is not None else None,
             review_config_version_id=job.review_config_version_id,
+            review_config_version_no=review_config.version_no if review_config is not None else None,
             status=ReviewJobStatus(job.status),
             attempt_count=job.attempt_count,
             max_attempts=job.max_attempts,
@@ -471,12 +477,21 @@ class ReviewService:
         )
 
     def _to_review_vo(self, review: ReviewEntity) -> ReviewVO:
+        task = self._db.get(TaskEntity, review.task_id)
+        submission = self._db.get(SubmissionEntity, review.submission_id)
+        job = self._db.get(ReviewJobEntity, review.review_job_id)
+        review_config = (
+            self._db.get(ReviewConfigVersionEntity, job.review_config_version_id) if job is not None else None
+        )
         return ReviewVO(
             id=review.id,
             task_id=review.task_id,
+            task_title=task.title if task is not None else None,
             submission_id=review.submission_id,
+            submission_version=submission.submission_version if submission is not None else None,
             assignment_id=review.assignment_id,
             review_job_id=review.review_job_id,
+            review_config_version_no=review_config.version_no if review_config is not None else None,
             status=ReviewStatus(review.status),
             ai_conclusion=AiReviewConclusion(review.ai_conclusion) if review.ai_conclusion else None,
             ai_scores=review.ai_scores,

@@ -1183,6 +1183,7 @@ class HumanReviewDecision(str, Enum):
 - Alembic `0005_create_review_foundation.py` 已创建 `review_jobs` 与 `reviews` 表，并注册到 SQLAlchemy metadata。
 - `ReviewJobStatus`、`AiReviewConclusion`、`ReviewStatus`、`HumanReviewDecision` 枚举已进入后端统一枚举。
 - `POST /api/assignments/{assignmentId}/submissions` 在同一事务内创建唯一 `review_jobs`，重复提交命中同一 submission 时不会生成重复 job。
+- `ReviewJobVO` 与 `ReviewVO` 在保留内部追踪 ID 的同时，补充 `taskTitle`、`submissionVersion`、`reviewConfigVersionNo`，供 Reviewer UI 优先展示业务可读信息，避免把内部 ID 作为列表主标题。
 - `POST /api/internal/review-jobs:claim` 已返回 job、submission、assignment、task、dataset item payload、template schema 和 review config version，供阶段 4.2 Agent 组装 Prompt。
 - `apps/agent` 已实现 `--once` 单次处理与 `--loop` 轮询：System 身份领取 job，基于审核配置版本、题目 payload、模板字段和提交值组装 Prompt，调用 OpenAI 兼容 Chat Completions，并用 Pydantic 校验结构化 JSON。
 - Agent 写回失败时使用同一内部结果接口提交 `errorMessage`；后端会将 job 置为 `FAILED` 供重试，达到 `maxAttempts` 后置为 `NEEDS_HUMAN_REVIEW` 并生成人工兜底 review。

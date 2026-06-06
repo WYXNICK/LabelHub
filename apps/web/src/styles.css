@@ -2055,6 +2055,13 @@ body {
   justify-items: start;
 }
 
+.labelhub-reviewer-job-title {
+  max-width: min(520px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .labelhub-reviewer-job-meta span {
   max-width: 100%;
   overflow: hidden;
@@ -2082,6 +2089,13 @@ body {
 .labelhub-reviewer-review-mini {
   padding: 10px 0;
   border-bottom: 1px solid #eff0f1;
+}
+
+.labelhub-reviewer-review-title {
+  max-width: min(230px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .labelhub-reviewer-review-mini:last-child {

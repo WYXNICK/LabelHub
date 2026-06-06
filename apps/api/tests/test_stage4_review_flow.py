@@ -143,6 +143,9 @@ def test_reviewer_can_list_review_jobs_and_system_can_claim_context(
     assert list_response.status_code == 200
     listed_job = list_response.json()["data"][0]
     assert listed_job["submissionId"] == submission["id"]
+    assert listed_job["taskTitle"] == "Stage 4 claim task"
+    assert listed_job["submissionVersion"] == 1
+    assert listed_job["reviewConfigVersionNo"] == 1
     assert listed_job["status"] == ReviewJobStatus.QUEUED.value
 
     claim_response = client.post(
@@ -156,6 +159,9 @@ def test_reviewer_can_list_review_jobs_and_system_can_claim_context(
     assert claimed["job"]["id"] == listed_job["id"]
     assert claimed["job"]["status"] == ReviewJobStatus.RUNNING.value
     assert claimed["job"]["attemptCount"] == 1
+    assert claimed["job"]["taskTitle"] == "Stage 4 claim task"
+    assert claimed["job"]["submissionVersion"] == 1
+    assert claimed["job"]["reviewConfigVersionNo"] == 1
     assert claimed["submission"]["id"] == submission["id"]
     assert claimed["assignment"]["id"] == assignment["id"]
     assert claimed["task"]["id"] == task["id"]
@@ -210,6 +216,14 @@ def test_system_agent_failure_retries_and_falls_back_to_human_review(
             headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
         )
         assert result_response.status_code == 200
+
+    login(client, "reviewer@labelhub.dev")
+    reviews_response = client.get("/api/reviews?page=1&pageSize=10")
+    assert reviews_response.status_code == 200
+    listed_review = reviews_response.json()["data"][0]
+    assert listed_review["taskTitle"] == "Stage 4 retry task"
+    assert listed_review["submissionVersion"] == 1
+    assert listed_review["reviewConfigVersionNo"] == 1
 
     with session_factory() as session:
         job = session.get(ReviewJobEntity, claimed_job_id)

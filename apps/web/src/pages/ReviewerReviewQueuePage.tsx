@@ -161,11 +161,17 @@ export function ReviewerReviewQueuePage() {
               <Space direction="vertical" size={10} style={{ width: "100%" }}>
                 {state.reviews.map((review) => (
                   <div key={review.id} className="labelhub-reviewer-review-mini">
-                    <Flex justify="space-between" gap={8}>
-                      <Typography.Text strong>{truncateMiddle(review.id, 12, 8)}</Typography.Text>
+                    <Flex align="center" justify="space-between" gap={8} wrap="wrap">
+                      <Typography.Text strong className="labelhub-reviewer-review-title">
+                        {review.taskTitle || "未命名任务"}
+                      </Typography.Text>
                       <Tag color={reviewStatusMeta[review.status].color}>{reviewStatusMeta[review.status].label}</Tag>
                     </Flex>
-                    <Typography.Text type="secondary">提交 {truncateMiddle(review.submissionId, 12, 8)}</Typography.Text>
+                    <Space size={[4, 4]} wrap style={{ marginTop: 6 }}>
+                      <Tag color="blue">{formatSubmissionVersion(review.submissionVersion)}</Tag>
+                      <Tag>{formatReviewConfigVersion(review.reviewConfigVersionNo)}</Tag>
+                      <Tag>第 {review.reviewRound} 轮审核</Tag>
+                    </Space>
                   </div>
                 ))}
               </Space>
@@ -179,16 +185,20 @@ export function ReviewerReviewQueuePage() {
 
 function ReviewJobRow({ job }: { job: ReviewJobVO }) {
   const meta = reviewJobStatusMeta[job.status];
+  const taskTitle = job.taskTitle || "未命名任务";
   return (
     <div className="labelhub-reviewer-job-row" data-tone={meta.tone}>
       <div className="labelhub-reviewer-job-main">
         <Flex align="center" gap={10} wrap="wrap">
-          <Typography.Text strong>{truncateMiddle(job.id, 16, 10)}</Typography.Text>
+          <Typography.Text strong className="labelhub-reviewer-job-title">
+            {taskTitle}
+          </Typography.Text>
           <Tag color={meta.color}>{meta.label}</Tag>
+          <Tag color="blue">{formatSubmissionVersion(job.submissionVersion)}</Tag>
+          <Tag>{formatReviewConfigVersion(job.reviewConfigVersionNo)}</Tag>
         </Flex>
-        <Typography.Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ margin: "6px 0 0" }}>
-          任务 {truncateMiddle(job.taskId, 12, 8)} · 提交 {truncateMiddle(job.submissionId, 12, 8)} · 审核配置{" "}
-          {truncateMiddle(job.reviewConfigVersionId, 12, 8)}
+        <Typography.Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
+          标注提交已完成 AI 预审，等待 Reviewer 人工复核。内部追踪信息已收起，可通过下方流水号复制定位。
         </Typography.Paragraph>
       </div>
       <div className="labelhub-reviewer-job-meta">
@@ -199,7 +209,13 @@ function ReviewJobRow({ job }: { job: ReviewJobVO }) {
           尝试 {job.attemptCount}/{job.maxAttempts}
         </span>
         {job.lockedBy && <span>Agent {truncateMiddle(job.lockedBy, 12, 8)}</span>}
-        <span>幂等键 {truncateMiddle(job.idempotencyKey, 16, 10)}</span>
+        <Typography.Text
+          type="secondary"
+          copyable={{ text: job.id, tooltips: ["复制完整预审流水号", "已复制"] }}
+          title={job.id}
+        >
+          预审流水 {formatTraceCode(job.id)}
+        </Typography.Text>
       </div>
       {job.lastError && (
         <Typography.Paragraph type="danger" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
@@ -208,6 +224,19 @@ function ReviewJobRow({ job }: { job: ReviewJobVO }) {
       )}
     </div>
   );
+}
+
+function formatSubmissionVersion(version: number | null): string {
+  return version ? `提交 v${version}` : "提交版本";
+}
+
+function formatReviewConfigVersion(version: number | null): string {
+  return version ? `审核配置 v${version}` : "审核配置";
+}
+
+function formatTraceCode(id: string): string {
+  const tail = id.split("_").pop() ?? id;
+  return `#${tail.slice(-8).toUpperCase()}`;
 }
 
 function StepLine({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {

@@ -12,9 +12,12 @@ export type HumanReviewDecision = "APPROVE" | "RETURN";
 export interface ReviewJobVO {
   id: string;
   taskId: string;
+  taskTitle: string | null;
   assignmentId: string;
   submissionId: string;
+  submissionVersion: number | null;
   reviewConfigVersionId: string;
+  reviewConfigVersionNo: number | null;
   status: ReviewJobStatus;
   attemptCount: number;
   maxAttempts: number;
@@ -37,9 +40,12 @@ export interface AiReviewIssueDTO {
 export interface ReviewVO {
   id: string;
   taskId: string;
+  taskTitle: string | null;
   submissionId: string;
+  submissionVersion: number | null;
   assignmentId: string;
   reviewJobId: string;
+  reviewConfigVersionNo: number | null;
   status: ReviewStatus;
   aiConclusion: AiReviewConclusion | null;
   aiScores: Record<string, number>;

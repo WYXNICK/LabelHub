@@ -87,8 +87,10 @@ class ReviewVO(CamelModel):
     status: ReviewStatus
     ai_conclusion: AiReviewConclusion | None = None
     ai_scores: dict[str, int]
+    ai_score_total: float | None = None
     ai_comment: str | None = None
     ai_issues: list[AiReviewIssueDTO]
+    ai_issue_count: int = 0
     ai_suggestions: str | None = None
     human_conclusion: HumanReviewDecision | None = None
     reviewer_id: str | None = None
@@ -110,6 +112,17 @@ class ReviewTimelineItemVO(CamelModel):
     created_at: datetime
 
 
+class ReviewPromptSnapshotSummaryVO(CamelModel):
+    snapshot_available: bool = False
+    task_title: str | None = None
+    dataset_item_keys: list[str] = Field(default_factory=list)
+    submission_field_keys: list[str] = Field(default_factory=list)
+    template_field_labels: list[str] = Field(default_factory=list)
+    review_dimension_names: list[str] = Field(default_factory=list)
+    review_config_version_no: int | None = None
+    prompt_excerpt: str | None = None
+
+
 class ReviewDetailVO(CamelModel):
     review: ReviewVO
     task: TaskVO
@@ -118,6 +131,7 @@ class ReviewDetailVO(CamelModel):
     dataset_item_payload: dict[str, Any]
     template_schema: TemplateSchemaVO
     review_config_version: ReviewConfigVersionVO
+    prompt_snapshot_summary: ReviewPromptSnapshotSummaryVO | None = None
     timeline: list[ReviewTimelineItemVO]
 
 

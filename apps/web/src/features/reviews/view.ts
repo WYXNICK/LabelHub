@@ -20,6 +20,33 @@ export const reviewStatusMeta: Record<ReviewStatus, { label: string; color: stri
   RETURNED: { label: "已打回", color: "red" },
 };
 
+const reviewerReviewDetailPattern = /^\/reviewer\/reviews\/([^/?#]+)$/;
+
+export function buildReviewerReviewDetailPath(reviewId: string): string {
+  return `/reviewer/reviews/${reviewId}`;
+}
+
+export function matchReviewerReviewDetailPath(path: string): string | null {
+  return reviewerReviewDetailPattern.exec(path)?.[1] ?? null;
+}
+
+export function formatSubmissionVersion(version: number | null): string {
+  return version ? `提交 v${version}` : "提交版本";
+}
+
+export function formatReviewConfigVersion(version: number | null): string {
+  return version ? `审核配置 v${version}` : "审核配置";
+}
+
+export function formatAiScoreTotal(score: number | null): string {
+  return typeof score === "number" ? `${score}` : "待评分";
+}
+
+export function formatReviewTraceCode(id: string): string {
+  const tail = id.split("_").pop() ?? id;
+  return `#${tail.slice(-8).toUpperCase()}`;
+}
+
 export function truncateMiddle(value: string, head = 10, tail = 8): string {
   if (value.length <= head + tail + 3) {
     return value;

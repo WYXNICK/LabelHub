@@ -1164,7 +1164,7 @@ class HumanReviewDecision(str, Enum):
 | `POST /api/internal/review-jobs:claim` | `SYSTEM` | 通过 `X-LabelHub-System-Token` 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
 | `POST /api/internal/review-jobs/{jobId}/results` | `SYSTEM` | 写回结构化 AI 预审结果或失败原因，生成 AI review 建议并写审计 |
 | `GET /api/reviews` | `REVIEWER` | 待审/已审列表，支持 `status`、`taskId`、`aiConclusion` 分页筛选 |
-| `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、diff 与时间线 |
+| `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、Prompt 摘要与时间线 |
 | `POST /api/reviews/{reviewId}/decisions` | `REVIEWER` | 单条人工通过或打回 |
 | `POST /api/reviews:batch-decide` | `REVIEWER` | 批量通过或打回，逐条校验并写审计 |
 
@@ -1177,8 +1177,9 @@ class HumanReviewDecision(str, Enum):
 - 人工 `RETURN` 后，`submissions.status=RETURNED`、`assignments.status=RETURNED`，打回理由必须写入 `audit_logs.reason` 或 `metadata.reason`，供阶段 3 `ReviewFeedbackVO` 复用。
 - Agent 超过最大重试、结构化输出不合法或 Provider 异常时，必须生成需要人工兜底的待审记录，不能让 job 永久卡在 `RUNNING`。
 - 所有状态迁移必须写 `audit_logs`；Actor 为 Agent 时使用 `SYSTEM` 账号，人工审核使用 Reviewer 用户。
+- Agent 成功或兜底生成 `ReviewEntity` 时必须同步写入 `AuditAction.REVIEW_AI_SUGGESTION`，metadata 记录 `reviewJobId`、`submissionId`、`reviewConfigVersionId`、`aiConclusion`、`scoreTotal`、`issueCount` 和 Prompt 摘要。
 
-阶段 4.0/4.1/4.2 当前完成状态：
+阶段 4.0/4.1/4.2/4.3 当前完成状态：
 
 - Alembic `0005_create_review_foundation.py` 已创建 `review_jobs` 与 `reviews` 表，并注册到 SQLAlchemy metadata。
 - `ReviewJobStatus`、`AiReviewConclusion`、`ReviewStatus`、`HumanReviewDecision` 枚举已进入后端统一枚举。
@@ -1188,6 +1189,7 @@ class HumanReviewDecision(str, Enum):
 - `apps/agent` 已实现 `--once` 单次处理与 `--loop` 轮询：System 身份领取 job，基于审核配置版本、题目 payload、模板字段和提交值组装 Prompt，调用 OpenAI 兼容 Chat Completions，并用 Pydantic 校验结构化 JSON。
 - Agent 写回失败时使用同一内部结果接口提交 `errorMessage`；后端会将 job 置为 `FAILED` 供重试，达到 `maxAttempts` 后置为 `NEEDS_HUMAN_REVIEW` 并生成人工兜底 review。
 - Agent 对 MiMo Provider 自动注入 `chat_template_kwargs.enable_thinking=false`；未知 OpenAI 兼容 Provider 不注入私有扩展，可通过 `OPENAI_EXTRA_BODY_JSON`/`LLM_EXTRA_BODY_JSON` 显式扩展。
+- `ReviewVO` 已补充 `aiScoreTotal` 与 `aiIssueCount`；`ReviewDetailVO` 已补充 `promptSnapshotSummary`，用于 Reviewer 查看 AI 建议时快速理解 Agent 使用的任务、题目字段、提交字段和评分维度。
 - `GET /api/review-jobs`、`GET /api/reviews`、`GET /api/reviews/{reviewId}` 已进入 OpenAPI；人工审核决策接口保留到阶段 4.5 实现。
 
 ## 10. 阶段 0 Entity 与迁移契约

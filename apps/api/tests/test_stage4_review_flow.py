@@ -184,6 +184,90 @@ def test_reviewer_can_list_review_jobs_and_system_can_claim_context(
         assert audit_log.request_id == "req_stage4_claim"
 
 
+def test_system_agent_success_creates_traceable_ai_review_suggestion(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 4 suggestion task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+    submission = client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "answer for suggestion"},
+            "idempotencyKey": "submit-stage4-suggestion",
+            "clientDraftVersion": assignment["version"],
+        },
+    ).json()
+    claim_response = client.post(
+        "/api/internal/review-jobs:claim",
+        json={"workerId": "agent-stage4-suggestion"},
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+    )
+    job_id = claim_response.json()["job"]["id"]
+    prompt_snapshot = (
+        '{"task":{"title":"Stage 4 suggestion task"},"datasetItemPayload":{"prompt":"Question 0"},'
+        '"templateFields":[{"label":"Prompt"},{"label":"Answer","fieldKey":"answer"}],'
+        '"submissionValues":{"answer":"answer for suggestion"},'
+        '"reviewConfig":{"versionNo":1,"dimensions":[{"name":"准确性"}]}}'
+    )
+
+    result_response = client.post(
+        f"/api/internal/review-jobs/{job_id}/results",
+        json={
+            "result": {
+                "conclusion": "PASS",
+                "scores": {"accuracy": 5},
+                "summary": "答案准确，建议通过，但仍需 Reviewer 终审。",
+                "issues": [{"field": "answer", "code": "OK", "message": "无明显问题。"}],
+                "suggestions": "可直接进入人工复核确认。",
+                "rawOutput": {"conclusion": "PASS"},
+                "promptSnapshot": prompt_snapshot,
+            }
+        },
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token", "X-Request-ID": "req_stage4_suggestion"},
+    )
+    assert result_response.status_code == 200
+    assert result_response.json()["status"] == ReviewJobStatus.SUCCEEDED.value
+
+    login(client, "reviewer@labelhub.dev")
+    reviews_response = client.get("/api/reviews?page=1&pageSize=10")
+    assert reviews_response.status_code == 200
+    listed_review = reviews_response.json()["data"][0]
+    assert listed_review["taskTitle"] == "Stage 4 suggestion task"
+    assert listed_review["submissionVersion"] == 1
+    assert listed_review["reviewConfigVersionNo"] == 1
+    assert listed_review["aiConclusion"] == "PASS"
+    assert listed_review["aiScoreTotal"] == 5
+    assert listed_review["aiIssueCount"] == 1
+
+    detail_response = client.get(f"/api/reviews/{listed_review['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["review"]["id"] == listed_review["id"]
+    assert detail["review"]["status"] == ReviewStatus.PENDING_HUMAN_REVIEW.value
+    assert detail["submission"]["id"] == submission["id"]
+    assert detail["submission"]["status"] == SubmissionStatus.HUMAN_REVIEWING.value
+    assert detail["promptSnapshotSummary"]["taskTitle"] == "Stage 4 suggestion task"
+    assert detail["promptSnapshotSummary"]["datasetItemKeys"] == ["prompt"]
+    assert detail["promptSnapshotSummary"]["submissionFieldKeys"] == ["answer"]
+    assert detail["promptSnapshotSummary"]["reviewDimensionNames"] == ["准确性"]
+    assert any(item["action"] == AuditAction.REVIEW_AI_SUGGESTION.value for item in detail["timeline"])
+
+    with session_factory() as session:
+        audit_log = session.scalar(
+            select(AuditLogEntity).where(
+                AuditLogEntity.entity_type == AuditEntityType.REVIEW.value,
+                AuditLogEntity.action == AuditAction.REVIEW_AI_SUGGESTION.value,
+            )
+        )
+        assert audit_log is not None
+        assert audit_log.request_id == "req_stage4_suggestion"
+        assert audit_log.metadata_json["scoreTotal"] == 5
+        assert audit_log.metadata_json["issueCount"] == 1
+
+
 def test_system_agent_failure_retries_and_falls_back_to_human_review(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

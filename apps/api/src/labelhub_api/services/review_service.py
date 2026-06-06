@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from math import ceil
 from uuid import uuid4
@@ -36,6 +37,7 @@ from labelhub_api.schemas.reviews import (
     CompleteReviewJobRequest,
     ReviewDetailVO,
     ReviewJobVO,
+    ReviewPromptSnapshotSummaryVO,
     ReviewTimelineItemVO,
     ReviewVO,
 )
@@ -247,11 +249,11 @@ class ReviewService:
             job.status = next_status
             job.last_error = body.error_message or "AI 预审失败，等待重试或人工兜底。"
             if next_status == ReviewJobStatus.NEEDS_HUMAN_REVIEW.value:
-                self._create_ai_review_from_failure(job, now=now)
+                self._create_ai_review_from_failure(job, now=now, request_id=request_id)
         else:
             job.status = ReviewJobStatus.SUCCEEDED.value
             job.last_error = None
-            self._create_ai_review_from_result(job, result=body.result, now=now)
+            self._create_ai_review_from_result(job, result=body.result, now=now, request_id=request_id)
 
         job.finished_at = now
         job.locked_by = None
@@ -351,6 +353,7 @@ class ReviewService:
             dataset_item_payload=item.payload,
             template_schema=TemplateSchemaVO.model_validate(template.schema_json),
             review_config_version=self._to_review_config_version_vo(review_config),
+            prompt_snapshot_summary=self._to_prompt_snapshot_summary_vo(review.prompt_snapshot),
             timeline=[self._to_timeline_item_vo(item) for item in timeline],
         )
 
@@ -375,71 +378,85 @@ class ReviewService:
             review_config_version=self._to_review_config_version_vo(review_config),
         )
 
-    def _create_ai_review_from_result(self, job: ReviewJobEntity, *, result: object, now: datetime) -> None:
+    def _create_ai_review_from_result(
+        self,
+        job: ReviewJobEntity,
+        *,
+        result: object,
+        now: datetime,
+        request_id: str,
+    ) -> None:
         if self._db.scalar(select(ReviewEntity).where(ReviewEntity.review_job_id == job.id)) is not None:
             return
         submission = self._db.get(SubmissionEntity, job.submission_id)
         if submission is not None:
             submission.status = SubmissionStatus.HUMAN_REVIEWING.value
             submission.updated_at = now
-        self._db.add(
-            ReviewEntity(
-                id=self._new_id("review"),
-                task_id=job.task_id,
-                assignment_id=job.assignment_id,
-                submission_id=job.submission_id,
-                review_job_id=job.id,
-                status=ReviewStatus.PENDING_HUMAN_REVIEW.value,
-                ai_conclusion=result.conclusion.value,
-                ai_scores=result.scores,
-                ai_comment=result.summary,
-                ai_issues=[issue.model_dump(by_alias=True) for issue in result.issues],
-                ai_suggestions=result.suggestions,
-                raw_output=result.raw_output,
-                prompt_snapshot=result.prompt_snapshot,
-                human_conclusion=None,
-                reviewer_id=None,
-                human_comment=None,
-                dimension_comments={},
-                review_round=1,
-                version=0,
-                created_at=now,
-                updated_at=now,
-            )
+        review = ReviewEntity(
+            id=self._new_id("review"),
+            task_id=job.task_id,
+            assignment_id=job.assignment_id,
+            submission_id=job.submission_id,
+            review_job_id=job.id,
+            status=ReviewStatus.PENDING_HUMAN_REVIEW.value,
+            ai_conclusion=result.conclusion.value,
+            ai_scores=result.scores,
+            ai_comment=result.summary,
+            ai_issues=[issue.model_dump(by_alias=True) for issue in result.issues],
+            ai_suggestions=result.suggestions,
+            raw_output=result.raw_output,
+            prompt_snapshot=result.prompt_snapshot,
+            human_conclusion=None,
+            reviewer_id=None,
+            human_comment=None,
+            dimension_comments={},
+            review_round=1,
+            version=0,
+            created_at=now,
+            updated_at=now,
+        )
+        self._db.add(review)
+        review_config = self._db.get(ReviewConfigVersionEntity, job.review_config_version_id)
+        self._append_review_suggestion_audit(
+            review,
+            job=job,
+            score_total=self._calculate_score_total(review.ai_scores, review_config),
+            prompt_summary=self._summarize_prompt_snapshot(result.prompt_snapshot),
+            request_id=request_id,
         )
 
-    def _create_ai_review_from_failure(self, job: ReviewJobEntity, *, now: datetime) -> None:
+    def _create_ai_review_from_failure(self, job: ReviewJobEntity, *, now: datetime, request_id: str) -> None:
         if self._db.scalar(select(ReviewEntity).where(ReviewEntity.review_job_id == job.id)) is not None:
             return
         submission = self._db.get(SubmissionEntity, job.submission_id)
         if submission is not None:
             submission.status = SubmissionStatus.HUMAN_REVIEWING.value
             submission.updated_at = now
-        self._db.add(
-            ReviewEntity(
-                id=self._new_id("review"),
-                task_id=job.task_id,
-                assignment_id=job.assignment_id,
-                submission_id=job.submission_id,
-                review_job_id=job.id,
-                status=ReviewStatus.PENDING_HUMAN_REVIEW.value,
-                ai_conclusion=AiReviewConclusion.NEEDS_HUMAN_REVIEW.value,
-                ai_scores={},
-                ai_comment=job.last_error or "AI 预审失败，已转入人工兜底。",
-                ai_issues=[],
-                ai_suggestions=None,
-                raw_output=None,
-                prompt_snapshot=None,
-                human_conclusion=None,
-                reviewer_id=None,
-                human_comment=None,
-                dimension_comments={},
-                review_round=1,
-                version=0,
-                created_at=now,
-                updated_at=now,
-            )
+        review = ReviewEntity(
+            id=self._new_id("review"),
+            task_id=job.task_id,
+            assignment_id=job.assignment_id,
+            submission_id=job.submission_id,
+            review_job_id=job.id,
+            status=ReviewStatus.PENDING_HUMAN_REVIEW.value,
+            ai_conclusion=AiReviewConclusion.NEEDS_HUMAN_REVIEW.value,
+            ai_scores={},
+            ai_comment=job.last_error or "AI 预审失败，已转入人工兜底。",
+            ai_issues=[],
+            ai_suggestions=None,
+            raw_output=None,
+            prompt_snapshot=None,
+            human_conclusion=None,
+            reviewer_id=None,
+            human_comment=None,
+            dimension_comments={},
+            review_round=1,
+            version=0,
+            created_at=now,
+            updated_at=now,
         )
+        self._db.add(review)
+        self._append_review_suggestion_audit(review, job=job, score_total=None, prompt_summary=None, request_id=request_id)
 
     def _job_idempotency_key(
         self,
@@ -495,8 +512,10 @@ class ReviewService:
             status=ReviewStatus(review.status),
             ai_conclusion=AiReviewConclusion(review.ai_conclusion) if review.ai_conclusion else None,
             ai_scores=review.ai_scores,
+            ai_score_total=self._calculate_score_total(review.ai_scores, review_config),
             ai_comment=review.ai_comment,
             ai_issues=[AiReviewIssueDTO(**issue) for issue in review.ai_issues],
+            ai_issue_count=len(review.ai_issues),
             ai_suggestions=review.ai_suggestions,
             human_conclusion=review.human_conclusion,
             reviewer_id=review.reviewer_id,
@@ -590,6 +609,97 @@ class ReviewService:
             metadata=audit.metadata_json or {},
             created_at=audit.created_at,
         )
+
+    def _append_review_suggestion_audit(
+        self,
+        review: ReviewEntity,
+        *,
+        job: ReviewJobEntity,
+        score_total: float | None,
+        prompt_summary: dict[str, object] | None,
+        request_id: str,
+    ) -> None:
+        self._db.add(
+            AuditLogEntity(
+                id=self._new_id("audit"),
+                entity_type=AuditEntityType.REVIEW.value,
+                entity_id=review.id,
+                actor_id="user_system_agent",
+                actor_role=UserRole.SYSTEM.value,
+                action=AuditAction.REVIEW_AI_SUGGESTION.value,
+                from_state=None,
+                to_state=ReviewStatus.PENDING_HUMAN_REVIEW.value,
+                reason=review.ai_comment,
+                metadata_json={
+                    "reviewJobId": job.id,
+                    "submissionId": job.submission_id,
+                    "reviewConfigVersionId": job.review_config_version_id,
+                    "aiConclusion": review.ai_conclusion,
+                    "scoreTotal": score_total,
+                    "issueCount": len(review.ai_issues),
+                    "promptSnapshotSummary": prompt_summary,
+                },
+                request_id=request_id,
+                created_at=datetime.now(UTC),
+            )
+        )
+
+    def _calculate_score_total(
+        self,
+        scores: dict[str, int],
+        review_config: ReviewConfigVersionEntity | None,
+    ) -> float | None:
+        if not scores:
+            return None
+        if review_config is None:
+            return float(sum(scores.values()))
+        dimensions = {str(dimension.get("key")): dimension for dimension in review_config.dimensions}
+        total = 0.0
+        for key, score in scores.items():
+            weight = float(dimensions.get(key, {}).get("weight", 1.0))
+            total += float(score) * weight
+        return round(total, 2)
+
+    def _to_prompt_snapshot_summary_vo(self, prompt_snapshot: str | None) -> ReviewPromptSnapshotSummaryVO | None:
+        summary = self._summarize_prompt_snapshot(prompt_snapshot)
+        return ReviewPromptSnapshotSummaryVO(**summary) if summary is not None else None
+
+    def _summarize_prompt_snapshot(self, prompt_snapshot: str | None) -> dict[str, object] | None:
+        if not prompt_snapshot:
+            return None
+        # 详情页只展示摘要和短摘录，完整快照仍保存在 reviews.prompt_snapshot 供审计追溯。
+        excerpt = prompt_snapshot[:800]
+        try:
+            payload = json.loads(prompt_snapshot)
+        except json.JSONDecodeError:
+            return {"snapshotAvailable": True, "promptExcerpt": excerpt}
+        if not isinstance(payload, dict):
+            return {"snapshotAvailable": True, "promptExcerpt": excerpt}
+
+        task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
+        dataset_payload = payload.get("datasetItemPayload") if isinstance(payload.get("datasetItemPayload"), dict) else {}
+        submission_values = payload.get("submissionValues") if isinstance(payload.get("submissionValues"), dict) else {}
+        template_fields = payload.get("templateFields") if isinstance(payload.get("templateFields"), list) else []
+        review_config = payload.get("reviewConfig") if isinstance(payload.get("reviewConfig"), dict) else {}
+        dimensions = review_config.get("dimensions") if isinstance(review_config.get("dimensions"), list) else []
+        return {
+            "snapshotAvailable": True,
+            "taskTitle": task.get("title") if isinstance(task.get("title"), str) else None,
+            "datasetItemKeys": sorted(str(key) for key in dataset_payload.keys()),
+            "submissionFieldKeys": sorted(str(key) for key in submission_values.keys()),
+            "templateFieldLabels": [
+                str(field.get("label"))
+                for field in template_fields
+                if isinstance(field, dict) and isinstance(field.get("label"), str)
+            ][:20],
+            "reviewDimensionNames": [
+                str(dimension.get("name"))
+                for dimension in dimensions
+                if isinstance(dimension, dict) and isinstance(dimension.get("name"), str)
+            ][:20],
+            "reviewConfigVersionNo": review_config.get("versionNo") if isinstance(review_config.get("versionNo"), int) else None,
+            "promptExcerpt": excerpt,
+        }
 
     def _append_audit(
         self,

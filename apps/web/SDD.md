@@ -1033,8 +1033,10 @@ export interface ReviewVO {
   status: "PENDING_HUMAN_REVIEW" | "APPROVED" | "RETURNED";
   aiConclusion: "PASS" | "RETURN" | "NEEDS_HUMAN_REVIEW" | null;
   aiScores: Record<string, number>;
+  aiScoreTotal: number | null;
   aiComment: string | null;
   aiIssues: Array<{ field: string | null; code: string; message: string }>;
+  aiIssueCount: number;
   aiSuggestions: string | null;
   humanConclusion: "APPROVE" | "RETURN" | null;
   reviewerId: string | null;
@@ -1044,6 +1046,29 @@ export interface ReviewVO {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReviewPromptSnapshotSummaryVO {
+  snapshotAvailable: boolean;
+  taskTitle: string | null;
+  datasetItemKeys: string[];
+  submissionFieldKeys: string[];
+  templateFieldLabels: string[];
+  reviewDimensionNames: string[];
+  reviewConfigVersionNo: number | null;
+  promptExcerpt: string | null;
+}
+
+export interface ReviewDetailVO {
+  review: ReviewVO;
+  task: TaskVO;
+  assignment: AssignmentVO;
+  submission: SubmissionVO;
+  datasetItemPayload: JsonObject;
+  templateSchema: TemplateSchemaVO;
+  reviewConfigVersion: ReviewConfigVersionVO;
+  promptSnapshotSummary: ReviewPromptSnapshotSummaryVO | null;
+  timeline: ReviewTimelineItemVO[];
 }
 
 export interface CreateReviewDecisionRequest {
@@ -1057,7 +1082,7 @@ export interface CreateReviewDecisionRequest {
 交互规则：
 
 - Reviewer 登录后的默认首页为 `/reviewer/reviews`，用于承接阶段 4 审核主链路。
-- 阶段 4.2 工作台展示 AI 预审队列、Agent 锁定信息、重试次数和失败原因；AI 写回后的审核详情、人工通过/打回和批量审核分别在 4.3-4.5 继续启用。
+- 阶段 4.2 工作台展示 AI 预审队列、Agent 锁定信息、重试次数和失败原因；阶段 4.3 已提供 AI 建议详情页和 Prompt 摘要，人工通过/打回和批量审核分别在 4.5 继续启用。
 - Reviewer 队列列表与最近待审记录应优先展示任务标题、提交版本和审核配置版本；`reviewJobId`、`submissionId`、`idempotencyKey` 等内部追踪字段不得作为主标题，必要时只作为可复制的短流水号或详情追踪信息。
 - `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
 - 批量打回也必须提供统一理由，并在每条 review 上写独立审计。

@@ -49,8 +49,10 @@ export interface ReviewVO {
   status: ReviewStatus;
   aiConclusion: AiReviewConclusion | null;
   aiScores: Record<string, number>;
+  aiScoreTotal: number | null;
   aiComment: string | null;
   aiIssues: AiReviewIssueDTO[];
+  aiIssueCount: number;
   aiSuggestions: string | null;
   humanConclusion: HumanReviewDecision | null;
   reviewerId: string | null;
@@ -72,6 +74,17 @@ export interface ReviewTimelineItemVO {
   createdAt: string;
 }
 
+export interface ReviewPromptSnapshotSummaryVO {
+  snapshotAvailable: boolean;
+  taskTitle: string | null;
+  datasetItemKeys: string[];
+  submissionFieldKeys: string[];
+  templateFieldLabels: string[];
+  reviewDimensionNames: string[];
+  reviewConfigVersionNo: number | null;
+  promptExcerpt: string | null;
+}
+
 export interface ReviewDetailVO {
   review: ReviewVO;
   task: TaskVO;
@@ -80,6 +93,7 @@ export interface ReviewDetailVO {
   datasetItemPayload: JsonObject;
   templateSchema: TemplateSchemaVO;
   reviewConfigVersion: ReviewConfigVersionVO;
+  promptSnapshotSummary: ReviewPromptSnapshotSummaryVO | null;
   timeline: ReviewTimelineItemVO[];
 }
 

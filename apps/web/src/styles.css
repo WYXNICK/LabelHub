@@ -2102,6 +2102,79 @@ body {
   border-bottom: 0;
 }
 
+.labelhub-review-detail-head .ant-card-body {
+  padding: 18px 22px;
+}
+
+.labelhub-review-detail-head-meta {
+  min-width: 180px;
+  text-align: right;
+}
+
+.labelhub-review-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-review-detail-main,
+.labelhub-review-detail-side {
+  min-width: 0;
+}
+
+.labelhub-review-detail-side {
+  position: sticky;
+  top: 76px;
+}
+
+.labelhub-review-detail-renderer .labelhub-template-field,
+.labelhub-review-detail-renderer .labelhub-template-show-item {
+  background: #fbfcff;
+}
+
+.labelhub-review-detail-renderer .ant-input[disabled],
+.labelhub-review-detail-renderer .ant-input-disabled,
+.labelhub-review-detail-renderer .ant-select-disabled .ant-select-selector,
+.labelhub-review-detail-renderer .ant-radio-wrapper-disabled,
+.labelhub-review-detail-renderer .ant-checkbox-wrapper-disabled {
+  color: #1f2329 !important;
+  background: #fff !important;
+  opacity: 1;
+}
+
+.labelhub-review-ai-card {
+  border-color: #d8c7ff;
+  background: linear-gradient(180deg, #fff 0%, #fbf8ff 100%);
+}
+
+.labelhub-review-ai-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.labelhub-review-stat-block {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-review-score-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.38fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.labelhub-review-summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 0;
+  margin-top: 6px;
+}
+
 @media (max-width: 1500px) {
   .labelhub-market-workbench {
     grid-template-columns: 1fr;
@@ -2139,6 +2212,14 @@ body {
     position: static;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .labelhub-review-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-review-detail-side {
+    position: static;
   }
 
   .labelhub-assignment-workspace {
@@ -2385,11 +2466,20 @@ body {
   }
 
   .labelhub-reviewer-summary-grid,
-  .labelhub-reviewer-side {
+  .labelhub-reviewer-side,
+  .labelhub-review-ai-summary {
     grid-template-columns: 1fr;
   }
 
   .labelhub-reviewer-job-row {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-review-detail-head-meta {
+    text-align: left;
+  }
+
+  .labelhub-review-score-row {
     grid-template-columns: 1fr;
   }
 

@@ -17,6 +17,7 @@ import type { UserRole, UserVO } from "../features/auth/types";
 import { matchLabelerAssignmentPath, matchLabelerAssignmentRevisePath } from "../features/assignments/view";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
+import { matchReviewerReviewDetailPath } from "../features/reviews/view";
 import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
 import { matchOwnerTaskDesignerPath } from "../features/templates/view";
 import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
@@ -25,6 +26,7 @@ import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
+import { ReviewerReviewDetailPage } from "./ReviewerReviewDetailPage";
 import { ReviewerReviewQueuePage } from "./ReviewerReviewQueuePage";
 import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
 import { LabelerContributionsPage } from "./LabelerContributionsPage";
@@ -74,6 +76,8 @@ export function RoleShell({ user, path }: RoleShellProps) {
       ? "/labeler/contributions"
     : labelerAssignmentId
       ? "/labeler/marketplace"
+    : matchReviewerReviewDetailPath(path)
+      ? "/reviewer/reviews"
     : path.startsWith("/owner/tasks")
       ? "/owner/tasks"
       : path;
@@ -122,7 +126,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
             <Space size={12}>
               <Typography.Text strong>{roleName[user.role]}</Typography.Text>
               <Tag color="blue">{user.role}</Tag>
-              <span className="labelhub-route-chip">{path}</span>
+              <span className="labelhub-route-chip">{getRouteChipLabel(user.role, path)}</span>
             </Space>
             <Space>
               <UserOutlined />
@@ -139,6 +143,28 @@ export function RoleShell({ user, path }: RoleShellProps) {
       </Layout>
     </Layout>
   );
+}
+
+function getRouteChipLabel(role: UserRole, path: string): string {
+  if (role === "OWNER") {
+    if (matchOwnerTaskDesignerPath(path)) return "模板搭建器";
+    if (matchOwnerTaskDatasetsPath(path)) return "任务数据集";
+    if (matchOwnerTaskReviewConfigPath(path)) return "审核配置";
+    if (matchOwnerTaskSettingsPath(path)) return "任务设置";
+    if (path === "/owner/templates") return "模板工作台";
+    if (path === "/owner/tasks") return "任务管理";
+  }
+  if (role === "LABELER") {
+    if (matchLabelerAssignmentRevisePath(path)) return "返修工作台";
+    if (matchLabelerAssignmentPath(path)) return "标注工作台";
+    if (path === "/labeler/marketplace") return "任务广场";
+    if (path === "/labeler/contributions") return "我的贡献";
+  }
+  if (role === "REVIEWER") {
+    if (matchReviewerReviewDetailPath(path)) return "AI 预审详情";
+    if (path === "/reviewer/reviews") return "审核工作台";
+  }
+  return path;
 }
 
 function renderRoleContent(user: UserVO, path: string) {
@@ -187,6 +213,12 @@ function renderRoleContent(user: UserVO, path: string) {
   }
   if (user.role === "REVIEWER" && path === "/reviewer/reviews") {
     return <ReviewerReviewQueuePage />;
+  }
+  if (user.role === "REVIEWER") {
+    const reviewId = matchReviewerReviewDetailPath(path);
+    if (reviewId) {
+      return <ReviewerReviewDetailPage reviewId={reviewId} />;
+    }
   }
   return <RoleHomePage path={path} user={user} />;
 }

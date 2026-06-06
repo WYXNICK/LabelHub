@@ -10,9 +10,20 @@ import { Alert, Button, Card, Empty, Flex, Input, Select, Space, Statistic, Tag,
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { navigate } from "../app/routes";
 import { listReviewJobs, listReviews } from "../features/reviews/api";
 import type { ReviewJobStatus, ReviewJobVO, ReviewVO } from "../features/reviews/types";
-import { reviewJobStatusMeta, reviewStatusMeta, truncateMiddle } from "../features/reviews/view";
+import {
+  aiConclusionMeta,
+  buildReviewerReviewDetailPath,
+  formatAiScoreTotal,
+  formatReviewConfigVersion,
+  formatReviewTraceCode,
+  formatSubmissionVersion,
+  reviewJobStatusMeta,
+  reviewStatusMeta,
+  truncateMiddle,
+} from "../features/reviews/view";
 import { formatTaskTime } from "../features/tasks/view";
 
 const statusOptions: Array<{ label: string; value: ReviewJobStatus | "ALL" }> = [
@@ -69,6 +80,7 @@ export function ReviewerReviewQueuePage() {
   }, [load]);
 
   const stats = useMemo(() => buildJobStats(state.jobs), [state.jobs]);
+  const reviewByJobId = useMemo(() => new Map(state.reviews.map((review) => [review.reviewJobId, review])), [state.reviews]);
 
   return (
     <Space direction="vertical" size={18} style={{ width: "100%" }}>
@@ -78,11 +90,11 @@ export function ReviewerReviewQueuePage() {
             审核工作台
           </Typography.Title>
           <Typography.Text type="secondary">
-            阶段 4.2 已接入 Agent 领取、重试与 OpenAI 兼容调用；人工通过、打回和批量审核将在后续粒度启用。
+            阶段 4.3 已接入 AI 预审记录与建议详情；人工通过、打回和批量审核将在后续粒度启用。
           </Typography.Text>
         </div>
         <Space>
-          <Tag color="blue">Phase 4.2</Tag>
+          <Tag color="blue">Phase 4.3</Tag>
           <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
             刷新
           </Button>
@@ -139,7 +151,7 @@ export function ReviewerReviewQueuePage() {
           ) : (
             <div className="labelhub-reviewer-job-list">
               {state.jobs.map((job) => (
-                <ReviewJobRow key={job.id} job={job} />
+                <ReviewJobRow key={job.id} job={job} review={reviewByJobId.get(job.id)} />
               ))}
             </div>
           )}
@@ -149,7 +161,7 @@ export function ReviewerReviewQueuePage() {
           <Card title="运行说明">
             <Space direction="vertical" size={12}>
               <StepLine icon={<DatabaseOutlined />} title="提交入队" description="每个提交版本只创建一个有效 review job。" />
-              <StepLine icon={<ApiOutlined />} title="Agent 领取" description="阶段 4.2 已由 uv 管理的 Agent 调用 OpenAI 兼容接口。" />
+              <StepLine icon={<ApiOutlined />} title="Agent 领取" description="uv 管理的 Agent 调用 OpenAI 兼容接口并写回 AI 建议。" />
               <StepLine icon={<AuditOutlined />} title="人工终审" description="AI 结果写回后进入 Reviewer 人工审核，不自动终审。" />
             </Space>
           </Card>
@@ -168,10 +180,23 @@ export function ReviewerReviewQueuePage() {
                       <Tag color={reviewStatusMeta[review.status].color}>{reviewStatusMeta[review.status].label}</Tag>
                     </Flex>
                     <Space size={[4, 4]} wrap style={{ marginTop: 6 }}>
+                      {review.aiConclusion && (
+                        <Tag color={aiConclusionMeta[review.aiConclusion].color}>
+                          {aiConclusionMeta[review.aiConclusion].label} · {formatAiScoreTotal(review.aiScoreTotal)}
+                        </Tag>
+                      )}
                       <Tag color="blue">{formatSubmissionVersion(review.submissionVersion)}</Tag>
                       <Tag>{formatReviewConfigVersion(review.reviewConfigVersionNo)}</Tag>
                       <Tag>第 {review.reviewRound} 轮审核</Tag>
                     </Space>
+                    <Button
+                      size="small"
+                      type="link"
+                      style={{ paddingInline: 0, marginTop: 6 }}
+                      onClick={() => navigate(buildReviewerReviewDetailPath(review.id))}
+                    >
+                      查看详情
+                    </Button>
                   </div>
                 ))}
               </Space>
@@ -183,7 +208,7 @@ export function ReviewerReviewQueuePage() {
   );
 }
 
-function ReviewJobRow({ job }: { job: ReviewJobVO }) {
+function ReviewJobRow({ job, review }: { job: ReviewJobVO; review?: ReviewVO }) {
   const meta = reviewJobStatusMeta[job.status];
   const taskTitle = job.taskTitle || "未命名任务";
   return (
@@ -196,6 +221,11 @@ function ReviewJobRow({ job }: { job: ReviewJobVO }) {
           <Tag color={meta.color}>{meta.label}</Tag>
           <Tag color="blue">{formatSubmissionVersion(job.submissionVersion)}</Tag>
           <Tag>{formatReviewConfigVersion(job.reviewConfigVersionNo)}</Tag>
+          {review?.aiConclusion && (
+            <Tag color={aiConclusionMeta[review.aiConclusion].color}>
+              {aiConclusionMeta[review.aiConclusion].label} · {formatAiScoreTotal(review.aiScoreTotal)}
+            </Tag>
+          )}
         </Flex>
         <Typography.Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
           标注提交已完成 AI 预审，等待 Reviewer 人工复核。内部追踪信息已收起，可通过下方流水号复制定位。
@@ -214,8 +244,13 @@ function ReviewJobRow({ job }: { job: ReviewJobVO }) {
           copyable={{ text: job.id, tooltips: ["复制完整预审流水号", "已复制"] }}
           title={job.id}
         >
-          预审流水 {formatTraceCode(job.id)}
+          预审流水 {formatReviewTraceCode(job.id)}
         </Typography.Text>
+        {review && (
+          <Button size="small" type="primary" ghost onClick={() => navigate(buildReviewerReviewDetailPath(review.id))}>
+            查看 AI 建议
+          </Button>
+        )}
       </div>
       {job.lastError && (
         <Typography.Paragraph type="danger" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
@@ -224,19 +259,6 @@ function ReviewJobRow({ job }: { job: ReviewJobVO }) {
       )}
     </div>
   );
-}
-
-function formatSubmissionVersion(version: number | null): string {
-  return version ? `提交 v${version}` : "提交版本";
-}
-
-function formatReviewConfigVersion(version: number | null): string {
-  return version ? `审核配置 v${version}` : "审核配置";
-}
-
-function formatTraceCode(id: string): string {
-  const tail = id.split("_").pop() ?? id;
-  return `#${tail.slice(-8).toUpperCase()}`;
 }
 
 function StepLine({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {

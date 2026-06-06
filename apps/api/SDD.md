@@ -790,6 +790,7 @@ LLM 边界：
 
 - 阶段 2.5 的 `LLM_ACTION` 只保存配置，不调用模型、不生成结果、不写预审记录。
 - `inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
+- `TemplateComponentDTO.label` 是 Owner 配置并展示给标注员的用户文案；前端 Designer 新增物料默认使用中文业务语义，后端只做快照保存和校验，不在保存或发布时自动翻译 label。
 - 真实题目级调用接口将在阶段 3.6 通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入，必须继续使用 OpenAI API 格式和结构化输出模型。
 
 验收标准：
@@ -1042,12 +1043,12 @@ LLM 边界：
 - `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
 - `RunLlmActionRequest.inputValues` 使用当前 Renderer 提交值快照；`targetFieldKey` 为空时以后端模板 `LLM_ACTION.props.outputFieldKey` 为准。
 - 后端必须用 assignment 固化的 `template_version_id` 定位组件，不能读取任务当前草稿或最新模板；组件不存在、组件类型不是 `LLM_ACTION`、输出字段不在当前 schema 中都返回结构化错误。
-- 请求使用 OpenAI API 兼容 Chat Completions 格式，配置从 `OPENAI_API_KEY`、`BASE_URL`/`OPENAI_BASE_URL`、`MODEL_NAME`/`OPENAI_MODEL_NAME` 读取；真实密钥不得进入仓库。
-- thinking 必须关闭：服务端系统提示禁止输出思考过程；如供应商需要显式参数，通过 `LLM_EXTRA_BODY_JSON` 注入，例如当前 MiMo 可配置 `{"chat_template_kwargs":{"enable_thinking":false}}`。默认请求体保持标准 OpenAI 兼容字段，保证后续更换同协议 Provider 时仍可请求。
+- 请求使用 OpenAI API 兼容 Chat Completions 格式，配置从 `OPENAI_API_KEY`、`BASE_URL`/`OPENAI_BASE_URL`、`MODEL_NAME`/`OPENAI_MODEL_NAME`、`OPENAI_TIMEOUT_SECONDS`/`LLM_TIMEOUT_SECONDS` 读取；真实密钥不得进入仓库。题目级 LLM 辅助默认请求超时为 90 秒，允许本地或部署环境调大到 300 秒以内。
+- thinking 必须关闭：服务端系统提示禁止输出思考过程；如供应商需要显式参数，通过 `LLM_EXTRA_BODY_JSON` 注入。当前 MiMo OpenAI 兼容服务在 `OPENAI_THINKING_ENABLED=false` 且识别到 MiMo Provider 时，后端会自动携带 `{"chat_template_kwargs":{"enable_thinking":false}}`；显式 `LLM_EXTRA_BODY_JSON` 优先级更高。未知 Provider 不自动注入额外字段，保证后续更换同协议 Provider 时仍可请求。
 - 模型输出必须解析为结构化 JSON，优先读取 `outputValues[targetFieldKey]`，其次读取 `outputValue`、目标字段同名字段或 `text`；解析失败时把原始文本作为 `outputValue`。
 - 输出只作为参考或预填草稿，不自动提交。前端采纳后仍需 Labeler 手动保存/提交，后端提交接口继续做最终模板校验。
 - 后端必须记录调用输入、输出、错误和幂等键；同一 `idempotencyKey` 重试直接返回既有 `LlmActionRunVO`，避免重复扣费或重复写入。
-- Provider 调用失败也要落 `llm_action_runs.status=FAILED` 并返回 `LlmActionRunVO`，前端用 `errorMessage` 告知用户，不把一次模型失败伪装成提交失败。
+- Provider 调用失败也要落 `llm_action_runs.status=FAILED` 并返回 `LlmActionRunVO`，前端用 `errorMessage` 告知用户，不把一次模型失败伪装成提交失败。超时错误必须包含当前超时秒数和排查方向，避免只显示英文内部异常。
 
 ### 9.15 阶段 3.5 我的贡献与返修入口契约
 
@@ -1161,7 +1162,7 @@ class AiReviewResultDTO:
 要求：
 
 - LLM 请求使用 OpenAI API 格式。
-- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`。
+- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED`、`OPENAI_TIMEOUT_SECONDS` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`LLM_TIMEOUT_SECONDS`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`，后端可根据 MiMo Provider 自动注入该扩展。
 - LLM 输出必须通过后端结构化模型校验。
 - 校验失败不能进入终审流程，应重试或进入人工复核。
 - Agent 写回结果必须通过后端受控服务或内部接口，不直接绕过状态机。

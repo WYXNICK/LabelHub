@@ -40,10 +40,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MODEL_NAME", "OPENAI_MODEL_NAME", "OPENAI_MODEL", "LLM_MODEL_NAME"),
     )
     openai_timeout_seconds: float = Field(
-        default=30.0,
+        default=90.0,
         ge=1,
-        le=180,
-        validation_alias=AliasChoices("OPENAI_TIMEOUT_SECONDS", "LLM_TIMEOUT_SECONDS"),
+        le=300,
+        validation_alias=AliasChoices("OPENAI_TIMEOUT_SECONDS", "LLM_TIMEOUT_SECONDS", "LLM_REQUEST_TIMEOUT_SECONDS"),
+    )
+    openai_thinking_enabled: bool | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_THINKING_ENABLED", "LLM_THINKING_ENABLED"),
     )
     llm_temperature: float = Field(
         default=0.2,

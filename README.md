@@ -143,6 +143,23 @@ uv run python -m labelhub_api
 uv run alembic upgrade head
 ```
 
+题目级 LLM 辅助使用 OpenAI Chat Completions 兼容格式。后端进程启动前需确认仓库根目录 `.env` 至少包含：
+
+```bash
+# 以下为示例；真实 OPENAI_API_KEY 只放本地 .env，不提交到 Git
+OPENAI_API_KEY=your-local-key
+BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
+MODEL_NAME=mimo-v2.5-pro
+OPENAI_TIMEOUT_SECONDS=90
+OPENAI_THINKING_ENABLED=false
+```
+
+说明：
+
+- `OPENAI_TIMEOUT_SECONDS` 默认 90 秒；如果模型冷启动或响应较慢，可在本地 `.env` 调大，但后端当前限制不超过 300 秒。
+- 当前 MiMo Provider 在 `OPENAI_THINKING_ENABLED=false` 时，后端会自动补充 `chat_template_kwargs.enable_thinking=false`；其它 OpenAI 兼容 Provider 不会被强行注入该扩展字段。
+- 修改 `.env` 后必须重启 `uv run python -m labelhub_api`，运行中的后端进程不会自动重新读取 LLM 配置。
+
 ### 4. AI Agent 命令
 
 以下命令在 `apps/agent` 目录运行：

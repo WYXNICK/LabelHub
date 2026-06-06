@@ -649,7 +649,7 @@ Designer 物料分组：
 | 分组 | 物料 |
 | --- | --- |
 | 基础物料 | `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` |
-| 高级物料 | `RICH_TEXT`、`FILE_UPLOAD`、`IMAGE_UPLOAD`、`JSON_EDITOR`、`LLM_ACTION` |
+| 高级物料 | `LLM_ACTION`、`RICH_TEXT`、`FILE_UPLOAD`、`IMAGE_UPLOAD`、`JSON_EDITOR` |
 
 高级物料属性：
 
@@ -672,6 +672,8 @@ Renderer 行为：
 
 - 高级物料同样支持点击/拖拽添加、排序、删除、右侧属性编辑、预览和保存草稿。
 - Designer 生成的 schema 必须可被后端校验接口直接验证，不出现前端私有字段。
+- Designer 新增物料的默认 `label` 必须使用中文业务语义，例如 `SHOW_ITEM=题目原文`、`TEXTAREA=回答内容`、`LLM_ACTION=AI 辅助动作`；`fieldKey` 仍使用稳定机器字段，不用中文 label 作为提交 key。
+- `LLM_ACTION` 必须在高级物料分组首位展示，确保 `1280×800` 下无需滚到底部也能发现“题目级 LLM 辅助”能力。
 - `LLM_ACTION.props.inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段；后端负责最终校验。
 - 预览抽屉必须用当前未保存 schema 渲染高级物料，验证 Designer/Renderer 共用契约。
 
@@ -882,7 +884,7 @@ export interface ContributionItemVO {
 - `RunLlmActionRequest` 使用 `{ inputValues, targetFieldKey, idempotencyKey }`，其中 `inputValues` 必须是当前 Renderer 值快照，`targetFieldKey` 优先使用组件 `props.outputFieldKey`。
 - `LlmActionRunVO` 返回 `{ id, assignmentId, taskId, componentId, status, inputValues, outputValue, outputValues, errorMessage, idempotencyKey, createdAt }`。
 - Renderer 不自动覆盖字段：模型成功后先展示建议结果，再由 Labeler 点击“采纳到字段”写入目标字段草稿；若无输出字段则仅展示参考文本。采纳后的草稿仍走阶段 3.3 自动保存，正式提交仍走阶段 3.4。
-- 模型失败时展示 `errorMessage` 和可重试按钮，不阻断其他字段作答；Console 不应出现未捕获异常。
+- 模型失败时展示后端 `errorMessage` 和可重试按钮，不阻断其他字段作答；超时类错误应明确提示当前超时秒数或排查方向，不能只显示英文内部异常；Console 不应出现未捕获异常。
 
 验收标准：
 

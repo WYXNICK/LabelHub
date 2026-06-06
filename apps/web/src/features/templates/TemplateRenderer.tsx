@@ -10,6 +10,7 @@ import { Alert, Button, Checkbox, Empty, Form, Input, Radio, Select, Space, Tabs
 import type { TextAreaRef } from "antd/es/input/TextArea";
 
 import type { JsonObject } from "../../shared/types/api";
+import { formatTaskTime } from "../tasks/view";
 import type { TemplateComponentDTO, TemplateFieldValue, TemplateSchemaVO, TemplateSubmissionValue } from "./types";
 import {
   formatPayloadValue,
@@ -755,7 +756,7 @@ function LlmAction({
           <Typography.Text strong>模型建议</Typography.Text>
           <pre>{formatLlmOutput(result.outputValue)}</pre>
           {result.createdAt && (
-            <Typography.Text type="secondary">生成时间：{new Date(result.createdAt).toLocaleString()}</Typography.Text>
+            <Typography.Text type="secondary">生成时间：{formatTaskTime(result.createdAt)}</Typography.Text>
           )}
         </div>
       )}

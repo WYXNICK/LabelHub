@@ -78,11 +78,11 @@ export function ReviewerReviewQueuePage() {
             审核工作台
           </Typography.Title>
           <Typography.Text type="secondary">
-            阶段 4.1 已接入提交入队与 AI 预审任务跟踪；人工通过、打回和批量审核将在后续粒度启用。
+            阶段 4.2 已接入 Agent 领取、重试与 OpenAI 兼容调用；人工通过、打回和批量审核将在后续粒度启用。
           </Typography.Text>
         </div>
         <Space>
-          <Tag color="blue">Phase 4.1</Tag>
+          <Tag color="blue">Phase 4.2</Tag>
           <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
             刷新
           </Button>
@@ -149,7 +149,7 @@ export function ReviewerReviewQueuePage() {
           <Card title="运行说明">
             <Space direction="vertical" size={12}>
               <StepLine icon={<DatabaseOutlined />} title="提交入队" description="每个提交版本只创建一个有效 review job。" />
-              <StepLine icon={<ApiOutlined />} title="Agent 领取" description="阶段 4.2 会由 uv 管理的 Agent 调用 OpenAI 兼容接口。" />
+              <StepLine icon={<ApiOutlined />} title="Agent 领取" description="阶段 4.2 已由 uv 管理的 Agent 调用 OpenAI 兼容接口。" />
               <StepLine icon={<AuditOutlined />} title="人工终审" description="AI 结果写回后进入 Reviewer 人工审核，不自动终审。" />
             </Space>
           </Card>
@@ -198,8 +198,14 @@ function ReviewJobRow({ job }: { job: ReviewJobVO }) {
         <span>
           尝试 {job.attemptCount}/{job.maxAttempts}
         </span>
+        {job.lockedBy && <span>Agent {truncateMiddle(job.lockedBy, 12, 8)}</span>}
         <span>幂等键 {truncateMiddle(job.idempotencyKey, 16, 10)}</span>
       </div>
+      {job.lastError && (
+        <Typography.Paragraph type="danger" ellipsis={{ rows: 2 }} style={{ margin: "8px 0 0" }}>
+          失败原因：{job.lastError}
+        </Typography.Paragraph>
+      )}
     </div>
   );
 }

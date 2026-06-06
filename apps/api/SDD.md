@@ -1178,12 +1178,15 @@ class HumanReviewDecision(str, Enum):
 - Agent 超过最大重试、结构化输出不合法或 Provider 异常时，必须生成需要人工兜底的待审记录，不能让 job 永久卡在 `RUNNING`。
 - 所有状态迁移必须写 `audit_logs`；Actor 为 Agent 时使用 `SYSTEM` 账号，人工审核使用 Reviewer 用户。
 
-阶段 4.0/4.1 当前完成状态：
+阶段 4.0/4.1/4.2 当前完成状态：
 
 - Alembic `0005_create_review_foundation.py` 已创建 `review_jobs` 与 `reviews` 表，并注册到 SQLAlchemy metadata。
 - `ReviewJobStatus`、`AiReviewConclusion`、`ReviewStatus`、`HumanReviewDecision` 枚举已进入后端统一枚举。
 - `POST /api/assignments/{assignmentId}/submissions` 在同一事务内创建唯一 `review_jobs`，重复提交命中同一 submission 时不会生成重复 job。
 - `POST /api/internal/review-jobs:claim` 已返回 job、submission、assignment、task、dataset item payload、template schema 和 review config version，供阶段 4.2 Agent 组装 Prompt。
+- `apps/agent` 已实现 `--once` 单次处理与 `--loop` 轮询：System 身份领取 job，基于审核配置版本、题目 payload、模板字段和提交值组装 Prompt，调用 OpenAI 兼容 Chat Completions，并用 Pydantic 校验结构化 JSON。
+- Agent 写回失败时使用同一内部结果接口提交 `errorMessage`；后端会将 job 置为 `FAILED` 供重试，达到 `maxAttempts` 后置为 `NEEDS_HUMAN_REVIEW` 并生成人工兜底 review。
+- Agent 对 MiMo Provider 自动注入 `chat_template_kwargs.enable_thinking=false`；未知 OpenAI 兼容 Provider 不注入私有扩展，可通过 `OPENAI_EXTRA_BODY_JSON`/`LLM_EXTRA_BODY_JSON` 显式扩展。
 - `GET /api/review-jobs`、`GET /api/reviews`、`GET /api/reviews/{reviewId}` 已进入 OpenAPI；人工审核决策接口保留到阶段 4.5 实现。
 
 ## 10. 阶段 0 Entity 与迁移契约
@@ -1226,14 +1229,16 @@ class AiReviewResultDTO:
     summary: str
     issues: list[AiReviewIssueDTO]
     suggestions: str | None
+    raw_output: dict | None
+    prompt_snapshot: str | None
 ```
 
 要求：
 
 - LLM 请求使用 OpenAI API 格式。
-- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED`、`OPENAI_TIMEOUT_SECONDS` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`LLM_TIMEOUT_SECONDS`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`，后端可根据 MiMo Provider 自动注入该扩展。
-- LLM 输出必须通过后端结构化模型校验。
-- 校验失败不能进入终审流程，应重试或进入人工复核。
+- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED`、`OPENAI_TIMEOUT_SECONDS` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`LLM_TIMEOUT_SECONDS`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`，Agent 根据 MiMo Provider 自动注入该扩展；未知 Provider 保持标准 OpenAI Chat Completions 请求。
+- Agent 使用 `response_format={"type":"json_object"}` 请求 JSON 对象。最终写回统一 `AiReviewResultDTO`；为兼容阶段 1.4 审核配置默认 `outputSchema`，模型返回 `decision/dimensionScores/comment` 时会先归一化为 `conclusion/scores/summary`。归一化后通过 Pydantic 校验；`scores` 必须覆盖审核配置维度，不能包含未知维度，分数不能超过维度 `maxScore`。
+- 校验失败不能进入终审流程，Agent 必须通过内部接口写回失败原因，由后端状态机重试或进入人工复核。
 - Agent 写回结果必须通过后端受控服务或内部接口，不直接绕过状态机。
 
 ## 12. 前后端字段映射检查清单

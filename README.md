@@ -171,8 +171,14 @@ uv sync --extra dev
 # 运行 Agent 契约测试；修改结构化输出 DTO 或配置读取后运行
 uv run pytest
 
-# 启动 Agent 当前阶段的健康输出；阶段 0 只校验配置读取，不消费真实队列
-uv run python -m labelhub_agent
+# 查看 Agent 配置健康状态；不消费真实队列
+uv run python -m labelhub_agent --health
+
+# 领取并处理一个 AI 预审 job；本地调试阶段 4.2 时优先使用
+uv run python -m labelhub_agent --once
+
+# 持续轮询 AI 预审队列；需要长期运行 Agent 时使用
+uv run python -m labelhub_agent --loop
 ```
 
 ### 5. 本地 MySQL / Redis

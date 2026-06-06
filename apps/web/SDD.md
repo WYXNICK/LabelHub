@@ -991,7 +991,7 @@ export interface ContributionItemVO {
 
 | 页面 | 路由 | 产品结构 |
 | --- | --- | --- |
-| 审核工作台 | `/reviewer/reviews` | 阶段 4.1 先展示 AI 预审 job 统计、任务/状态筛选、提交入队记录和阶段边界；批量人工操作在阶段 4.5 启用 |
+| 审核工作台 | `/reviewer/reviews` | 阶段 4.2 展示 AI 预审 job 统计、任务/状态筛选、Agent 锁定信息、重试次数、失败原因和阶段边界；批量人工操作在阶段 4.5 启用 |
 | 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与 diff，右侧人工决策、历史意见和审计时间线 |
 | 审核结果列表 | `/reviewer/review-results` | 已处理审核记录、按任务/结论/处理人筛选、可回看详情 |
 | Owner 数据验收 | `/owner/tasks/:taskId/acceptance` | 任务级提交、通过、打回、待审统计，AI 结论分布和抽样审核记录 |
@@ -1051,7 +1051,7 @@ export interface CreateReviewDecisionRequest {
 交互规则：
 
 - Reviewer 登录后的默认首页为 `/reviewer/reviews`，用于承接阶段 4 审核主链路。
-- 阶段 4.1 工作台只展示 AI 预审队列与基础待审记录；AI 调用、AI 结果写回、人工通过/打回和批量审核分别在 4.2-4.5 继续启用。
+- 阶段 4.2 工作台展示 AI 预审队列、Agent 锁定信息、重试次数和失败原因；AI 写回后的审核详情、人工通过/打回和批量审核分别在 4.3-4.5 继续启用。
 - `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
 - 批量打回也必须提供统一理由，并在每条 review 上写独立审计。
 - AI 结论只作为建议展示，不在前端直接决定终审状态。

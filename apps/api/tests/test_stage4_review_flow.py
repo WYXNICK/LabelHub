@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from labelhub_api.core.enums import AuditAction, AuditEntityType, ReviewJobStatus, SubmissionStatus
+from labelhub_api.core.enums import AuditAction, AuditEntityType, ReviewJobStatus, ReviewStatus, SubmissionStatus
 from labelhub_api.db.base import Base
 from labelhub_api.models.audit import AuditLogEntity
 from labelhub_api.models.review import ReviewEntity, ReviewJobEntity
@@ -176,3 +176,47 @@ def test_reviewer_can_list_review_jobs_and_system_can_claim_context(
         assert job.locked_by == "agent-stage4-test"
         assert audit_log is not None
         assert audit_log.request_id == "req_stage4_claim"
+
+
+def test_system_agent_failure_retries_and_falls_back_to_human_review(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 4 retry task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+    client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "needs retry"},
+            "idempotencyKey": "submit-stage4-retry",
+            "clientDraftVersion": assignment["version"],
+        },
+    )
+
+    claimed_job_id = ""
+    for index in range(3):
+        claim_response = client.post(
+            "/api/internal/review-jobs:claim",
+            json={"workerId": "agent-stage4-retry"},
+            headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+        )
+        assert claim_response.status_code == 200
+        claimed_job_id = claim_response.json()["job"]["id"]
+        result_response = client.post(
+            f"/api/internal/review-jobs/{claimed_job_id}/results",
+            json={"result": None, "errorMessage": f"provider error {index}"},
+            headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+        )
+        assert result_response.status_code == 200
+
+    with session_factory() as session:
+        job = session.get(ReviewJobEntity, claimed_job_id)
+        review = session.scalar(select(ReviewEntity).where(ReviewEntity.review_job_id == claimed_job_id))
+
+        assert job is not None
+        assert job.status == ReviewJobStatus.NEEDS_HUMAN_REVIEW.value
+        assert job.attempt_count == 3
+        assert review is not None
+        assert review.status == ReviewStatus.PENDING_HUMAN_REVIEW.value

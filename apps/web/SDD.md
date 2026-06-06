@@ -662,7 +662,7 @@ Designer 物料分组：
 | `FILE_UPLOAD` | 必填且唯一 | `accept` 字符串数组、`maxFiles`、`maxSizeMb` | `required` |
 | `IMAGE_UPLOAD` | 必填且唯一 | `accept` 图片 MIME/扩展名数组、`maxFiles`、`maxSizeMb` | `required` |
 | `JSON_EDITOR` | 必填且唯一 | `placeholder`、`defaultValue` JSON Object/Array | `required` |
-| `LLM_ACTION` | 不配置 | `actionLabel`、`promptTemplate`、`inputFieldKeys`、`outputFieldKey`、`helperText` | 不参与提交 |
+| `LLM_ACTION` | 不配置 | `actionLabel`、`promptTemplate`、`inputItemPaths`、`inputFieldKeys`、`outputFieldKey`、`helperText` | 不参与提交 |
 
 Renderer 行为：
 
@@ -677,7 +677,7 @@ Renderer 行为：
 - Designer 生成的 schema 必须可被后端校验接口直接验证，不出现前端私有字段。
 - Designer 新增物料的默认 `label` 必须使用中文业务语义，例如 `SHOW_ITEM=题目原文`、`TEXTAREA=回答内容`、`LLM_ACTION=AI 辅助动作`；`fieldKey` 仍使用稳定机器字段，不用中文 label 作为提交 key。
 - `LLM_ACTION` 必须在高级物料分组首位展示，确保 `1280×800` 下无需滚到底部也能发现“题目级 LLM 辅助”能力。
-- `LLM_ACTION.props.inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段；后端负责最终校验。
+- `LLM_ACTION.props.inputItemPaths` 用于引用题目原始数据路径，通常来自 `SHOW_ITEM.props.path`；`inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段。展示项不进入提交值，但可以作为题目级 LLM 辅助的输入上下文。
 - 预览抽屉必须用当前未保存 schema 渲染高级物料，验证 Designer/Renderer 共用契约。
 
 验收标准：
@@ -884,7 +884,8 @@ export interface ContributionItemVO {
 - 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。正式提交按钮在阶段 3.4 接入。
 - 文件/图片上传物料在阶段 3 需要调用现有 `createFileObject`，提交值保存文件对象 ID 数组和必要展示名，不保存浏览器本地临时路径。
 - `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`。
-- `RunLlmActionRequest` 使用 `{ inputValues, targetFieldKey, idempotencyKey }`，其中 `inputValues` 必须是当前 Renderer 值快照，`targetFieldKey` 优先使用组件 `props.outputFieldKey`。
+- `RunLlmActionRequest` 使用 `{ inputValues, targetFieldKey, idempotencyKey }`，其中 `inputValues` 必须是当前 Renderer 值快照，`targetFieldKey` 优先使用组件 `props.outputFieldKey`；题目原始数据不由前端重复提交，后端按组件 `props.inputItemPaths` 从 assignment 的 `datasetItemPayload` 中读取，避免客户端伪造原题上下文。
+- LLM 运行态只把 Owner 显式配置的 `inputItemPaths` 与 `inputFieldKeys` 作为模型输入展示和发送给后端；后端只向模型发送 `selectedItemValues` 与 `selectedInputValues`，不发送完整题目 payload 或未选择字段，避免模型建议混入其他题型、模型对比或审核结论。
 - `LlmActionRunVO` 返回 `{ id, assignmentId, taskId, componentId, status, inputValues, outputValue, outputValues, errorMessage, idempotencyKey, createdAt }`。
 - Renderer 不自动覆盖字段：模型成功后先展示建议结果，再由 Labeler 点击“采纳到字段”写入目标字段草稿；若无输出字段则仅展示参考文本。采纳后的草稿仍走阶段 3.3 自动保存，正式提交仍走阶段 3.4。
 - 模型失败时展示后端 `errorMessage` 和可重试按钮，不阻断其他字段作答；超时类错误应明确提示当前超时秒数或排查方向，不能只显示英文内部异常；Console 不应出现未捕获异常。

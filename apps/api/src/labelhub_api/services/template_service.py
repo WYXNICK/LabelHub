@@ -691,6 +691,18 @@ class TemplateService:
                 for index, item in enumerate(input_field_keys):
                     if not isinstance(item, str) or not item.strip():
                         errors.append(self._error(f"{field_prefix}.props.inputFieldKeys.{index}", "inputFieldKeys 项不能为空。"))
+        input_item_paths = props.get("inputItemPaths")
+        if input_item_paths is not None:
+            if not isinstance(input_item_paths, list):
+                errors.append(self._error(f"{field_prefix}.props.inputItemPaths", "inputItemPaths 必须是字符串数组。"))
+            else:
+                for index, item in enumerate(input_item_paths):
+                    if not isinstance(item, str) or not item.strip():
+                        errors.append(self._error(f"{field_prefix}.props.inputItemPaths.{index}", "inputItemPaths 项不能为空。"))
+                    elif not item.strip().startswith("$"):
+                        errors.append(self._error(f"{field_prefix}.props.inputItemPaths.{index}", "题目原文路径必须以 $ 开头。"))
+                    elif len(item) > 256:
+                        errors.append(self._error(f"{field_prefix}.props.inputItemPaths.{index}", "题目原文路径不能超过 256 字符。"))
         return errors
 
     def _validate_llm_field_references(

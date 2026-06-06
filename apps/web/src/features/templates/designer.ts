@@ -187,6 +187,7 @@ export function createDesignerComponent(input: {
       props: {
         actionLabel: "生成参考建议",
         promptTemplate: "请结合题目原始数据和已填写字段，生成可供标注员参考的建议。",
+        inputItemPaths: [],
         inputFieldKeys: [],
         outputFieldKey: "",
         helperText: "模型输出仅作参考，标注员确认后再提交。",

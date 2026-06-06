@@ -627,6 +627,7 @@ class AssignmentService:
             request_id=request_id,
         )
         messages = self._build_llm_action_messages(
+            schema=schema,
             component=component,
             target_field_key=target_field_key,
             item_payload=item.payload if isinstance(item.payload, dict) else {},
@@ -673,6 +674,7 @@ class AssignmentService:
                 "templateVersionId": assignment.template_version_id,
                 "componentId": component.id,
                 "targetFieldKey": target_field_key,
+                "inputItemPaths": self._get_llm_input_item_paths(component),
                 "inputFieldKeys": self._get_llm_input_field_keys(component),
                 "idempotencyKey": body.idempotency_key,
             },
@@ -745,33 +747,47 @@ class AssignmentService:
     def _build_llm_action_messages(
         self,
         *,
+        schema: TemplateSchemaVO,
         component: TemplateComponentDTO,
         target_field_key: str | None,
         item_payload: dict[str, Any],
         input_values: dict[str, Any],
     ) -> list[dict[str, str]]:
         input_field_keys = self._get_llm_input_field_keys(component)
-        scoped_values = (
-            {key: input_values.get(key) for key in input_field_keys if key in input_values}
-            if input_field_keys
-            else input_values
-        )
+        scoped_values = {key: input_values.get(key) for key in input_field_keys if key in input_values}
+        input_item_paths = self._get_llm_input_item_paths(component)
+        selected_item_values = {
+            path: self._read_payload_path(item_payload, path)
+            for path in input_item_paths
+        }
         prompt_template = self._get_string_prop(component.props.get("promptTemplate")) or ""
+        target_component = self._find_component_by_field_key(schema, target_field_key)
         payload = {
             "component": {
                 "id": component.id,
                 "label": component.label,
                 "targetFieldKey": target_field_key,
             },
+            "targetField": {
+                "fieldKey": target_field_key,
+                "label": target_component.label if target_component else None,
+            },
             "promptTemplate": prompt_template,
-            "datasetItemPayload": item_payload,
+            "inputContext": {
+                "itemValues": selected_item_values,
+                "formValues": scoped_values,
+            },
+            "selectedItemValues": selected_item_values,
             "selectedInputValues": scoped_values,
-            "allInputValues": input_values,
         }
-        # 系统提示同时承担“关闭 thinking”的跨供应商兜底约束。
+        # 只传入 Owner 显式选择的上下文，避免模型读取无关字段后串题。
         system_prompt = (
             "You are a LabelHub question-level annotation assistant. "
-            "Use only the provided JSON context. Do not output reasoning, thinking, analysis, or markdown. "
+            "Use only selectedItemValues and selectedInputValues from the provided JSON context. "
+            "You may use general knowledge to answer the selected question, but never infer from unselected raw item fields, "
+            "prior tasks, hidden context, or unrelated dataset columns. "
+            "Generate the value for the target field only. Do not add comparison judgments, tie judgments, review conclusions, "
+            "reasoning, thinking, analysis, labels, prefixes, suffixes, or markdown unless the target field explicitly asks for them. "
             "Return one JSON object with keys outputValue and outputValues. "
             "If targetFieldKey is present, outputValues must include that field key."
         )
@@ -830,6 +846,66 @@ class AssignmentService:
     def _get_llm_input_field_keys(self, component: TemplateComponentDTO) -> list[str]:
         raw = component.props.get("inputFieldKeys")
         return [item for item in raw if isinstance(item, str) and item.strip()] if isinstance(raw, list) else []
+
+    def _find_component_by_field_key(
+        self,
+        schema: TemplateSchemaVO,
+        field_key: str | None,
+    ) -> TemplateComponentDTO | None:
+        if not field_key:
+            return None
+        return next((item for item in schema.components if item.field_key == field_key), None)
+
+    def _get_llm_input_item_paths(self, component: TemplateComponentDTO) -> list[str]:
+        raw = component.props.get("inputItemPaths")
+        return [item for item in raw if isinstance(item, str) and item.strip().startswith("$")] if isinstance(raw, list) else []
+
+    def _read_payload_path(self, payload: dict[str, Any], path: str) -> Any:
+        if path == "$":
+            return payload
+        if not path.startswith("$."):
+            return None
+        current: Any = payload
+        tokens = self._parse_payload_path_tokens(path)
+        for token in tokens:
+            if isinstance(current, list):
+                try:
+                    current = current[int(token)]
+                except (ValueError, IndexError):
+                    return None
+            elif isinstance(current, dict):
+                current = current.get(token)
+            else:
+                return None
+        return current
+
+    def _parse_payload_path_tokens(self, path: str) -> list[str]:
+        tokens: list[str] = []
+        index = 2
+        token = ""
+        while index < len(path):
+            char = path[index]
+            if char == ".":
+                if token:
+                    tokens.append(token)
+                    token = ""
+            elif char == "[":
+                if token:
+                    tokens.append(token)
+                    token = ""
+                end = path.find("]", index)
+                if end == -1:
+                    return tokens
+                bracket_token = path[index + 1 : end].strip()
+                if bracket_token:
+                    tokens.append(bracket_token)
+                index = end
+            else:
+                token += char
+            index += 1
+        if token:
+            tokens.append(token)
+        return tokens
 
     def _compact_json(self, value: dict[str, Any], *, max_length: int = 12000) -> str:
         text = json.dumps(value, ensure_ascii=False, default=str)

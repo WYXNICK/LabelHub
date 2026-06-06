@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -208,6 +209,7 @@ def attach_llm_action_to_stage3_template(session_factory: sessionmaker[Session])
                 "props": {
                     "actionLabel": "Generate suggestion",
                     "promptTemplate": "Improve the answer using the question context.",
+                    "inputItemPaths": ["$.prompt"],
                     "inputFieldKeys": ["answer"],
                     "outputFieldKey": "answer",
                     "helperText": "Reference only; labeler confirms before submit.",
@@ -664,6 +666,16 @@ def test_labeler_can_run_llm_action_with_idempotent_trace(
     task = create_task(client, title="Stage 3 llm action task", quota=1)
     prepare_claimable_task(session_factory, task["id"], item_count=1)
     attach_llm_action_to_stage3_template(session_factory)
+    with session_factory() as session:
+        item = session.get(DatasetItemEntity, "dataset_item_stage3_0")
+        assert item is not None
+        item.payload = {
+            "prompt": "Question 0",
+            "response_a": "unrelated model answer A",
+            "response_b": "unrelated model answer B",
+            "preferred": "tie",
+        }
+        session.commit()
     captured: dict[str, object] = {"callCount": 0}
 
     def fake_complete(_self: OpenAICompatibleLlmClient, *, messages: list[dict[str, str]]) -> str:
@@ -698,7 +710,22 @@ def test_labeler_can_run_llm_action_with_idempotent_trace(
     assert captured["callCount"] == 1
     messages = captured["messages"]
     assert isinstance(messages, list)
-    assert "Do not output reasoning" in messages[0]["content"]
+    assert "Do not add comparison judgments" in messages[0]["content"]
+    assert "reasoning" in messages[0]["content"]
+    assert "unrelated dataset columns" in messages[0]["content"]
+    user_payload = json.loads(messages[1]["content"])
+    assert "datasetItemPayload" not in user_payload
+    assert "allInputValues" not in user_payload
+    assert user_payload["targetField"] == {"fieldKey": "answer", "label": "Answer"}
+    assert user_payload["inputContext"] == {
+        "itemValues": {"$.prompt": "Question 0"},
+        "formValues": {"answer": "rough"},
+    }
+    assert user_payload["selectedItemValues"] == {"$.prompt": "Question 0"}
+    assert user_payload["selectedInputValues"] == {"answer": "rough"}
+    assert "response_a" not in messages[1]["content"]
+    assert "response_b" not in messages[1]["content"]
+    assert "preferred" not in messages[1]["content"]
 
     with session_factory() as session:
         run_count = session.scalar(select(func.count()).select_from(LlmActionRunEntity))
@@ -716,6 +743,54 @@ def test_labeler_can_run_llm_action_with_idempotent_trace(
         assert audit_log is not None
         assert audit_log.request_id == "req_stage3_llm"
         assert audit_log.metadata_json["targetFieldKey"] == "answer"
+        assert audit_log.metadata_json["inputItemPaths"] == ["$.prompt"]
+
+
+def test_llm_action_does_not_send_unselected_form_values(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 3 llm scoped input task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    attach_llm_action_to_stage3_template(session_factory)
+    with session_factory() as session:
+        template = session.get(TemplateVersionEntity, "template_version_stage3")
+        assert template is not None
+        schema = json.loads(json.dumps(template.schema_json))
+        for component in schema["components"]:
+            if component["id"] == "answer_assistant":
+                component["props"]["inputFieldKeys"] = []
+        template.schema_json = schema
+        session.commit()
+
+    captured: dict[str, object] = {}
+
+    def fake_complete(_self: OpenAICompatibleLlmClient, *, messages: list[dict[str, str]]) -> str:
+        captured["messages"] = messages
+        return '{"outputValue":"suggestion","outputValues":{"answer":"suggestion"}}'
+
+    monkeypatch.setattr(OpenAICompatibleLlmClient, "complete", fake_complete)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+
+    response = client.post(
+        f"/api/assignments/{assignment['id']}/llm-actions/answer_assistant:run",
+        json={
+            "inputValues": {"answer": "rough draft", "unselectedNote": "should not leak"},
+            "targetFieldKey": "answer",
+        },
+    )
+
+    assert response.status_code == 200
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    user_payload = json.loads(messages[1]["content"])
+    assert user_payload["selectedItemValues"] == {"$.prompt": "Question 0"}
+    assert user_payload["selectedInputValues"] == {}
+    assert user_payload["inputContext"]["formValues"] == {}
+    assert "rough draft" not in messages[1]["content"]
+    assert "should not leak" not in messages[1]["content"]
 
 
 def test_llm_action_provider_failure_is_recorded_without_blocking_assignment(

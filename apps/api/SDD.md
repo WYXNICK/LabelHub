@@ -788,12 +788,12 @@ Renderer 最小支持范围：
 | `FILE_UPLOAD` | 唯一且非空 | `props.accept` 为空或非空字符串数组；`props.maxFiles` 为 1-20 整数；`props.maxSizeMb` 为 1-100 整数；`props.defaultValue` 为空或字符串数组 |
 | `IMAGE_UPLOAD` | 唯一且非空 | 与 `FILE_UPLOAD` 相同，但 `accept` 只能使用 `image/*`、图片 MIME 或图片扩展名 |
 | `JSON_EDITOR` | 唯一且非空 | `props.placeholder` 为空或字符串；`props.defaultValue` 为空或 JSON Object/Array；`validation.required` 为布尔值 |
-| `LLM_ACTION` | 必须为空 | `props.promptTemplate` 必填且长度不超过 8000；`props.actionLabel/helperText` 为空或字符串；`props.inputFieldKeys` 为空或采集字段数组；`props.outputFieldKey` 为空或引用已存在采集字段 |
+| `LLM_ACTION` | 必须为空 | `props.promptTemplate` 必填且长度不超过 8000；`props.actionLabel/helperText` 为空或字符串；`props.inputItemPaths` 为空或以 `$` 开头的题目 payload 路径数组；`props.inputFieldKeys` 为空或采集字段数组；`props.outputFieldKey` 为空或引用已存在采集字段 |
 
 LLM 边界：
 
 - 阶段 2.5 的 `LLM_ACTION` 只保存配置，不调用模型、不生成结果、不写预审记录。
-- `inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
+- `inputItemPaths` 引用题目 payload 路径，通常来自 `SHOW_ITEM.props.path`；`inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
 - `TemplateComponentDTO.label` 是 Owner 配置并展示给标注员的用户文案；前端 Designer 新增物料默认使用中文业务语义，后端只做快照保存和校验，不在保存或发布时自动翻译 label。
 - 真实题目级调用接口将在阶段 3.6 通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入，必须继续使用 OpenAI API 格式和结构化输出模型。
 
@@ -1045,7 +1045,8 @@ LLM 边界：
 题目级 LLM 辅助：
 
 - `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
-- `RunLlmActionRequest.inputValues` 使用当前 Renderer 提交值快照；`targetFieldKey` 为空时以后端模板 `LLM_ACTION.props.outputFieldKey` 为准。
+- `RunLlmActionRequest.inputValues` 使用当前 Renderer 提交值快照；题目原始数据由后端按 `LLM_ACTION.props.inputItemPaths` 从 assignment 固化的 dataset item payload 中读取，不能由前端伪造；`targetFieldKey` 为空时以后端模板 `LLM_ACTION.props.outputFieldKey` 为准。
+- 后端发送给模型的上下文只能包含 `selectedItemValues` 与 `selectedInputValues`：`selectedItemValues` 来自 `inputItemPaths` 显式选择的路径，`selectedInputValues` 来自 `inputFieldKeys` 显式选择的提交字段。不得把完整 `datasetItemPayload` 或未选择字段传给模型，避免题目级辅助读取无关列后串题。
 - 后端必须用 assignment 固化的 `template_version_id` 定位组件，不能读取任务当前草稿或最新模板；组件不存在、组件类型不是 `LLM_ACTION`、输出字段不在当前 schema 中都返回结构化错误。
 - 请求使用 OpenAI API 兼容 Chat Completions 格式，配置从 `OPENAI_API_KEY`、`BASE_URL`/`OPENAI_BASE_URL`、`MODEL_NAME`/`OPENAI_MODEL_NAME`、`OPENAI_TIMEOUT_SECONDS`/`LLM_TIMEOUT_SECONDS` 读取；真实密钥不得进入仓库。题目级 LLM 辅助默认请求超时为 90 秒，允许本地或部署环境调大到 300 秒以内。
 - thinking 必须关闭：服务端系统提示禁止输出思考过程；如供应商需要显式参数，通过 `LLM_EXTRA_BODY_JSON` 注入。当前 MiMo OpenAI 兼容服务在 `OPENAI_THINKING_ENABLED=false` 且识别到 MiMo Provider 时，后端会自动携带 `{"chat_template_kwargs":{"enable_thinking":false}}`；显式 `LLM_EXTRA_BODY_JSON` 优先级更高。未知 Provider 不自动注入额外字段，保证后续更换同协议 Provider 时仍可请求。

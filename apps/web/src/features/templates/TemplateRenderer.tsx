@@ -698,6 +698,7 @@ function LlmAction({
   const [result, setResult] = useState<TemplateLlmActionRunResult | null>(null);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const inputItemPaths = getStringArrayProp(component.props.inputItemPaths);
   const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
   const outputFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : "";
   const promptTemplate = typeof component.props.promptTemplate === "string" ? component.props.promptTemplate : "";
@@ -742,7 +743,12 @@ function LlmAction({
         </div>
       </Space>
       <div className="labelhub-template-llm-meta">
-        <Tag color="purple">输入：{inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"}</Tag>
+        <Tag color="purple">
+          题目：{inputItemPaths.length > 0 ? inputItemPaths.join(", ") : "未配置"}
+        </Tag>
+        <Tag color="purple">
+          字段：{inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"}
+        </Tag>
         <Tag color="blue">输出：{outputFieldKey || "未配置"}</Tag>
         <Tag>OpenAI 兼容调用</Tag>
       </div>

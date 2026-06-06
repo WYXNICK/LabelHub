@@ -57,6 +57,7 @@ describe("template designer helpers", () => {
       label: "AI 辅助动作",
       props: {
         actionLabel: "生成参考建议",
+        inputItemPaths: [],
         inputFieldKeys: [],
         outputFieldKey: "",
       },

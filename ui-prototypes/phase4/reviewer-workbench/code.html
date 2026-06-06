@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 4 / Reviewer 审核工作台</title>
+    <link rel="stylesheet" href="../assets/phase4.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="top-left">
+          <a class="brand" href="../index.html"><span class="logo">L</span><span>LabelHub</span></a>
+          <span class="breadcrumb">审核与质检 / 人工审核 / 商品标题清洗 v3</span>
+        </div>
+        <div class="top-right">
+          <span class="pill blue">复审视角</span>
+          <button class="btn">切换：终审</button>
+          <button class="btn">导出审计日志</button>
+          <span class="avatar reviewer">王</span>
+          <span class="muted">王芳 · Reviewer</span>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="nav-title">审核与质检</div>
+          <div class="nav-item"><span class="nav-icon"></span>AI 预审队列</div>
+          <div class="nav-item active"><span class="nav-icon"></span>人工审核</div>
+          <div class="nav-item"><span class="nav-icon"></span>审核结果</div>
+          <div class="nav-title">个人效率</div>
+          <div class="nav-item"><span class="nav-icon"></span>审核看板</div>
+        </aside>
+
+        <main class="main">
+          <section class="three-column">
+            <aside class="card queue-panel">
+              <div class="panel-head">
+                <h1 class="section-title">审核工作台</h1>
+                <p class="page-subtitle">按 AI 建议分组处理，支持批量通过与批量打回。</p>
+              </div>
+              <div class="tabs">
+                <span class="tab active">AI 建议通过 128</span>
+                <span class="tab">建议打回 47</span>
+                <span class="tab">转人工 9</span>
+              </div>
+              <div class="panel-head" style="padding-top:10px">
+                <div class="filters">
+                  <button class="btn primary">已选 3 条</button>
+                  <button class="btn">批量通过</button>
+                  <button class="btn danger">批量打回</button>
+                </div>
+              </div>
+              <div class="queue-list">
+                <div class="queue-item">
+                  <div class="queue-meta"><span class="tag purple">AI 91</span><span class="tag green">建议通过</span></div>
+                  <div class="queue-title">SUB-00606 · 儿童学习平板电脑 8 英寸护眼大屏</div>
+                  <div class="queue-meta">王芳标注 · 18:00:48</div>
+                </div>
+                <div class="queue-item active">
+                  <div class="queue-meta"><span class="tag purple">AI 62</span><span class="tag orange">建议打回</span><span>第 2 轮</span></div>
+                  <div class="queue-title">SUB-00607 · 户外便携野营折叠桌椅套装 5 件套</div>
+                  <div class="queue-meta">李雷标注 · 18:01:02 · 待复审</div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-meta"><span class="tag purple">AI 88</span><span class="tag green">建议通过</span></div>
+                  <div class="queue-title">SUB-00604 · 真无线主动降噪耳机 Pro Max 2026 款</div>
+                  <div class="queue-meta">张敏标注 · 17:58:11</div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-meta"><span class="tag red">触发安全</span><span>转人工</span></div>
+                  <div class="queue-title">SUB-00605 · 加厚蓝牙智能音箱</div>
+                  <div class="queue-meta">王芳标注 · 18:00:31</div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-meta"><span class="tag purple">AI 76</span><span class="tag orange">建议打回</span></div>
+                  <div class="queue-title">SUB-00602 · 多功能厨房 5 件套定制礼盒</div>
+                  <div class="queue-meta">李雷标注 · 17:52:08</div>
+                </div>
+              </div>
+            </aside>
+
+            <section class="detail-stack">
+              <div class="card detail-head">
+                <div class="detail-title-row">
+                  <div>
+                    <h2 class="detail-title">SUB-2041-00607 · 户外便携野营折叠桌椅套装 5 件套</h2>
+                    <div class="muted">题目 Q-2041-007 · 模板 r12 · 第 2 轮审核 · 上一轮为打回后修改</div>
+                  </div>
+                  <span class="pill orange">复审中</span>
+                </div>
+              </div>
+
+              <div class="diff-grid">
+                <div class="diff-card">
+                  <div class="diff-head">
+                    <strong>第 1 轮提交（已打回）</strong>
+                    <span class="tag red">关键词不足</span>
+                  </div>
+                  <div class="diff-body">
+                    <div class="field-line"><span class="muted">cleaned_title</span><span>户外便携野营折叠桌椅套装 5 件套</span></div>
+                    <div class="field-line"><span class="muted">category</span><span>家居用品</span></div>
+                    <div class="field-line"><span class="muted">keywords</span><span>折叠，户外</span></div>
+                  </div>
+                </div>
+                <div class="diff-card">
+                  <div class="diff-head">
+                    <strong>第 2 轮提交（本轮修改后）</strong>
+                    <span class="tag blue">待复审</span>
+                  </div>
+                  <div class="diff-body">
+                    <div class="field-line"><span class="muted">cleaned_title</span><span>户外露营便携折叠桌椅 5 件套</span></div>
+                    <div class="field-line"><span class="muted">category</span><span><span class="highlight-change">户外运动</span></span></div>
+                    <div class="field-line"><span class="muted">keywords</span><span><span class="highlight-add">折叠，户外，5 件套，便携，露营</span></span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card pad ai-card">
+                <div class="detail-title-row">
+                  <h3 class="section-title">AI 预审 · 本轮重跑结果</h3>
+                  <span class="tag purple">v2.3 · mimo-v2.5-pro</span>
+                </div>
+                <p class="page-subtitle">
+                  综合 <strong>86</strong> · 相关性 92 · 准确性 84 · 格式合规 88 · 安全 99。
+                  关键词较第 1 轮已补充至 5 个并覆盖品类核心卖点；类目改为“户外运动”更贴合事实。建议通过。
+                </p>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">审核意见（打回时必填）</h3>
+                <textarea class="textarea">本轮修改已覆盖第 1 轮打回意见，关键词丰富度与类目准确性均达标。同意 AI 预审结论。</textarea>
+                <div class="queue-meta" style="margin-top:10px">
+                  <span class="tag">关键词缺失</span>
+                  <span class="tag">类目错误</span>
+                  <span class="tag">标题超长</span>
+                  <span class="tag">包含违禁词</span>
+                  <span class="tag">格式不规范</span>
+                </div>
+              </div>
+
+              <div class="decision-grid">
+                <div class="decision return">
+                  <strong>打回</strong>
+                  <span class="muted">回到标注员修改，进入第 3 轮</span>
+                  <button class="btn danger">打回并说明原因</button>
+                </div>
+                <div class="decision manual">
+                  <strong>指派终审</strong>
+                  <span class="muted">疑难样本进入更高层级复核</span>
+                  <button class="btn warning">转入终审</button>
+                </div>
+                <div class="decision pass">
+                  <strong>通过 · 入库</strong>
+                  <span class="muted">本条进入终审通过，可参与导出</span>
+                  <button class="btn success">通过并入库</button>
+                </div>
+              </div>
+            </section>
+
+            <aside class="detail-stack">
+              <div class="card pad">
+                <h3 class="section-title">我的审核</h3>
+                <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:12px">
+                  <div class="stat"><div class="label">今日已审</div><div class="value">214</div></div>
+                  <div class="stat"><div class="label">通过率</div><div class="value" style="color:var(--success)">87%</div></div>
+                  <div class="stat"><div class="label">待我审核</div><div class="value" style="color:var(--warning)">47</div></div>
+                  <div class="stat"><div class="label">SLA 剩余</div><div class="value" style="font-size:21px">02:14</div></div>
+                </div>
+              </div>
+              <div class="card pad">
+                <h3 class="section-title">审计时间线</h3>
+                <div class="timeline" style="margin-top:12px">
+                  <div class="timeline-item"><div><strong>李雷</strong> 05-16 14:22<br /><span class="muted">第 1 轮提交</span></div></div>
+                  <div class="timeline-item"><div><strong>AI Agent</strong> 05-16 14:22<br /><span class="muted">预审 62 分，建议打回</span></div></div>
+                  <div class="timeline-item"><div><strong>王芳</strong> 05-16 15:08<br /><span class="muted">复审打回，关键词稀疏</span></div></div>
+                  <div class="timeline-item"><div><strong>李雷</strong> 05-16 18:01<br /><span class="muted">第 2 轮提交</span></div></div>
+                  <div class="timeline-item"><div><strong>王芳</strong> 当前<br /><span class="muted">复审中，决策待写入</span></div></div>
+                </div>
+              </div>
+              <div class="card pad">
+                <h3 class="section-title">任务上下文</h3>
+                <div class="kv" style="margin-top:12px">
+                  <div class="kv-row"><span class="muted">任务</span><span>商品标题清洗 v3</span></div>
+                  <div class="kv-row"><span class="muted">审核配置</span><span>review_config_v2</span></div>
+                  <div class="kv-row"><span class="muted">模板版本</span><span>template_r12</span></div>
+                  <div class="kv-row"><span class="muted">策略</span><span>AI 预审 + 人工复核</span></div>
+                </div>
+              </div>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

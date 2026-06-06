@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 4 / AI 自动预审队列</title>
+    <link rel="stylesheet" href="../assets/phase4.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="top-left">
+          <a class="brand" href="../index.html"><span class="logo">L</span><span>LabelHub</span></a>
+          <span class="breadcrumb">审核与质检 / AI 自动预审队列</span>
+        </div>
+        <div class="top-right">
+          <span class="pill purple">Agent v2.3 · mimo-v2.5-pro</span>
+          <button class="btn">规则配置</button>
+          <button class="btn">失败重跑</button>
+          <span class="avatar system">A</span>
+          <span class="muted">AI Agent · System</span>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="nav-title">审核与质检</div>
+          <div class="nav-item active"><span class="nav-icon"></span>AI 预审队列</div>
+          <div class="nav-item"><span class="nav-icon"></span>人工审核</div>
+          <div class="nav-item"><span class="nav-icon"></span>审核结果</div>
+          <div class="nav-title">数据交付</div>
+          <div class="nav-item"><span class="nav-icon"></span>数据验收</div>
+          <div class="nav-item"><span class="nav-icon"></span>导出中心</div>
+        </aside>
+
+        <main class="main">
+          <section class="page-head">
+            <div>
+              <h1 class="page-title">AI 自动预审队列</h1>
+              <p class="page-subtitle">
+                异步消费 Labeler 提交，按审核配置版本调用 LLM 结构化输出，并写回 Reviewer 可追溯建议。
+              </p>
+            </div>
+            <div class="toolbar">
+              <span class="pill green"><span class="dot green"></span>服务在线</span>
+              <span class="pill blue">幂等键 submission + version + reviewConfig</span>
+            </div>
+          </section>
+
+          <section class="three-column">
+            <aside class="card queue-panel">
+              <div class="panel-head">
+                <h2 class="section-title">预审 Job 队列</h2>
+                <p class="page-subtitle">按状态聚合，失败与超时可重试，超过阈值转人工兜底。</p>
+              </div>
+              <div class="tabs">
+                <span class="tab active">待处理 314</span>
+                <span class="tab">通过 128</span>
+                <span class="tab">打回 62</span>
+                <span class="tab">失败 9</span>
+              </div>
+              <div class="queue-list">
+                <div class="queue-item active">
+                  <div class="queue-title">SUB-2041-00607 · 户外便携野营折叠桌椅套装 5 件套</div>
+                  <div class="queue-meta">
+                    <span class="tag orange">建议打回</span>
+                    <span>任务 T-2041</span>
+                    <span>耗时 1.42s</span>
+                  </div>
+                  <div class="queue-meta">
+                    <span class="pill blue">第 1 次</span>
+                    <span>规则 电商相关性 v2</span>
+                  </div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-title">SUB-2041-00608 · 春秋纯棉情侣家居服套装</div>
+                  <div class="queue-meta">
+                    <span class="tag purple">机审中</span>
+                    <span>优先级 5</span>
+                    <span>排队 00:12</span>
+                  </div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-title">SUB-2041-00606 · 儿童学习平板电脑 8 英寸护眼大屏</div>
+                  <div class="queue-meta">
+                    <span class="tag green">建议通过</span>
+                    <span>综合 91</span>
+                  </div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-title">SUB-2041-00605 · 加厚蓝牙智能音箱</div>
+                  <div class="queue-meta">
+                    <span class="tag red">失败 · 第 3 次</span>
+                    <span>进入人工兜底</span>
+                  </div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-title">SUB-2041-00604 · 真无线主动降噪耳机 Pro Max 2026 款</div>
+                  <div class="queue-meta">
+                    <span class="tag green">建议通过</span>
+                    <span>综合 88</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <section class="detail-stack">
+              <div class="card detail-head">
+                <div class="detail-title-row">
+                  <div>
+                    <h2 class="detail-title">SUB-2041-00607 · 户外便携野营折叠桌椅套装 5 件套</h2>
+                    <div class="muted">提交于 18:01:02 · 标注员 李雷 · 模板版本 r12 · 题目 Q-2041-007</div>
+                  </div>
+                  <span class="pill orange">AI 建议：打回（62）</span>
+                </div>
+              </div>
+
+              <div class="split">
+                <div class="card pad">
+                  <h3 class="section-title">提交内容</h3>
+                  <pre class="code-box mono">{
+  "cleaned_title": "户外便携野营折叠桌椅套装 5 件套",
+  "category": "家居用品",
+  "keywords": ["折叠", "户外"]
+}</pre>
+                </div>
+                <div class="card pad">
+                  <div class="detail-title-row">
+                    <h3 class="section-title">维度评分（共 100）</h3>
+                    <span class="tag purple">function_calling · 结构化</span>
+                  </div>
+                  <div class="score-row"><span>相关性</span><div class="bar"><span style="--w:78%;--c:var(--success)"></span></div><strong>78</strong></div>
+                  <div class="score-row"><span>准确性</span><div class="bar"><span style="--w:55%;--c:var(--warning)"></span></div><strong>55</strong></div>
+                  <div class="score-row"><span>格式合规</span><div class="bar"><span style="--w:70%;--c:var(--warning)"></span></div><strong>70</strong></div>
+                  <div class="score-row"><span>安全性</span><div class="bar"><span style="--w:99%;--c:var(--success)"></span></div><strong>99</strong></div>
+                  <div class="score-row"><span>综合</span><div class="bar"><span style="--w:62%;--c:var(--warning)"></span></div><strong>62</strong></div>
+                </div>
+              </div>
+
+              <div class="card pad ai-card">
+                <div class="detail-title-row">
+                  <h3 class="section-title">AI 评语</h3>
+                  <span class="tag orange">阈值：综合 &lt; 70 时建议打回</span>
+                </div>
+                <p class="page-subtitle">
+                  关键词字段过于稀疏，未覆盖商品核心卖点（材质、件数、适用场景）。建议补充至少 4 个关键词，
+                  并将“5 件套”作为独立卖点。准确性维度因品类判断与原始数据存在歧义而扣分。
+                </p>
+              </div>
+
+              <div class="card pad">
+                <div class="detail-title-row">
+                  <h3 class="section-title">审核 Prompt 快照</h3>
+                  <span class="tag purple">规则：电商相关性 v2</span>
+                </div>
+                <pre class="code-box mono">你是电商商品标题审核员。请基于以下维度为提交内容打分（0-100）：
+相关性、准确性、格式合规、安全性。
+
+请通过 function_call 返回 JSON：
+{"scores": {...}, "conclusion": "pass|reject|manual", "reason": "..."}
+
+原始题目、模板版本、提交版本和审核配置版本均为不可变快照。</pre>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">处理日志 / 审计</h3>
+                <div class="timeline" style="margin-top:12px">
+                  <div class="timeline-item"><div><strong>18:01:02</strong> queue · 进入 AI 预审队列，优先级 5</div></div>
+                  <div class="timeline-item"><div><strong>18:01:03</strong> llm · 调用 mimo-v2.5-pro，tokens 1342，耗时 1.42s</div></div>
+                  <div class="timeline-item"><div><strong>18:01:03</strong> verdict · 结构化输出 reject（62），写入 Review 建议</div></div>
+                </div>
+              </div>
+            </section>
+
+            <aside class="detail-stack">
+              <div class="card pad">
+                <h3 class="section-title">Agent 健康度</h3>
+                <div class="kv" style="margin-top:12px">
+                  <div class="kv-row"><span class="muted">运行状态</span><span><span class="dot green"></span> 在线</span></div>
+                  <div class="kv-row"><span class="muted">平均耗时</span><span>1.48s</span></div>
+                  <div class="kv-row"><span class="muted">失败率</span><span>1.2%</span></div>
+                  <div class="kv-row"><span class="muted">最大重试</span><span>3 次</span></div>
+                </div>
+              </div>
+              <div class="card pad">
+                <h3 class="section-title">今日处理</h3>
+                <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:12px">
+                  <div class="stat"><div class="label">已处理</div><div class="value">542</div></div>
+                  <div class="stat"><div class="label">转人工</div><div class="value">27</div></div>
+                  <div class="stat"><div class="label">建议通过</div><div class="value">318</div></div>
+                  <div class="stat"><div class="label">建议打回</div><div class="value">188</div></div>
+                </div>
+              </div>
+              <div class="card pad">
+                <h3 class="section-title">兜底策略</h3>
+                <p class="page-subtitle">连续失败、结构化校验失败或超过 SLA 的 job 自动进入 Reviewer 人工复核队列，并保留原始错误与 Prompt 摘要。</p>
+                <button class="btn warning" style="width:100%; margin-top:12px">查看失败队列</button>
+              </div>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

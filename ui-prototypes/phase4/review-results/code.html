@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 4 / 审核结果列表</title>
+    <link rel="stylesheet" href="../assets/phase4.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="top-left">
+          <a class="brand" href="../index.html"><span class="logo">L</span><span>LabelHub</span></a>
+          <span class="breadcrumb">审核与质检 / 审核结果列表</span>
+        </div>
+        <div class="top-right">
+          <button class="btn">导出当前筛选</button>
+          <button class="btn">审计日志</button>
+          <span class="avatar reviewer">王</span>
+          <span class="muted">王芳 · Reviewer</span>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="nav-title">审核与质检</div>
+          <div class="nav-item"><span class="nav-icon"></span>AI 预审队列</div>
+          <div class="nav-item"><span class="nav-icon"></span>人工审核</div>
+          <div class="nav-item active"><span class="nav-icon"></span>审核结果</div>
+          <div class="nav-title">数据交付</div>
+          <div class="nav-item"><span class="nav-icon"></span>数据验收</div>
+        </aside>
+
+        <main class="main">
+          <section class="page-head">
+            <div>
+              <h1 class="page-title">审核结果列表</h1>
+              <p class="page-subtitle">追踪已通过、已打回和人工复核历史，支持按任务、结论、审核人和时间筛选。</p>
+            </div>
+          </section>
+
+          <section class="stats-grid" style="margin-bottom:12px">
+            <div class="stat"><div class="label">今日通过</div><div class="value" style="color:var(--success)">214</div><div class="hint">较昨日 +18</div></div>
+            <div class="stat"><div class="label">今日打回</div><div class="value" style="color:var(--danger)">36</div><div class="hint">关键词问题最多</div></div>
+            <div class="stat"><div class="label">人工兜底</div><div class="value" style="color:var(--warning)">17</div><div class="hint">LLM 失败或低置信</div></div>
+            <div class="stat"><div class="label">平均处理时长</div><div class="value">42s</div><div class="hint">SLA 达成 98.4%</div></div>
+          </section>
+
+          <section class="card pad" style="margin-bottom:12px">
+            <div class="filters">
+              <input class="input" value="商品标题清洗 v3" />
+              <select class="select"><option>全部审核结论</option></select>
+              <select class="select"><option>AI 结论：全部</option></select>
+              <select class="select"><option>审核人：全部</option></select>
+              <button class="btn primary">查询</button>
+              <button class="btn">重置</button>
+            </div>
+          </section>
+
+          <section class="two-column">
+            <div class="card">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width:32%">提交记录</th>
+                    <th>AI 预审</th>
+                    <th>人工结论</th>
+                    <th>轮次</th>
+                    <th>审核人</th>
+                    <th>完成时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="row-title">SUB-2041-00607 · 户外便携野营折叠桌椅套装</div>
+                      <div class="muted">Q-2041-007 · 李雷提交 · template_r12</div>
+                    </td>
+                    <td><span class="tag green">建议通过 86</span></td>
+                    <td><span class="tag green">通过</span></td>
+                    <td>第 2 轮</td>
+                    <td>王芳</td>
+                    <td>2026/06/06 18:05</td>
+                    <td><button class="btn">查看</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="row-title">SUB-2041-00605 · 加厚蓝牙智能音箱</div>
+                      <div class="muted">Q-2041-005 · 王芳提交 · 触发安全兜底</div>
+                    </td>
+                    <td><span class="tag red">失败 3 次</span></td>
+                    <td><span class="tag red">打回</span></td>
+                    <td>第 1 轮</td>
+                    <td>张敏</td>
+                    <td>2026/06/06 18:03</td>
+                    <td><button class="btn">查看</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="row-title">SUB-2041-00604 · 真无线主动降噪耳机</div>
+                      <div class="muted">Q-2041-004 · 张敏提交</div>
+                    </td>
+                    <td><span class="tag green">建议通过 88</span></td>
+                    <td><span class="tag green">通过</span></td>
+                    <td>第 1 轮</td>
+                    <td>王芳</td>
+                    <td>2026/06/06 17:59</td>
+                    <td><button class="btn">查看</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="row-title">SUB-2041-00602 · 多功能厨房 5 件套</div>
+                      <div class="muted">Q-2041-002 · 李雷提交</div>
+                    </td>
+                    <td><span class="tag orange">建议打回 76</span></td>
+                    <td><span class="tag orange">转终审</span></td>
+                    <td>第 1 轮</td>
+                    <td>王芳</td>
+                    <td>2026/06/06 17:54</td>
+                    <td><button class="btn">查看</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="row-title">SUB-2041-00601 · 春季新款女装 5 色可选</div>
+                      <div class="muted">Q-2041-001 · 张敏提交</div>
+                    </td>
+                    <td><span class="tag green">建议通过 95</span></td>
+                    <td><span class="tag green">通过</span></td>
+                    <td>第 1 轮</td>
+                    <td>系统分派</td>
+                    <td>2026/06/06 17:49</td>
+                    <td><button class="btn">查看</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <aside class="detail-stack">
+              <div class="card pad">
+                <h3 class="section-title">结论分布</h3>
+                <div class="donut" style="margin-top:18px"></div>
+                <div class="mini-bars" style="margin-top:18px">
+                  <div class="funnel-row"><span>通过</span><div class="bar"><span style="--w:58%;--c:var(--success)"></span></div><strong>58%</strong></div>
+                  <div class="funnel-row"><span>打回</span><div class="bar"><span style="--w:21%;--c:var(--warning)"></span></div><strong>21%</strong></div>
+                  <div class="funnel-row"><span>人工兜底</span><div class="bar"><span style="--w:12%;--c:var(--danger)"></span></div><strong>12%</strong></div>
+                  <div class="funnel-row"><span>终审</span><div class="bar"><span style="--w:9%;--c:var(--primary)"></span></div><strong>9%</strong></div>
+                </div>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">高频打回原因</h3>
+                <div class="queue-meta" style="margin-top:12px">
+                  <span class="tag orange">关键词不足 34</span>
+                  <span class="tag orange">类目错误 21</span>
+                  <span class="tag red">安全风险 8</span>
+                  <span class="tag">格式不规范 17</span>
+                  <span class="tag">标题超长 12</span>
+                </div>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">复核提醒</h3>
+                <p class="page-subtitle">
+                  AI 建议与人工结论不一致的样本会进入抽样池，Owner 数据验收页可按任务查看差异分布。
+                </p>
+                <button class="btn primary" style="width:100%; margin-top:12px">查看差异样本</button>
+              </div>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

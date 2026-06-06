@@ -187,10 +187,13 @@ export interface LogoutResponseVO {
 | 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 已实现 |
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 已实现 |
 | 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 已实现 |
-| 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 实现 |
-| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 实现 |
-| 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 实现 |
-| 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
+| 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 已实现 |
+| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 已实现 |
+| 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 已实现 |
+| 4 | Reviewer 待审列表 | `ReviewVO`、`ReviewSummaryVO` | `GET /api/reviews` | 阶段 4.0 待对齐 |
+| 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.0 待对齐 |
+| 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.0 待对齐 |
+| 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.0 待对齐 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
 ### 9.1 阶段 1.0 已对齐前端契约
@@ -786,7 +789,7 @@ VO 字段映射：
 
 阶段 3 前端必须直接复用阶段 2 的 `TemplateRenderer`、`TemplateSubmissionValue`、`pruneHiddenSubmissionValue` 和 `validateTemplateSubmissionValue`。Labeler 作答页不得复制一套新的表单渲染逻辑；后端仍是最终校验者。
 
-阶段 3 的前端视觉与信息架构基准以 `ui-prototypes/phase3` 为准。当前已实现到阶段 3.5，正式代码已对齐 `marketplace`、`workspace`、`contributions` 与 `revise` 四个原型：任务广场采用“统计概览 + 任务列表 + 当前队列/表现侧栏”，标注工作台采用“题目导航 + 动态 Renderer 作答区 + 任务上下文侧栏 + 底部操作条”，我的贡献页采用“统计卡 + 状态分组 + 卡片化贡献列表”，返修入口复用工作台并增强审核意见展示。后续阶段 3.6 再接入题目级 LLM_ACTION 真实调用。
+阶段 3 的前端视觉与信息架构基准以 `ui-prototypes/phase3` 为准。当前已实现到阶段 3.6，正式代码已对齐 `marketplace`、`workspace`、`contributions` 与 `revise` 四个原型：任务广场采用“统计概览 + 任务列表 + 当前队列/表现侧栏”，标注工作台采用“题目导航 + 动态 Renderer 作答区 + 任务上下文侧栏 + 底部操作条”，我的贡献页采用“统计卡 + 状态分组 + 卡片化贡献列表”，返修入口复用工作台并增强审核意见展示；题目级 `LLM_ACTION` 已在工作台内以 AI 建议卡片呈现，模型结果只作为参考或预填，Labeler 采纳后才进入草稿。
 
 进入 `/labeler/assignments/:assignmentId` 后，角色壳左侧全局导航必须自动收起为窄图标栏，让标注工作台获得更宽的主作答区域；工作台内部的题目导航不收起，继续作为题目级操作导航。后续阶段 3 的草稿、提交、LLM 辅助和返修页也沿用该聚焦模式。
 
@@ -977,6 +980,53 @@ export interface ContributionItemVO {
 | `src/features/assignments/api.ts` | 增加 `saveAssignmentDraft`，调用 `PUT /api/assignments/{assignmentId}/draft` |
 | `src/features/assignments/view.ts` | 增加草稿状态文案 helper，便于页面与测试复用；时间展示继续复用 `formatTaskTime` |
 | `src/pages/LabelerAssignmentWorkspacePage.tsx` | 接入防抖自动保存、手动保存/重试、冲突重新加载和右侧历史状态 |
+
+### 9.16 阶段 4 Reviewer 审核与 Owner 验收前端契约
+
+阶段 4 前端必须建立在阶段 3 的 `SubmissionVO` 与不可变模板版本之上，不重新实现作答表单。Reviewer 详情页应复用 `TemplateRenderer` 的只读展示能力渲染提交值，并把 AI 预审结果、人工决策和时间线作为审核信息叠加展示。
+
+阶段 4 页面：
+
+| 页面 | 路由 | 产品结构 |
+| --- | --- | --- |
+| 审核工作台 | `/reviewer/reviews` | 顶部统计卡、任务/状态/AI 结论筛选、待审列表、批量操作条 |
+| 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与 diff，右侧人工决策、历史意见和审计时间线 |
+| 审核结果列表 | `/reviewer/review-results` | 已处理审核记录、按任务/结论/处理人筛选、可回看详情 |
+| Owner 数据验收 | `/owner/tasks/:taskId/acceptance` | 任务级提交、通过、打回、待审统计，AI 结论分布和抽样审核记录 |
+
+前端核心类型待阶段 4.0 与后端 SDD 对齐：
+
+```ts
+export interface ReviewVO {
+  id: string;
+  taskId: string;
+  submissionId: string;
+  assignmentId: string;
+  status: string;
+  aiConclusion: "PASS" | "RETURN" | "NEEDS_HUMAN_REVIEW" | null;
+  aiScores: Record<string, number>;
+  aiComment: string | null;
+  humanConclusion: "APPROVE" | "RETURN" | null;
+  reviewerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReviewDecisionRequest {
+  decision: "APPROVE" | "RETURN";
+  reason?: string;
+  dimensionComments?: Record<string, string>;
+  expectedVersion: number;
+}
+```
+
+交互规则：
+
+- `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
+- 批量打回也必须提供统一理由，并在每条 review 上写独立审计。
+- AI 结论只作为建议展示，不在前端直接决定终审状态。
+- Reviewer 审核通过或打回后，Labeler 贡献页和返修页必须能通过现有 `ReviewFeedbackVO` 看到最新打回意见。
+- 阶段 4 所有 Reviewer 页面仍需使用 Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 下验收，重点检查列表操作区、详情页右侧决策面板、批量操作条和时间线不遮挡。
 
 ## 10. 前后端字段映射检查清单
 

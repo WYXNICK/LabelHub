@@ -299,16 +299,17 @@ class LogoutResponseVO:
 | 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2 已实现，阶段 3.5 继续复用 |
 | 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 已实现 |
 | 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 已实现 |
-| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 已实现 |
+| 3/4 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 已实现；阶段 4.1 已接入 Review job 幂等入队 |
 | 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 已实现 |
 | 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 已实现 |
 | 3 | `GET /api/me/contributions` | `ListContributionsRequest` | `PageVO[ContributionItemVO]` | 阶段 3.5 已实现 |
-| 4 | `POST /api/internal/review-jobs:claim` | `ClaimReviewJobRequest` | `ClaimReviewJobResponse` | 阶段 4.0 待对齐 |
-| 4 | `POST /api/internal/review-jobs/{jobId}/results` | `CompleteReviewJobRequest` | `ReviewJobVO` | 阶段 4.0 待对齐 |
-| 4 | `GET /api/reviews` | `ListReviewsRequest` | `PageVO[ReviewVO]` | 阶段 4.0 待对齐 |
-| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewDetailVO` | 阶段 4.0 待对齐 |
-| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.0 待对齐 |
-| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.0 待对齐 |
+| 4 | `GET /api/review-jobs` | `ListReviewJobsRequest` | `PageVO[ReviewJobVO]` | 阶段 4.0 已实现 |
+| 4 | `POST /api/internal/review-jobs:claim` | `ClaimReviewJobRequest` | `ClaimReviewJobResponse` | 阶段 4.0 已实现 |
+| 4 | `POST /api/internal/review-jobs/{jobId}/results` | `CompleteReviewJobRequest` | `ReviewJobVO` | 阶段 4.0 基线已实现；阶段 4.3 深化 AI 结果写回 |
+| 4 | `GET /api/reviews` | `ListReviewsRequest` | `PageVO[ReviewVO]` | 阶段 4.0 已实现 |
+| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewDetailVO` | 阶段 4.0 已实现 |
+| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.5 待实现 |
+| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.5 待实现 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
 
 ### 9.1 阶段 1.0 已对齐契约
@@ -1152,14 +1153,15 @@ class HumanReviewDecision(str, Enum):
 
 | Entity | 关键字段 |
 | --- | --- |
-| `ReviewJobEntity` | `id`、`task_id`、`submission_id`、`review_config_version_id`、`status`、`attempt_count`、`idempotency_key`、`last_error`、`started_at`、`finished_at` |
+| `ReviewJobEntity` | `id`、`task_id`、`assignment_id`、`submission_id`、`review_config_version_id`、`status`、`attempt_count`、`max_attempts`、`idempotency_key`、`last_error`、`locked_by`、`locked_at`、`started_at`、`finished_at` |
 | `ReviewEntity` | `id`、`task_id`、`submission_id`、`assignment_id`、`review_job_id`、`status`、`ai_conclusion`、`ai_scores`、`ai_comment`、`ai_issues`、`ai_suggestions`、`raw_output`、`prompt_snapshot`、`human_conclusion`、`reviewer_id`、`human_comment`、`dimension_comments`、`review_round`、`version` |
 
 核心接口：
 
 | 接口 | 权限 | 说明 |
 | --- | --- | --- |
-| `POST /api/internal/review-jobs:claim` | `SYSTEM` | 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
+| `GET /api/review-jobs` | `REVIEWER` | 查询 AI 预审 job 队列，支持 `status`、`taskId`、分页；阶段 4.1 Reviewer 页面用于展示提交入队状态 |
+| `POST /api/internal/review-jobs:claim` | `SYSTEM` | 通过 `X-LabelHub-System-Token` 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
 | `POST /api/internal/review-jobs/{jobId}/results` | `SYSTEM` | 写回结构化 AI 预审结果或失败原因，生成 AI review 建议并写审计 |
 | `GET /api/reviews` | `REVIEWER` | 待审/已审列表，支持 `status`、`taskId`、`aiConclusion` 分页筛选 |
 | `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、diff 与时间线 |
@@ -1169,11 +1171,20 @@ class HumanReviewDecision(str, Enum):
 状态规则：
 
 - `review_jobs.idempotency_key = submission_id + submission_version + review_config_version_id`，同一提交版本只能有一个有效 AI 预审 job。
+- 阶段 4.1 起，Labeler 正式提交后 `submissions.status=AI_REVIEWING`，`assignments.status=SUBMITTED`；Labeler 侧仍表现为“审核中”，系统侧可追踪 AI 队列状态。
 - Agent 写回 `PASS/RETURN/NEEDS_HUMAN_REVIEW` 只代表 AI 建议，不直接终审；submission 进入人工审核可见状态。
 - 人工 `APPROVE` 后，`submissions.status=APPROVED`、`assignments.status=APPROVED`，并递增任务 `approved_count`。
 - 人工 `RETURN` 后，`submissions.status=RETURNED`、`assignments.status=RETURNED`，打回理由必须写入 `audit_logs.reason` 或 `metadata.reason`，供阶段 3 `ReviewFeedbackVO` 复用。
 - Agent 超过最大重试、结构化输出不合法或 Provider 异常时，必须生成需要人工兜底的待审记录，不能让 job 永久卡在 `RUNNING`。
 - 所有状态迁移必须写 `audit_logs`；Actor 为 Agent 时使用 `SYSTEM` 账号，人工审核使用 Reviewer 用户。
+
+阶段 4.0/4.1 当前完成状态：
+
+- Alembic `0005_create_review_foundation.py` 已创建 `review_jobs` 与 `reviews` 表，并注册到 SQLAlchemy metadata。
+- `ReviewJobStatus`、`AiReviewConclusion`、`ReviewStatus`、`HumanReviewDecision` 枚举已进入后端统一枚举。
+- `POST /api/assignments/{assignmentId}/submissions` 在同一事务内创建唯一 `review_jobs`，重复提交命中同一 submission 时不会生成重复 job。
+- `POST /api/internal/review-jobs:claim` 已返回 job、submission、assignment、task、dataset item payload、template schema 和 review config version，供阶段 4.2 Agent 组装 Prompt。
+- `GET /api/review-jobs`、`GET /api/reviews`、`GET /api/reviews/{reviewId}` 已进入 OpenAPI；人工审核决策接口保留到阶段 4.5 实现。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

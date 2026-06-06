@@ -25,6 +25,7 @@ import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
+import { ReviewerReviewQueuePage } from "./ReviewerReviewQueuePage";
 import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
 import { LabelerContributionsPage } from "./LabelerContributionsPage";
 import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
@@ -183,6 +184,9 @@ function renderRoleContent(user: UserVO, path: string) {
     if (assignmentId) {
       return <LabelerAssignmentWorkspacePage assignmentId={assignmentId} />;
     }
+  }
+  if (user.role === "REVIEWER" && path === "/reviewer/reviews") {
+    return <ReviewerReviewQueuePage />;
   }
   return <RoleHomePage path={path} user={user} />;
 }

@@ -49,6 +49,7 @@ from labelhub_api.schemas.common import PageVO, PaginationVO
 from labelhub_api.schemas.tasks import TaskVO
 from labelhub_api.schemas.templates import TemplateComponentDTO, TemplateSchemaVO
 from labelhub_api.services.llm_client import LlmClientError, OpenAICompatibleLlmClient
+from labelhub_api.services.review_service import ReviewService
 from labelhub_api.services.submission_validation import validate_submission_value
 
 
@@ -434,6 +435,12 @@ class AssignmentService:
                         message="提交幂等键已被其他题目使用。",
                         request_id=request_id,
                     )
+                ReviewService(self._db).ensure_job_for_existing_submission(
+                    assignment=assignment,
+                    submission=existing_submission,
+                    actor=user,
+                    request_id=request_id,
+                )
                 existing_vo = self._to_submission_vo(existing_submission)
                 assert existing_vo is not None
                 return existing_vo
@@ -507,7 +514,7 @@ class AssignmentService:
             template_version_id=assignment.template_version_id,
             submission_version=next_version,
             values=validation.values,
-            status=SubmissionStatus.SUBMITTED.value,
+            status=SubmissionStatus.AI_REVIEWING.value,
             idempotency_key=body.idempotency_key,
             submitted_at=now,
             created_at=now,
@@ -541,7 +548,14 @@ class AssignmentService:
                 "submissionVersion": next_version,
                 "fieldKeys": sorted(validation.values.keys()),
                 "idempotencyKey": body.idempotency_key,
+                "submissionStatus": SubmissionStatus.AI_REVIEWING.value,
             },
+        )
+        ReviewService(self._db).enqueue_for_submission(
+            assignment=assignment,
+            submission=submission,
+            actor=user,
+            request_id=request_id,
         )
         try:
             self._db.commit()
@@ -552,6 +566,14 @@ class AssignmentService:
                     select(SubmissionEntity).where(SubmissionEntity.idempotency_key == body.idempotency_key)
                 )
                 if existing_submission is not None and existing_submission.assignment_id == assignment_id:
+                    existing_assignment = self._db.get(AssignmentEntity, existing_submission.assignment_id)
+                    if existing_assignment is not None:
+                        ReviewService(self._db).ensure_job_for_existing_submission(
+                            assignment=existing_assignment,
+                            submission=existing_submission,
+                            actor=user,
+                            request_id=request_id,
+                        )
                     existing_vo = self._to_submission_vo(existing_submission)
                     assert existing_vo is not None
                     return existing_vo

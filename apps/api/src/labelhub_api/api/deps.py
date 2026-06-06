@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import Cookie, Depends, Request
+from datetime import UTC, datetime
+
+from fastapi import Cookie, Depends, Header, Request
 
 from labelhub_api.core.config import Settings, get_settings
 from labelhub_api.core.errors import ApiException
@@ -46,3 +48,26 @@ def get_current_user(
             request_id=request_id,
         )
     return user
+
+
+def get_system_user(
+    request: Request,
+    x_labelhub_system_token: str | None = Header(default=None, alias="X-LabelHub-System-Token"),
+    settings: Settings = Depends(get_settings),
+) -> UserVO:
+    request_id = get_request_id(request)
+    if not x_labelhub_system_token or x_labelhub_system_token != settings.system_agent_token:
+        raise ApiException(
+            status_code=401,
+            code="UNAUTHORIZED",
+            message="系统 Agent 凭证无效。",
+            request_id=request_id,
+        )
+    return UserVO(
+        id="user_system_agent",
+        email="system@labelhub.dev",
+        name="AI 预审 Agent",
+        role="SYSTEM",
+        status="ACTIVE",
+        created_at=datetime(2026, 5, 21, 0, 0, 0, tzinfo=UTC),
+    )

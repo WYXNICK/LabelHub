@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     session_secret: str = Field(default="dev-only-change-me", alias="SESSION_SECRET")
     session_cookie_secure: bool = Field(default=False, alias="SESSION_COOKIE_SECURE")
     session_max_age_seconds: int = Field(default=60 * 60 * 8, alias="SESSION_MAX_AGE_SECONDS")
+    system_agent_token: str = Field(default="dev-system-agent-token", alias="SYSTEM_AGENT_TOKEN")
     openai_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("OPENAI_API_KEY", "LLM_API_KEY"),

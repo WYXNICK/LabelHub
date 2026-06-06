@@ -188,11 +188,12 @@ export interface LogoutResponseVO {
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 已实现 |
 | 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 已实现 |
 | 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 已实现 |
-| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 已实现 |
+| 3/4 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 已实现；阶段 4.1 提交后进入 AI 预审队列 |
 | 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 已实现 |
-| 4 | Reviewer 待审列表 | `ReviewVO`、`ReviewSummaryVO` | `GET /api/reviews` | 阶段 4.0 待对齐 |
-| 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.0 待对齐 |
-| 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.0 待对齐 |
+| 4 | AI 预审队列 | `ReviewJobVO` | `GET /api/review-jobs` | 阶段 4.0/4.1 已实现 |
+| 4 | Reviewer 待审列表 | `ReviewVO` | `GET /api/reviews` | 阶段 4.0 已实现基础契约 |
+| 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.0 已实现基础契约 |
+| 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 待实现 |
 | 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.0 待对齐 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
@@ -990,25 +991,51 @@ export interface ContributionItemVO {
 
 | 页面 | 路由 | 产品结构 |
 | --- | --- | --- |
-| 审核工作台 | `/reviewer/reviews` | 顶部统计卡、任务/状态/AI 结论筛选、待审列表、批量操作条 |
+| 审核工作台 | `/reviewer/reviews` | 阶段 4.1 先展示 AI 预审 job 统计、任务/状态筛选、提交入队记录和阶段边界；批量人工操作在阶段 4.5 启用 |
 | 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与 diff，右侧人工决策、历史意见和审计时间线 |
 | 审核结果列表 | `/reviewer/review-results` | 已处理审核记录、按任务/结论/处理人筛选、可回看详情 |
 | Owner 数据验收 | `/owner/tasks/:taskId/acceptance` | 任务级提交、通过、打回、待审统计，AI 结论分布和抽样审核记录 |
 
-前端核心类型待阶段 4.0 与后端 SDD 对齐：
+前端核心类型已在阶段 4.0 与后端 SDD 对齐：
 
 ```ts
+export interface ReviewJobVO {
+  id: string;
+  taskId: string;
+  assignmentId: string;
+  submissionId: string;
+  reviewConfigVersionId: string;
+  status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "NEEDS_HUMAN_REVIEW";
+  attemptCount: number;
+  maxAttempts: number;
+  idempotencyKey: string;
+  lastError: string | null;
+  lockedBy: string | null;
+  lockedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ReviewVO {
   id: string;
   taskId: string;
   submissionId: string;
   assignmentId: string;
-  status: string;
+  reviewJobId: string;
+  status: "PENDING_HUMAN_REVIEW" | "APPROVED" | "RETURNED";
   aiConclusion: "PASS" | "RETURN" | "NEEDS_HUMAN_REVIEW" | null;
   aiScores: Record<string, number>;
   aiComment: string | null;
+  aiIssues: Array<{ field: string | null; code: string; message: string }>;
+  aiSuggestions: string | null;
   humanConclusion: "APPROVE" | "RETURN" | null;
   reviewerId: string | null;
+  humanComment: string | null;
+  dimensionComments: Record<string, string>;
+  reviewRound: number;
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -1023,6 +1050,8 @@ export interface CreateReviewDecisionRequest {
 
 交互规则：
 
+- Reviewer 登录后的默认首页为 `/reviewer/reviews`，用于承接阶段 4 审核主链路。
+- 阶段 4.1 工作台只展示 AI 预审队列与基础待审记录；AI 调用、AI 结果写回、人工通过/打回和批量审核分别在 4.2-4.5 继续启用。
 - `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
 - 批量打回也必须提供统一理由，并在每条 review 上写独立审计。
 - AI 结论只作为建议展示，不在前端直接决定终审状态。

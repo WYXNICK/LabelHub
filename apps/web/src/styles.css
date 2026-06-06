@@ -1985,6 +1985,109 @@ body {
   padding: 12px 16px;
 }
 
+.labelhub-reviewer-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.labelhub-reviewer-filter-card .ant-card-body,
+.labelhub-reviewer-queue-card .ant-card-body {
+  padding: 16px;
+}
+
+.labelhub-reviewer-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-reviewer-queue-card,
+.labelhub-reviewer-side {
+  min-width: 0;
+}
+
+.labelhub-reviewer-side {
+  position: sticky;
+  top: 76px;
+}
+
+.labelhub-reviewer-job-list {
+  display: grid;
+  gap: 12px;
+}
+
+.labelhub-reviewer-job-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.52fr);
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-left: 3px solid #3370ff;
+  border-radius: 8px;
+}
+
+.labelhub-reviewer-job-row[data-tone="green"] {
+  border-left-color: #13a867;
+}
+
+.labelhub-reviewer-job-row[data-tone="orange"] {
+  border-left-color: #ff8800;
+}
+
+.labelhub-reviewer-job-row[data-tone="red"] {
+  border-left-color: #ff4d4f;
+}
+
+.labelhub-reviewer-job-main,
+.labelhub-reviewer-job-meta {
+  min-width: 0;
+}
+
+.labelhub-reviewer-job-meta {
+  display: grid;
+  gap: 6px;
+  color: #646a73;
+  font-size: 13px;
+  justify-items: start;
+}
+
+.labelhub-reviewer-job-meta span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-reviewer-step {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.labelhub-reviewer-step > span {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #3370ff;
+  background: #edf4ff;
+  border-radius: 8px;
+}
+
+.labelhub-reviewer-review-mini {
+  padding: 10px 0;
+  border-bottom: 1px solid #eff0f1;
+}
+
+.labelhub-reviewer-review-mini:last-child {
+  border-bottom: 0;
+}
+
 @media (max-width: 1500px) {
   .labelhub-market-workbench {
     grid-template-columns: 1fr;
@@ -2012,6 +2115,16 @@ body {
 
   .labelhub-contribution-summary-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .labelhub-reviewer-workbench-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-reviewer-side {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .labelhub-assignment-workspace {
@@ -2073,6 +2186,10 @@ body {
   }
 
   .labelhub-task-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .labelhub-reviewer-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2250,6 +2367,15 @@ body {
   }
 
   .labelhub-market-side {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-reviewer-summary-grid,
+  .labelhub-reviewer-side {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-reviewer-job-row {
     grid-template-columns: 1fr;
   }
 

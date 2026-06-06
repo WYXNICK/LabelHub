@@ -5,7 +5,7 @@ import { isRolePathAllowed, roleHomePath } from "./routes";
 describe("role routes", () => {
   it("maps roles to isolated home paths", () => {
     expect(roleHomePath.OWNER).toBe("/owner/foundation");
-    expect(roleHomePath.LABELER).toBe("/labeler/foundation");
+    expect(roleHomePath.LABELER).toBe("/labeler/marketplace");
     expect(roleHomePath.REVIEWER).toBe("/reviewer/foundation");
   });
 

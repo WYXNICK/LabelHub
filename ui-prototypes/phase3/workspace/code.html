@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 3 · 标注工作台原型</title>
+    <link rel="stylesheet" href="../assets/phase3.css" />
+  </head>
+  <body>
+    <div class="app-shell focus-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="logo">L</span>
+          <div class="brand-title">
+            <strong>LabelHub</strong>
+            <span>标注员工作空间</span>
+          </div>
+        </div>
+        <div class="nav-section">数据生产</div>
+        <div class="nav-item" title="任务广场"><span class="nav-dot"></span><span class="nav-label">任务广场</span></div>
+        <div class="nav-item active" title="标注工作台"><span class="nav-dot"></span><span class="nav-label">标注工作台</span></div>
+        <div class="nav-item" title="我的贡献"><span class="nav-dot"></span><span class="nav-label">我的贡献</span></div>
+        <div class="nav-section">质量反馈</div>
+        <div class="nav-item" title="待修改"><span class="nav-dot"></span><span class="nav-label">待修改</span></div>
+        <div class="nav-item" title="审核记录"><span class="nav-dot"></span><span class="nav-label">审核记录</span></div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="breadcrumb"><strong>标注工作台</strong> / 商品标题清洗 v3 / 第 8 / 50 题</div>
+          <div class="userbar">
+            <span class="save-pill"><span class="dot green"></span>草稿已自动保存 18:02:31</span>
+            <span class="avatar">李</span>
+            <span>李雷 · Labeler</span>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="workspace-grid">
+            <aside class="card rail">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">题目导航</h2>
+                  <div class="muted" style="margin-top: 4px">8 / 50 · 进度 16% · 配额 60</div>
+                </div>
+              </div>
+              <div class="question-list">
+                <div class="question-item"><span>#001 超柔软纯棉...</span><span class="dot green"></span></div>
+                <div class="question-item"><span>#002 户外便携野...</span><span class="dot green"></span></div>
+                <div class="question-item"><span>#003 春季新款女...</span><span class="dot orange"></span></div>
+                <div class="question-item"><span>#004 加厚熟蓝牙...</span><span class="dot green"></span></div>
+                <div class="question-item"><span>#005 多功能厨房...</span><span class="dot green"></span></div>
+                <div class="question-item"><span>#006 儿童学习平...</span><span class="dot green"></span></div>
+                <div class="question-item"><span>#007 高弹力健身...</span><span class="dot red"></span></div>
+                <div class="question-item active"><span>#008 男女款居家服...</span><span class="dot blue"></span></div>
+                <div class="question-item"><span>#009 全自动咖啡...</span><span class="dot"></span></div>
+                <div class="question-item"><span>#010 真无线降噪...</span><span class="dot"></span></div>
+              </div>
+            </aside>
+
+            <section class="workspace-main">
+              <div class="workspace-toolbar">
+                <div>
+                  <h1 class="page-title" style="font-size: 22px">商品标题清洗 v3 · 第 8 题</h1>
+                  <p class="page-subtitle">模板 r12 · 题目 ID Q-2041-008 · 奖励 0.30 元</p>
+                </div>
+                <div class="actions">
+                  <button class="btn">跳过</button>
+                  <button class="btn">报告题目</button>
+                </div>
+              </div>
+
+              <div class="card form-card">
+                <div class="alert orange">
+                  上一轮被打回：关键词未覆盖“情侣款”卖点，目标题首字符存在多余空格。请按本轮审核意见修改后再提交。
+                </div>
+
+                <div class="show-item">
+                  <strong>原始商品标题（不可编辑）</strong>
+                  <span class="muted">$.prompt</span>
+                  <div>超柔软纯棉 男女款居家服套装 春秋季睡衣大码情侣家居服 包邮 @特价</div>
+                </div>
+
+                <div class="field">
+                  <div class="field-head">
+                    <label>清洗后标题 <span class="required">*</span></label>
+                    <span class="hint">去除特殊符号、促销词；保留核心卖点；不超过 35 字。</span>
+                  </div>
+                  <input class="input" name="cleanedTitle" aria-label="清洗后标题" style="width: 100%" value="春秋纯棉情侣居家服套装 大码男女款" />
+                  <span class="hint" style="text-align: right">17 / 35</span>
+                </div>
+
+                <div class="field">
+                  <label>主类目 <span class="required">*</span></label>
+                  <div class="option-row">
+                    <span class="option selected">服饰内衣</span>
+                    <span class="option">家居用品</span>
+                    <span class="option">食品生鲜</span>
+                    <span class="option">3C 数码</span>
+                    <span class="option">美妆个护</span>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>卖点关键词（多选）</label>
+                  <div class="option-row">
+                    <span class="check-option selected"><span class="check-square"></span>纯棉</span>
+                    <span class="check-option selected"><span class="check-square"></span>大码</span>
+                    <span class="check-option selected"><span class="check-square"></span>情侣款</span>
+                    <span class="check-option selected"><span class="check-square"></span>家居服</span>
+                    <span class="check-option"><span class="check-square"></span>套装</span>
+                    <span class="check-option"><span class="check-square"></span>春秋季</span>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>修订说明</label>
+                  <textarea class="textarea" name="revisionNote" aria-label="修订说明">补充情侣款卖点，删除促销符号和包邮信息，保留材质、季节和尺码信息。</textarea>
+                </div>
+
+                <div class="llm-panel">
+                  <div class="llm-head">
+                    <strong>AI 建议清洗（LLM 触发）</strong>
+                    <button class="btn">重新生成</button>
+                  </div>
+                  <div>
+                    “春秋纯棉情侣居家服套装 · 大码男女款” 已去除促销词与多余空格，保留核心卖点：纯棉、情侣款、家居服。
+                  </div>
+                  <div class="actions">
+                    <button class="btn primary">采纳为清洗结果</button>
+                    <button class="btn">只复制建议</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="footer-actions">
+                <div class="actions">
+                  <button class="btn">上一题</button>
+                  <button class="btn">下一题</button>
+                </div>
+                <div class="actions">
+                  <span class="muted">⌘ + Enter 提交 · ⌘ + S 保存草稿</span>
+                  <button class="btn">保存草稿</button>
+                  <button class="btn primary">提交本题</button>
+                </div>
+              </div>
+            </section>
+
+            <aside class="side-stack">
+              <div class="side-card">
+                <h3>我的贡献（本任务）</h3>
+                <div class="mini-stats">
+                  <div class="mini-stat"><strong>62</strong><span class="muted">已提交</span></div>
+                  <div class="mini-stat"><strong>54</strong><span class="muted">通过</span></div>
+                  <div class="mini-stat"><strong>5</strong><span class="muted">打回</span></div>
+                </div>
+              </div>
+
+              <div class="side-card">
+                <h3>本题历史</h3>
+                <div class="timeline">
+                  <div class="timeline-item"><div><strong>李雷 · 提交</strong><div class="muted">05-16 14:22</div></div></div>
+                  <div class="timeline-item"><div><strong>AI 预审 · 打回</strong><div class="muted">05-16 14:22</div></div></div>
+                  <div class="timeline-item"><div><strong>王芳 · 复审打回</strong><div class="muted">05-16 15:08</div></div></div>
+                  <div class="timeline-item"><div><strong>李雷 · 修改中</strong><div class="muted">当前</div></div></div>
+                </div>
+              </div>
+
+              <div class="side-card">
+                <h3>快捷键</h3>
+                <div class="side-row"><span>提交本题</span><strong>⌘ Enter</strong></div>
+                <div class="side-row"><span>保存草稿</span><strong>⌘ S</strong></div>
+                <div class="side-row"><span>上一题 / 下一题</span><strong>← / →</strong></div>
+                <div class="side-row"><span>报告题目</span><strong>R</strong></div>
+              </div>
+
+              <div class="side-card">
+                <h3>提交校验</h3>
+                <div class="alert blue">当前字段满足长度、必填和枚举校验。提交后仍由后端做最终校验。</div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

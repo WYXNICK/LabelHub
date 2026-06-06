@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +27,38 @@ class Settings(BaseSettings):
     session_secret: str = Field(default="dev-only-change-me", alias="SESSION_SECRET")
     session_cookie_secure: bool = Field(default=False, alias="SESSION_COOKIE_SECURE")
     session_max_age_seconds: int = Field(default=60 * 60 * 8, alias="SESSION_MAX_AGE_SECONDS")
+    openai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_API_KEY", "LLM_API_KEY"),
+    )
+    openai_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        validation_alias=AliasChoices("BASE_URL", "OPENAI_BASE_URL", "LLM_BASE_URL"),
+    )
+    openai_model_name: str = Field(
+        default="gpt-4o-mini",
+        validation_alias=AliasChoices("MODEL_NAME", "OPENAI_MODEL_NAME", "OPENAI_MODEL", "LLM_MODEL_NAME"),
+    )
+    openai_timeout_seconds: float = Field(
+        default=90.0,
+        ge=1,
+        le=300,
+        validation_alias=AliasChoices("OPENAI_TIMEOUT_SECONDS", "LLM_TIMEOUT_SECONDS", "LLM_REQUEST_TIMEOUT_SECONDS"),
+    )
+    openai_thinking_enabled: bool | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_THINKING_ENABLED", "LLM_THINKING_ENABLED"),
+    )
+    llm_temperature: float = Field(
+        default=0.2,
+        ge=0,
+        le=2,
+        validation_alias=AliasChoices("LLM_TEMPERATURE", "OPENAI_TEMPERATURE"),
+    )
+    llm_extra_body_json: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_EXTRA_BODY_JSON", "OPENAI_EXTRA_BODY_JSON"),
+    )
 
     @property
     def cors_origins(self) -> list[str]:

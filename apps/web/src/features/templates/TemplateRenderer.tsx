@@ -1,14 +1,16 @@
 import {
+  CheckOutlined,
   CodeOutlined,
   FileImageOutlined,
   ThunderboltOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Checkbox, Empty, Form, Input, Radio, Select, Space, Tabs, Tag, Tooltip, Typography, Upload } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 
 import type { JsonObject } from "../../shared/types/api";
+import { formatTaskTime } from "../tasks/view";
 import type { TemplateComponentDTO, TemplateFieldValue, TemplateSchemaVO, TemplateSubmissionValue } from "./types";
 import {
   formatPayloadValue,
@@ -20,6 +22,7 @@ import {
   pruneHiddenSubmissionValue,
   readPayloadPath,
   type RenderableLayoutItem,
+  type TemplateSubmissionError,
   updateTemplateSubmissionValue,
 } from "./runtime";
 
@@ -29,6 +32,20 @@ interface TemplateRendererProps {
   value: TemplateSubmissionValue;
   onChange: (nextValue: TemplateSubmissionValue) => void;
   readonly?: boolean;
+  serverErrors?: TemplateSubmissionError[];
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
+}
+
+export interface TemplateLlmActionRunResult {
+  status: "SUCCEEDED" | "FAILED";
+  outputValue: unknown | null;
+  outputValues: TemplateSubmissionValue | null;
+  errorMessage?: string | null;
+  createdAt?: string;
 }
 
 export function TemplateRenderer({
@@ -37,9 +54,15 @@ export function TemplateRenderer({
   value,
   onChange,
   readonly = false,
+  serverErrors = [],
+  onUploadFile,
+  onRunLlmAction,
 }: TemplateRendererProps) {
   const renderableItems = useMemo(() => getRenderableLayoutItems(schema), [schema]);
-  const errorsByField = useMemo(() => getTemplateSubmissionErrorsByField(schema, value), [schema, value]);
+  const errorsByField = useMemo(
+    () => mergeErrorsByField(getTemplateSubmissionErrorsByField(schema, value), serverErrors),
+    [schema, serverErrors, value],
+  );
 
   useEffect(() => {
     const nextValue = pruneHiddenSubmissionValue(schema, value);
@@ -62,6 +85,8 @@ export function TemplateRenderer({
           value={value}
           errorsByField={errorsByField}
           readonly={readonly}
+          onUploadFile={onUploadFile}
+          onRunLlmAction={onRunLlmAction}
           onChange={onChange}
         />
       ))}
@@ -75,6 +100,8 @@ function RendererLayoutItem({
   value,
   errorsByField,
   readonly,
+  onUploadFile,
+  onRunLlmAction,
   onChange,
 }: {
   item: RenderableLayoutItem;
@@ -82,6 +109,11 @@ function RendererLayoutItem({
   value: TemplateSubmissionValue;
   errorsByField: Map<string, string[]>;
   readonly: boolean;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
   if ("missingId" in item) {
@@ -111,6 +143,8 @@ function RendererLayoutItem({
               value={value}
               errorsByField={errorsByField}
               readonly={readonly}
+              onUploadFile={onUploadFile}
+              onRunLlmAction={onRunLlmAction}
               onChange={onChange}
             />
           ))}
@@ -142,6 +176,8 @@ function RendererLayoutItem({
                       value={value}
                       errorsByField={errorsByField}
                       readonly={readonly}
+                      onUploadFile={onUploadFile}
+                      onRunLlmAction={onRunLlmAction}
                       onChange={onChange}
                     />
                   ))
@@ -163,6 +199,8 @@ function RendererLayoutItem({
       value={value}
       errorsByField={errorsByField}
       readonly={readonly}
+      onUploadFile={onUploadFile}
+      onRunLlmAction={onRunLlmAction}
       onChange={onChange}
     />
   );
@@ -174,6 +212,8 @@ function RendererField({
   value,
   errorsByField,
   readonly,
+  onUploadFile,
+  onRunLlmAction,
   onChange,
 }: {
   component: TemplateComponentDTO;
@@ -181,6 +221,11 @@ function RendererField({
   value: TemplateSubmissionValue;
   errorsByField: Map<string, string[]>;
   readonly: boolean;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
   onChange: (nextValue: TemplateSubmissionValue) => void;
 }) {
   if (component.type === "SHOW_ITEM") {
@@ -188,7 +233,15 @@ function RendererField({
   }
 
   if (component.type === "LLM_ACTION") {
-    return <LlmAction component={component} readonly={readonly} />;
+    return (
+      <LlmAction
+        component={component}
+        value={value}
+        readonly={readonly}
+        onChange={onChange}
+        onRunLlmAction={onRunLlmAction}
+      />
+    );
   }
 
   if (!component.fieldKey) {
@@ -214,7 +267,7 @@ function RendererField({
       help={errors.length > 0 ? errors.join("；") : undefined}
     >
       <FieldLabel label={component.label} required={required} htmlFor={canUseNativeLabel ? inputId : undefined} />
-      {renderInput(component, fieldValue, setValue, readonly, inputId)}
+      {renderInput(component, fieldValue, setValue, readonly, inputId, onUploadFile)}
     </Form.Item>
   );
 }
@@ -262,6 +315,7 @@ function renderInput(
   onChange: (nextValue: TemplateFieldValue) => void,
   readonly: boolean,
   inputId: string,
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>,
 ) {
   const placeholder = typeof component.props.placeholder === "string" ? component.props.placeholder : undefined;
   if (component.type === "TEXT_INPUT") {
@@ -357,8 +411,13 @@ function renderInput(
         accept={accept || undefined}
         fileList={fileList}
         listType={component.type === "IMAGE_UPLOAD" ? "picture" : "text"}
-        beforeUpload={(file) => {
-          onChange([...names, file.name].slice(0, maxFiles));
+        beforeUpload={async (file) => {
+          try {
+            const fileRef = onUploadFile ? await onUploadFile(file, component) : file.name;
+            onChange([...names, fileRef].slice(0, maxFiles));
+          } catch {
+            return Upload.LIST_IGNORE;
+          }
           return false;
         }}
         onRemove={(file) => {
@@ -620,13 +679,59 @@ function getSafePreviewUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : undefined;
 }
 
-function LlmAction({ component, readonly }: { component: TemplateComponentDTO; readonly: boolean }) {
+function LlmAction({
+  component,
+  value,
+  readonly,
+  onChange,
+  onRunLlmAction,
+}: {
+  component: TemplateComponentDTO;
+  value: TemplateSubmissionValue;
+  readonly: boolean;
+  onChange: (nextValue: TemplateSubmissionValue) => void;
+  onRunLlmAction?: (
+    component: TemplateComponentDTO,
+    inputValues: TemplateSubmissionValue,
+  ) => Promise<TemplateLlmActionRunResult>;
+}) {
+  const [result, setResult] = useState<TemplateLlmActionRunResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const inputItemPaths = getStringArrayProp(component.props.inputItemPaths);
   const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
   const outputFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : "";
   const promptTemplate = typeof component.props.promptTemplate === "string" ? component.props.promptTemplate : "";
+  const outputValues = useMemo(() => coerceOutputValues(result?.outputValues), [result]);
+  const canApply = !readonly && result?.status === "SUCCEEDED" && outputValues && Object.keys(outputValues).length > 0;
+
+  const handleRun = useCallback(async () => {
+    if (!onRunLlmAction || running) {
+      return;
+    }
+    setRunning(true);
+    setRunError(null);
+    try {
+      const nextResult = await onRunLlmAction(component, value);
+      setResult(nextResult);
+      setRunError(nextResult.status === "FAILED" ? nextResult.errorMessage ?? "LLM 辅助生成失败，请稍后重试。" : null);
+    } catch (error) {
+      setRunError(getRuntimeErrorMessage(error));
+    } finally {
+      setRunning(false);
+    }
+  }, [component, onRunLlmAction, running, value]);
+
+  const handleApply = useCallback(() => {
+    if (!outputValues) {
+      return;
+    }
+    onChange({ ...value, ...outputValues });
+  }, [onChange, outputValues, value]);
+
   return (
-    <section className="labelhub-template-llm-action">
-      <Space align="start" size={12}>
+    <section className="labelhub-template-llm-action" data-status={result?.status.toLowerCase() ?? "idle"}>
+      <Space className="labelhub-template-llm-head" align="start" size={12}>
         <span className="labelhub-template-llm-icon">
           <ThunderboltOutlined />
         </span>
@@ -638,20 +743,73 @@ function LlmAction({ component, readonly }: { component: TemplateComponentDTO; r
         </div>
       </Space>
       <div className="labelhub-template-llm-meta">
-        <Tag color="purple">输入：{inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"}</Tag>
+        <Tag color="purple">
+          题目：{inputItemPaths.length > 0 ? inputItemPaths.join(", ") : "未配置"}
+        </Tag>
+        <Tag color="purple">
+          字段：{inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"}
+        </Tag>
         <Tag color="blue">输出：{outputFieldKey || "未配置"}</Tag>
-        <Tag>阶段 3.6 接入真实调用</Tag>
+        <Tag>OpenAI 兼容调用</Tag>
       </div>
       {promptTemplate && (
         <pre className="labelhub-template-llm-prompt">
           <CodeOutlined /> {promptTemplate}
         </pre>
       )}
-      <Button disabled={readonly} icon={<ThunderboltOutlined />}>
-        {typeof component.props.actionLabel === "string" ? component.props.actionLabel : "生成参考建议"}
-      </Button>
+      {result?.status === "SUCCEEDED" && (
+        <div className="labelhub-template-llm-result">
+          <Typography.Text strong>模型建议</Typography.Text>
+          <pre>{formatLlmOutput(result.outputValue)}</pre>
+          {result.createdAt && (
+            <Typography.Text type="secondary">生成时间：{formatTaskTime(result.createdAt)}</Typography.Text>
+          )}
+        </div>
+      )}
+      {runError && <Alert type="warning" showIcon message={runError} />}
+      <Space className="labelhub-template-llm-actions" wrap>
+        <Button
+          disabled={readonly || !onRunLlmAction}
+          icon={<ThunderboltOutlined />}
+          loading={running}
+          onClick={() => void handleRun()}
+        >
+          {typeof component.props.actionLabel === "string" ? component.props.actionLabel : "生成参考建议"}
+        </Button>
+        {canApply && (
+          <Button type="primary" ghost icon={<CheckOutlined />} onClick={handleApply}>
+            {outputFieldKey ? `采纳到 ${outputFieldKey}` : "采纳建议"}
+          </Button>
+        )}
+      </Space>
     </section>
   );
+}
+
+function coerceOutputValues(value: TemplateSubmissionValue | null | undefined): TemplateSubmissionValue | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value).filter(([key]) => key.trim());
+  return entries.length > 0 ? (Object.fromEntries(entries) as TemplateSubmissionValue) : null;
+}
+
+function formatLlmOutput(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value ?? "");
+  }
+}
+
+function getRuntimeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "LLM 辅助生成失败，请稍后重试。";
 }
 
 function getStringArrayProp(value: unknown): string[] {
@@ -686,4 +844,15 @@ function isSameSubmissionValue(left: TemplateSubmissionValue, right: TemplateSub
     return false;
   }
   return leftKeys.every((key) => JSON.stringify(left[key]) === JSON.stringify(right[key]));
+}
+
+function mergeErrorsByField(
+  runtimeErrors: Map<string, string[]>,
+  serverErrors: TemplateSubmissionError[],
+): Map<string, string[]> {
+  const merged = new Map(runtimeErrors);
+  for (const error of serverErrors) {
+    merged.set(error.fieldKey, [...(merged.get(error.fieldKey) ?? []), error.message]);
+  }
+  return merged;
 }

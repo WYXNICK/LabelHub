@@ -634,12 +634,14 @@ function CanvasItemPreview({ component }: { component: TemplateComponentDTO }) {
   }
   if (component.type === "LLM_ACTION") {
     const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
+    const inputItemPaths = getStringArrayProp(component.props.inputItemPaths);
+    const inputLabels = [...inputItemPaths, ...inputFieldKeys];
     return (
       <div className="labelhub-canvas-preview labelhub-llm-preview">
         <Tag color="purple">LLM</Tag>
         <Typography.Text strong>{String(component.props.actionLabel ?? "生成参考建议")}</Typography.Text>
         <Typography.Text type="secondary">
-          输入 {inputFieldKeys.length > 0 ? inputFieldKeys.join(", ") : "未配置"} · 输出{" "}
+          输入 {inputLabels.length > 0 ? inputLabels.join(", ") : "未配置"} · 输出{" "}
           {String(component.props.outputFieldKey ?? "") || "未配置"}
         </Typography.Text>
       </div>
@@ -1256,6 +1258,13 @@ function LlmActionPropertyEditor({
   patchProps: (nextProps: Record<string, unknown>) => void;
 }) {
   const fieldOptions = collectTemplateFieldKeys(schema).map((fieldKey) => ({ label: fieldKey, value: fieldKey }));
+  const itemPathOptions = schema.components
+    .filter((item) => item.type === "SHOW_ITEM")
+    .flatMap((item) => {
+      const path = typeof item.props.path === "string" ? item.props.path.trim() : "";
+      return path ? [{ label: `${item.label} (${path})`, value: path }] : [];
+    });
+  const inputItemPaths = getStringArrayProp(component.props.inputItemPaths);
   const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
   const outputFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : "";
 
@@ -1278,13 +1287,24 @@ function LlmActionPropertyEditor({
           onChange={(event) => patchProps({ promptTemplate: event.target.value })}
         />
       </Form.Item>
-      <Form.Item label="输入字段" htmlFor={`template-llm-${component.id}-inputs`}>
+      <Form.Item label="题目原文 / 展示项" htmlFor={`template-llm-${component.id}-item-inputs`}>
         <Select
-          id={`template-llm-${component.id}-inputs`}
+          id={`template-llm-${component.id}-item-inputs`}
+          mode="multiple"
+          options={itemPathOptions}
+          value={inputItemPaths}
+          placeholder="选择题目原始数据作为模型输入"
+          notFoundContent="请先添加展示项并配置展示路径"
+          onChange={(nextValue) => patchProps({ inputItemPaths: nextValue })}
+        />
+      </Form.Item>
+      <Form.Item label="已填写字段" htmlFor={`template-llm-${component.id}-field-inputs`}>
+        <Select
+          id={`template-llm-${component.id}-field-inputs`}
           mode="multiple"
           options={fieldOptions}
           value={inputFieldKeys}
-          placeholder="选择提交字段作为模型输入"
+          placeholder="选择标注员已填写字段作为模型输入"
           onChange={(nextValue) => patchProps({ inputFieldKeys: nextValue })}
         />
       </Form.Item>

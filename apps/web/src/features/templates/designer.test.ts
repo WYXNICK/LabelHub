@@ -21,10 +21,12 @@ describe("template designer helpers", () => {
   it("creates stage 2.4 basic materials with editable defaults", () => {
     expect(createDesignerComponent({ type: "SHOW_ITEM", id: "show_prompt" })).toMatchObject({
       fieldKey: null,
+      label: "题目原文",
       props: { path: "$.prompt" },
     });
     expect(createDesignerComponent({ type: "TEXT_INPUT", id: "title", index: 2 })).toMatchObject({
       fieldKey: "text_input_2",
+      label: "单行输入",
       props: { placeholder: "请输入内容", defaultValue: "" },
       validation: { required: true, maxLength: 120 },
     });
@@ -33,8 +35,10 @@ describe("template designer helpers", () => {
 
   it("creates stage 2.5 advanced materials with serializable defaults", () => {
     expect(designerMaterialGroups.map((group) => group.title)).toEqual(["基础物料", "高级物料", "布局物料"]);
+    expect(designerMaterialGroups.find((group) => group.title === "高级物料")?.types[0]).toBe("LLM_ACTION");
     expect(createDesignerComponent({ type: "RICH_TEXT", id: "rich", index: 4 })).toMatchObject({
       fieldKey: "rich_text_4",
+      label: "富文本说明",
       props: { placeholder: "请输入富文本内容", defaultValue: "", toolbarPreset: "basic" },
       validation: { required: false, maxLength: 5000 },
     });
@@ -50,8 +54,10 @@ describe("template designer helpers", () => {
     expect(createDesignerComponent({ type: "JSON_EDITOR", id: "json" }).props.defaultValue).toEqual({});
     expect(createDesignerComponent({ type: "LLM_ACTION", id: "llm" })).toMatchObject({
       fieldKey: null,
+      label: "AI 辅助动作",
       props: {
         actionLabel: "生成参考建议",
+        inputItemPaths: [],
         inputFieldKeys: [],
         outputFieldKey: "",
       },

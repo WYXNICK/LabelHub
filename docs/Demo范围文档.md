@@ -43,7 +43,9 @@
 
 当前代码已经接入阶段 1 Demo 数据导入：Owner 可导入 `qa_quality` 和 `preference_compare` 的 JSON、JSONL、Excel 文件，导入结果、错误行、题目预览和批量编辑会持久化到 MySQL。发布前检查也能基于当前任务数据、审核配置和模板版本返回阻塞项。
 
-阶段 2 已实现动态模板 Designer/Renderer、官方要求物料、进阶布局/规则、模板版本发布与发布检查联动。当前 Demo 可演示“缺少模板版本时发布检查阻塞”以及“发布模板版本后 `MISSING_TEMPLATE_VERSION` 解除”；不要为了演示 Labeler 领取任务而临时绕过阶段 3 尚未实现的 assignment/submission 链路。
+阶段 2 已实现动态模板 Designer/Renderer、官方要求物料、进阶布局/规则、模板版本发布与发布检查联动。当前 Demo 可演示“缺少模板版本时发布检查阻塞”以及“发布模板版本后 `MISSING_TEMPLATE_VERSION` 解除”。
+
+阶段 3 已实现 Labeler 任务广场、先到先得领取、基于模板版本的作答工作台、草稿自动保存、正式提交、提交校验、我的贡献、返修入口和题目级 LLM 辅助。当前 Demo 可以按「Owner 发布任务 -> Labeler 领取题目 -> 自动保存草稿 -> 提交 -> 查看贡献/返修入口」演示真实 MySQL 链路。阶段 4 尚未实现 AI 自动预审和 Reviewer 人工审核，因此不要在演示中把阶段 3 的题目级 LLM 辅助误称为“AI 自动预审”；前者是 Labeler 作答参考，后者是提交后的质检队列。
 
 ## 6. 非 Demo 范围
 

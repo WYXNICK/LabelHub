@@ -189,6 +189,9 @@ export function validateTemplateSubmissionValue(
       });
       continue;
     }
+    if (!isEmptyValue(fieldValue)) {
+      errors.push(...validateComponentValue(component, fieldValue));
+    }
     const maxLength = typeof component.validation.maxLength === "number" ? component.validation.maxLength : null;
     if (maxLength && typeof fieldValue === "string" && fieldValue.length > maxLength) {
       errors.push({ fieldKey: component.fieldKey, message: `${component.label} 不能超过 ${maxLength} 字` });
@@ -383,6 +386,51 @@ function anyCurrentValueInExpected(currentValue: unknown, expectedValue: unknown
 
 function getStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function validateComponentValue(component: TemplateComponentDTO, value: unknown): TemplateSubmissionError[] {
+  const fieldKey = component.fieldKey ?? component.id;
+  if ((component.type === "TEXT_INPUT" || component.type === "TEXTAREA" || component.type === "RICH_TEXT") && typeof value !== "string") {
+    return [{ fieldKey, message: `${component.label} 必须是文本` }];
+  }
+  if (component.type === "RADIO") {
+    if (typeof value !== "string") {
+      return [{ fieldKey, message: `${component.label} 必须选择一个选项` }];
+    }
+    return validateOptionValues(component, [value]);
+  }
+  if (component.type === "CHECKBOX" || component.type === "TAG_SELECT") {
+    if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+      return [{ fieldKey, message: `${component.label} 必须是选项数组` }];
+    }
+    return validateOptionValues(component, value);
+  }
+  if (component.type === "JSON_EDITOR" && (!value || typeof value !== "object" || Array.isArray(value))) {
+    return [{ fieldKey, message: `${component.label} 必须是 JSON Object` }];
+  }
+  if (component.type === "FILE_UPLOAD" || component.type === "IMAGE_UPLOAD") {
+    if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim())) {
+      return [{ fieldKey, message: `${component.label} 必须是文件引用数组` }];
+    }
+    if (value.some((item) => !String(item).startsWith("file_"))) {
+      return [{ fieldKey, message: `${component.label} 必须使用已上传文件引用` }];
+    }
+    const maxFiles = typeof component.props.maxFiles === "number" ? component.props.maxFiles : null;
+    if (maxFiles && value.length > maxFiles) {
+      return [{ fieldKey, message: `${component.label} 最多上传 ${maxFiles} 个文件` }];
+    }
+  }
+  return [];
+}
+
+function validateOptionValues(component: TemplateComponentDTO, values: string[]): TemplateSubmissionError[] {
+  const allowedValues = new Set(getTemplateOptions(component).map((option) => option.value));
+  if (allowedValues.size === 0) {
+    return [];
+  }
+  return values.some((item) => !allowedValues.has(item))
+    ? [{ fieldKey: component.fieldKey ?? component.id, message: `${component.label} 包含不在模板中的选项` }]
+    : [];
 }
 
 function validateCustomRule(ruleId: string, value: unknown, label: string): string | null {

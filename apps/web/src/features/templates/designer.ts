@@ -6,7 +6,7 @@ import type {
   TemplateOptionDTO,
   TemplateSchemaVO,
 } from "./types";
-import { createTemplateComponent, templateComponentTypeLabels } from "./view";
+import { createTemplateComponent } from "./view";
 
 export type DesignerMaterialType =
   | "SHOW_ITEM"
@@ -48,8 +48,8 @@ export const designerMaterialGroups: DesignerMaterialGroup[] = [
   },
   {
     title: "高级物料",
-    description: "覆盖多媒体、结构化数据与模型动作",
-    types: ["RICH_TEXT", "FILE_UPLOAD", "IMAGE_UPLOAD", "JSON_EDITOR", "LLM_ACTION"],
+    description: "覆盖模型辅助、多媒体与结构化数据",
+    types: ["LLM_ACTION", "RICH_TEXT", "FILE_UPLOAD", "IMAGE_UPLOAD", "JSON_EDITOR"],
   },
   {
     title: "布局物料",
@@ -71,9 +71,26 @@ export const designerMaterialDescriptions: Record<DesignerMaterialType, string> 
   FILE_UPLOAD: "附件证据、表格或文档留存",
   IMAGE_UPLOAD: "图片证据、截图和多图材料",
   JSON_EDITOR: "结构化对象或数组字段",
-  LLM_ACTION: "配置题目级模型辅助动作",
+  LLM_ACTION: "题目级 AI 辅助，可作为参考或预填",
   GROUP: "把相关字段组织为一个逻辑区块",
   TABS: "将复杂模板拆成多个可切换页面",
+};
+
+// label 是标注员可见文案，默认用中文业务语义；fieldKey 仍保持稳定机器字段。
+const defaultComponentLabels: Record<DesignerMaterialType, string> = {
+  SHOW_ITEM: "题目原文",
+  TEXT_INPUT: "单行输入",
+  TEXTAREA: "回答内容",
+  RADIO: "质量判断",
+  CHECKBOX: "问题类型",
+  TAG_SELECT: "标签选择",
+  RICH_TEXT: "富文本说明",
+  FILE_UPLOAD: "文件附件",
+  IMAGE_UPLOAD: "图片附件",
+  JSON_EDITOR: "结构化数据",
+  LLM_ACTION: "AI 辅助动作",
+  GROUP: "分组容器",
+  TABS: "多 Tab 布局",
 };
 
 const materialFieldPrefix: Record<DesignerMaterialType, string> = {
@@ -103,7 +120,7 @@ export function createDesignerComponent(input: {
   index?: number;
 }): TemplateComponentDTO {
   const index = input.index ?? 1;
-  const label = templateComponentTypeLabels[input.type];
+  const label = defaultComponentLabels[input.type];
   const isNonCollectable = input.type === "SHOW_ITEM" || input.type === "LLM_ACTION" || input.type === "GROUP" || input.type === "TABS";
   const base = createTemplateComponent({
     id: input.id,
@@ -170,6 +187,7 @@ export function createDesignerComponent(input: {
       props: {
         actionLabel: "生成参考建议",
         promptTemplate: "请结合题目原始数据和已填写字段，生成可供标注员参考的建议。",
+        inputItemPaths: [],
         inputFieldKeys: [],
         outputFieldKey: "",
         helperText: "模型输出仅作参考，标注员确认后再提交。",

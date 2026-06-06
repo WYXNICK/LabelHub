@@ -184,13 +184,16 @@ export interface LogoutResponseVO {
 | 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.1 已实现 |
 | 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.1 已实现 |
 | 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 |
-| 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 实现 |
-| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 实现 |
-| 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 实现 |
-| 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 实现 |
-| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 实现 |
-| 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 实现 |
-| 4 | 审核详情 | `ReviewVO` | `GET /api/reviews/{reviewId}` | 待细化 |
+| 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 已实现 |
+| 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 已实现 |
+| 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 已实现 |
+| 3 | 草稿保存 | `SaveAssignmentDraftRequest` | `PUT /api/assignments/{assignmentId}/draft` | 阶段 3.3 已实现 |
+| 3 | 标注提交 | `SubmissionVO` | `POST /api/assignments/{assignmentId}/submissions` | 阶段 3.4 已实现 |
+| 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 已实现 |
+| 4 | Reviewer 待审列表 | `ReviewVO`、`ReviewSummaryVO` | `GET /api/reviews` | 阶段 4.0 待对齐 |
+| 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.0 待对齐 |
+| 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.0 待对齐 |
+| 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.0 待对齐 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
 ### 9.1 阶段 1.0 已对齐前端契约
@@ -649,7 +652,7 @@ Designer 物料分组：
 | 分组 | 物料 |
 | --- | --- |
 | 基础物料 | `SHOW_ITEM`、`TEXT_INPUT`、`TEXTAREA`、`RADIO`、`CHECKBOX`、`TAG_SELECT` |
-| 高级物料 | `RICH_TEXT`、`FILE_UPLOAD`、`IMAGE_UPLOAD`、`JSON_EDITOR`、`LLM_ACTION` |
+| 高级物料 | `LLM_ACTION`、`RICH_TEXT`、`FILE_UPLOAD`、`IMAGE_UPLOAD`、`JSON_EDITOR` |
 
 高级物料属性：
 
@@ -659,20 +662,22 @@ Designer 物料分组：
 | `FILE_UPLOAD` | 必填且唯一 | `accept` 字符串数组、`maxFiles`、`maxSizeMb` | `required` |
 | `IMAGE_UPLOAD` | 必填且唯一 | `accept` 图片 MIME/扩展名数组、`maxFiles`、`maxSizeMb` | `required` |
 | `JSON_EDITOR` | 必填且唯一 | `placeholder`、`defaultValue` JSON Object/Array | `required` |
-| `LLM_ACTION` | 不配置 | `actionLabel`、`promptTemplate`、`inputFieldKeys`、`outputFieldKey`、`helperText` | 不参与提交 |
+| `LLM_ACTION` | 不配置 | `actionLabel`、`promptTemplate`、`inputItemPaths`、`inputFieldKeys`、`outputFieldKey`、`helperText` | 不参与提交 |
 
 Renderer 行为：
 
 - `RICH_TEXT` 渲染轻量富文本编辑区，提交值为字符串；本阶段不引入额外富文本依赖。
 - `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域，阶段 2.5 只在预览中记录本地文件名，真实证据文件上传在阶段 3 作答链路接入。
 - `JSON_EDITOR` 渲染等宽 JSON 编辑区，默认值可以是 JSON Object/Array；输入过程允许暂存字符串，最终提交校验放在阶段 3。
-- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；真实调用由阶段 3.6 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入。
+- `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；阶段 3.6 起通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 运行题目级模型辅助。
 
 交互规则：
 
 - 高级物料同样支持点击/拖拽添加、排序、删除、右侧属性编辑、预览和保存草稿。
 - Designer 生成的 schema 必须可被后端校验接口直接验证，不出现前端私有字段。
-- `LLM_ACTION.props.inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段；后端负责最终校验。
+- Designer 新增物料的默认 `label` 必须使用中文业务语义，例如 `SHOW_ITEM=题目原文`、`TEXTAREA=回答内容`、`LLM_ACTION=AI 辅助动作`；`fieldKey` 仍使用稳定机器字段，不用中文 label 作为提交 key。
+- `LLM_ACTION` 必须在高级物料分组首位展示，确保 `1280×800` 下无需滚到底部也能发现“题目级 LLM 辅助”能力。
+- `LLM_ACTION.props.inputItemPaths` 用于引用题目原始数据路径，通常来自 `SHOW_ITEM.props.path`；`inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段。展示项不进入提交值，但可以作为题目级 LLM 辅助的输入上下文。
 - 预览抽屉必须用当前未保存 schema 渲染高级物料，验证 Designer/Renderer 共用契约。
 
 验收标准：
@@ -784,14 +789,18 @@ VO 字段映射：
 
 阶段 3 前端必须直接复用阶段 2 的 `TemplateRenderer`、`TemplateSubmissionValue`、`pruneHiddenSubmissionValue` 和 `validateTemplateSubmissionValue`。Labeler 作答页不得复制一套新的表单渲染逻辑；后端仍是最终校验者。
 
+阶段 3 的前端视觉与信息架构基准以 `ui-prototypes/phase3` 为准。当前已实现到阶段 3.6，正式代码已对齐 `marketplace`、`workspace`、`contributions` 与 `revise` 四个原型：任务广场采用“统计概览 + 任务列表 + 当前队列/表现侧栏”，标注工作台采用“题目导航 + 动态 Renderer 作答区 + 任务上下文侧栏 + 底部操作条”，我的贡献页采用“统计卡 + 状态分组 + 卡片化贡献列表”，返修入口复用工作台并增强审核意见展示；题目级 `LLM_ACTION` 已在工作台内以 AI 建议卡片呈现，模型结果只作为参考或预填，Labeler 采纳后才进入草稿。
+
+进入 `/labeler/assignments/:assignmentId` 后，角色壳左侧全局导航必须自动收起为窄图标栏，让标注工作台获得更宽的主作答区域；工作台内部的题目导航不收起，继续作为题目级操作导航。后续阶段 3 的草稿、提交、LLM 辅助和返修页也沿用该聚焦模式。
+
 页面与路由：
 
 | 页面 | 路由 | 行为 |
 | --- | --- | --- |
 | 任务广场 | `/labeler/marketplace` | 搜索、筛选、任务卡片、剩余题量、奖励、截止时间、领取或继续作答 |
 | 标注工作台 | `/labeler/assignments/:assignmentId` | 展示题目 payload、模板版本 Renderer、草稿状态、上一题/下一题/跳题和提交按钮 |
-| 我的贡献 | `/labeler/contributions` | 展示已提交、通过、打回、待修改统计和列表 |
-| 打回修改详情 | `/labeler/assignments/:assignmentId/revise` | 展示审核意见、上一轮提交和修改再提交入口 |
+| 我的贡献 | `/labeler/contributions` | 展示已提交、通过、打回、待修改统计和列表，提供继续作答、查看提交、修改并提交入口 |
+| 打回修改详情 | `/labeler/assignments/:assignmentId/revise` | 展示审核意见、上一轮提交和修改再提交入口，复用标注工作台 Renderer 与保存/提交能力 |
 
 核心前端类型：
 
@@ -801,12 +810,16 @@ export interface MarketplaceTaskVO {
   title: string;
   description?: string | null;
   tags: string[];
-  rewardRule?: string | null;
+  rewardRule?: JsonObject | null;
   deadlineAt: string;
   quota: number;
+  claimedCount: number;
+  submittedCount: number;
+  approvedCount: number;
   availableItemCount: number;
   claimedByMeCount: number;
   submittedByMeCount: number;
+  activeAssignmentId?: string | null;
 }
 
 export interface AssignmentContextVO {
@@ -815,8 +828,50 @@ export interface AssignmentContextVO {
   datasetItemPayload: JsonObject;
   templateSchema: TemplateSchemaVO;
   latestSubmission?: SubmissionVO | null;
-  reviewFeedback?: JsonObject | null;
+  reviewFeedback?: ReviewFeedbackVO | null;
   navigation: AssignmentNavigationVO;
+}
+
+export interface ReviewFeedbackVO {
+  reason: string;
+  source: string;
+  reviewerId?: string | null;
+  reviewerRole?: string | null;
+  returnedAt: string;
+  metadata: JsonObject;
+}
+
+export interface ContributionStatsVO {
+  totalAssignments: number;
+  draftCount: number;
+  inReviewCount: number;
+  submittedCount: number;
+  approvedCount: number;
+  returnedCount: number;
+  revisionRequiredCount: number;
+  totalSubmissionCount: number;
+  passRate: number;
+  latestUpdatedAt: string | null;
+}
+
+export interface ContributionItemVO {
+  assignmentId: string;
+  taskId: string;
+  taskTitle: string;
+  taskDescription: string | null;
+  datasetItemId: string;
+  datasetItemPreview: string;
+  status: AssignmentStatus;
+  latestSubmissionId: string | null;
+  latestSubmissionVersion: number | null;
+  latestSubmissionStatus: SubmissionStatus | null;
+  claimedAt: string;
+  draftSavedAt: string | null;
+  submittedAt: string | null;
+  updatedAt: string;
+  canContinue: boolean;
+  canRevise: boolean;
+  reviewFeedback: ReviewFeedbackVO | null;
 }
 ```
 
@@ -825,16 +880,154 @@ export interface AssignmentContextVO {
 - 任务广场只展示后端返回的可领取任务；前端不自行猜测任务是否可领。
 - 领取成功后进入 `/labeler/assignments/:assignmentId`；如果当前 Labeler 已有未提交 assignment，卡片提供“继续作答”入口。
 - 作答页初始化值优先级：后端 `assignment.draftValues` > `latestSubmission.values` > `getTemplateInitialValue(templateSchema)`。
-- Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，再防抖调用保存草稿接口。
-- 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。
+- 阶段 3.2 作答页只负责上下文读取、Renderer 本地编辑和题目导航；Renderer 值变更后先调用 `pruneHiddenSubmissionValue` 清理隐藏字段，防抖保存草稿在阶段 3.3 接入。
+- 提交前先运行前端 `validateTemplateSubmissionValue` 给即时反馈；仍必须调用后端提交接口，由后端做最终校验。正式提交按钮在阶段 3.4 接入。
 - 文件/图片上传物料在阶段 3 需要调用现有 `createFileObject`，提交值保存文件对象 ID 数组和必要展示名，不保存浏览器本地临时路径。
-- `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`；返回值只作为参考或写入目标字段草稿，必须由 Labeler 手动提交。
+- `LLM_ACTION` 按 assignment 模板版本中的组件 ID 运行：`POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run`。
+- `RunLlmActionRequest` 使用 `{ inputValues, targetFieldKey, idempotencyKey }`，其中 `inputValues` 必须是当前 Renderer 值快照，`targetFieldKey` 优先使用组件 `props.outputFieldKey`；题目原始数据不由前端重复提交，后端按组件 `props.inputItemPaths` 从 assignment 的 `datasetItemPayload` 中读取，避免客户端伪造原题上下文。
+- LLM 运行态只把 Owner 显式配置的 `inputItemPaths` 与 `inputFieldKeys` 作为模型输入展示和发送给后端；后端只向模型发送 `selectedItemValues` 与 `selectedInputValues`，不发送完整题目 payload 或未选择字段，避免模型建议混入其他题型、模型对比或审核结论。
+- `LlmActionRunVO` 返回 `{ id, assignmentId, taskId, componentId, status, inputValues, outputValue, outputValues, errorMessage, idempotencyKey, createdAt }`。
+- Renderer 不自动覆盖字段：模型成功后先展示建议结果，再由 Labeler 点击“采纳到字段”写入目标字段草稿；若无输出字段则仅展示参考文本。采纳后的草稿仍走阶段 3.3 自动保存，正式提交仍走阶段 3.4。
+- 模型失败时展示后端 `errorMessage` 和可重试按钮，不阻断其他字段作答；超时类错误应明确提示当前超时秒数或排查方向，不能只显示英文内部异常；Console 不应出现未捕获异常。
 
 验收标准：
 
 - Chrome DevTools MCP 覆盖 `1280×800` 与 `1920×1080` 下任务广场、作答页、贡献页；无横向溢出、主要操作不遮挡。
 - MySQL 链路验证：领取写入 assignment，草稿刷新恢复，提交生成 submission 版本，提交值包含固定 `templateVersionId`。
 - Console 无非预期错误；Network 中业务阻塞项必须可读，例如无可领取题目、任务过期、提交校验失败。
+
+阶段 3.0/3.1 首批落地契约：
+
+| 页面/模块 | 路由 | 行为 |
+| --- | --- | --- |
+| Labeler 任务广场 | `/labeler/marketplace` | 搜索可领取任务、展示剩余题量/截止时间/奖励规则/个人领取提交数，点击领取调用 `POST /api/tasks/{taskId}/assignments` |
+| 领取结果 | 任务卡片内反馈 | 阶段 3.1 只完成领取写入与状态反馈；阶段 3.2 起领取成功跳转到 assignment 作答页 |
+
+`MarketplaceTaskVO` 字段必须与后端一致：`id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`activeAssignmentId`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt`。
+
+`AssignmentVO` 字段必须与后端一致：`id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`labelerId`、`status`、`draftValues`、`draftSavedAt`、`currentSubmissionId`、`claimedAt`、`submittedAt`、`version`、`createdAt`、`updatedAt`。
+
+阶段 3.2 标注工作台产品规则：
+
+- 作答页入口只接受 `assignmentId`，所有任务、题目、模板和导航数据都来自 `GET /api/assignments/{assignmentId}`。
+- 顶部操作区提供返回任务广场、上一题、下一题和领取下一题；上一题/下一题不可用时必须明确置灰，不显示无效链接。
+- 页面主体直接复用阶段 2 `TemplateRenderer`，并在右侧展示题目进度、模板版本、领取时间和原始 payload 摘要，避免 Labeler 在多个页面间查上下文。
+- 当前粒度不落库草稿和提交，但必须保留本地编辑值，切换题目时重新按后端上下文初始化。
+
+阶段 3.3 草稿自动保存产品规则：
+
+- `TemplateRenderer` 的每次值变更先经过其隐藏字段清理逻辑，再由作答页以约 1 秒防抖调用 `saveAssignmentDraft`。
+- 请求体为 `SaveAssignmentDraftRequest { values, clientVersion }`，其中 `clientVersion` 使用当前 `AssignmentVO.version`；保存成功后用返回的 `AssignmentVO` 更新本地上下文版本。
+- 页面顶部、底部和右侧历史区必须展示可理解的草稿状态：待保存、保存中、已保存时间、保存失败可重试、版本冲突需重新加载。
+- 刷新页面时继续遵循初始化优先级 `assignment.draftValues > latestSubmission.values > getTemplateInitialValue(templateSchema)`，确保草稿能从 MySQL 恢复。
+- 网络失败不清空本地输入；“保存草稿”按钮作为立即保存/重试入口。`ASSIGNMENT_VERSION_CONFLICT` 不盲目覆盖远端草稿，而提示重新加载当前题目。
+- 阶段 3.3 初始不接入正式提交；当前阶段 3.4 已接入 `createSubmission`，阶段 3.5 返修再次提交继续复用同一接口。
+
+阶段 3.4 提交校验和提交版本产品规则：
+
+| 前端契约 | 字段/行为 |
+| --- | --- |
+| `CreateSubmissionRequest` | `values`、`idempotencyKey?`、`clientDraftVersion?`，字段名必须与后端 JSON 一致 |
+| `createSubmission` | 调用 `POST /api/assignments/{assignmentId}/submissions`，返回 `SubmissionVO` |
+| `SubmissionVO` | 使用后端返回的清理后 `values`、`submissionVersion`、`status` 和 `submittedAt` 更新页面状态 |
+
+交互规则：
+
+- 点击“提交本题”前必须先执行 `pruneHiddenSubmissionValue` 和 `validateTemplateSubmissionValue`；有错误时在字段下方和页面提示中展示，不发起提交请求。
+- 提交请求仍必须由后端最终校验；后端返回 `SUBMISSION_VALIDATION_FAILED` 时，页面展示服务端字段错误并保留当前输入，便于 Labeler 立即修正。
+- 草稿处于保存中时禁用提交，避免自动保存和正式提交并发写入同一 assignment 版本。
+- `ASSIGNMENT_VERSION_CONFLICT` 返回时提示重新加载题目，不用本地值覆盖远端版本。
+- 提交成功后刷新作答上下文，工作台进入只读态，底部按钮显示“已提交”，右侧历史显示提交时间和提交版本。
+- 文件/图片字段提交值必须是受控引用字符串数组；前端不得把浏览器本地临时路径或未上传文件对象写入最终提交值。
+- 提交幂等键由前端生成，重复点击同一次提交不会产生重复 submission；页面不依赖本地状态判断成功，最终以后端响应为准。
+
+阶段 3.5 我的贡献与返修入口产品规则：
+
+| 前端契约 | 字段/行为 |
+| --- | --- |
+| `getContributionStats` | 调用 `GET /api/me/contribution-stats`，展示已提交、通过、打回、待修改、草稿/待提交和通过率 |
+| `listContributions` | 调用 `GET /api/me/contributions?page=&pageSize=&bucket=&keyword=`，列表行使用 `ContributionItemVO` |
+| `ContributionBucket` | `ALL`、`DRAFT`、`IN_REVIEW`、`APPROVED`、`RETURNED`、`REVISION_REQUIRED`，前端只传枚举值，不自行拼接后端状态 |
+| 返修入口 | `ContributionItemVO.canRevise=true` 时主按钮进入 `/labeler/assignments/:assignmentId/revise` |
+| 继续作答入口 | `canContinue=true` 时进入 `/labeler/assignments/:assignmentId` |
+| 查看提交入口 | `SUBMITTED/APPROVED` 进入只读工作台，展示最新提交版本和提交时间 |
+
+交互规则：
+
+- `/labeler/contributions` 是 Labeler 的“我的数据”主入口，页面要同时展示统计卡、状态分组、关键词筛选和列表，不依赖任务广场上下文。
+- 打回原因必须使用 `reviewFeedback.reason` 展示；若阶段 4 尚未写入真实审核意见，页面展示“暂无详细审核意见”，但不得把打回入口隐藏。
+- `/labeler/assignments/:assignmentId/revise` 复用 `LabelerAssignmentWorkspacePage` 与 `TemplateRenderer`，仅在顶部和右侧增强打回意见、返修文案和返回路径。
+- 从返修页点击返回必须回到 `/labeler/contributions`；从普通作答页返回仍回到 `/labeler/marketplace`。
+- 返修再次提交继续调用 `createSubmission`，按钮文案为“重新提交审核”；提交成功后刷新上下文并回到只读提交态。
+- 进入普通作答页或返修页时，左侧全局角色导航继续自动收起，保证 1280×800 下主作答区宽度优先。
+
+任务广场产品规则：
+
+- 主信息区域用卡片/列表承载任务，不复用 Owner 任务表格，避免 Labeler 被暴露模板、审核配置等管理操作。
+- 领取按钮只在 `availableItemCount > 0` 时可操作；请求中和成功后要有明确反馈，失败展示后端业务错误。
+- 页面需在 `1280×800` 与 `1920×1080` 下无横向溢出；任务卡片在窄屏自动换行。
+
+阶段 3.2 已落地：
+
+- 任务广场卡片新增 `activeAssignmentId` 继续作答入口；领取新题后直接进入 `/labeler/assignments/:assignmentId`。
+- 标注工作台已接入 `GET /api/assignments/{assignmentId}`，展示 assignment 快照模板、题目 payload、本地 Renderer 作答、上一题/下一题、跳题下拉和领取下一题。
+- 已通过 Chrome DevTools MCP 检查 `1280×800` 与大屏尺寸无横向溢出，Network 中上下文和列表接口均返回 200，Console 无非预期错误。
+
+阶段 3.3 前端落点：
+
+| 文件 | 说明 |
+| --- | --- |
+| `src/features/assignments/types.ts` | 增加 `SaveAssignmentDraftRequest`，保持 `values/clientVersion` 与后端一致 |
+| `src/features/assignments/api.ts` | 增加 `saveAssignmentDraft`，调用 `PUT /api/assignments/{assignmentId}/draft` |
+| `src/features/assignments/view.ts` | 增加草稿状态文案 helper，便于页面与测试复用；时间展示继续复用 `formatTaskTime` |
+| `src/pages/LabelerAssignmentWorkspacePage.tsx` | 接入防抖自动保存、手动保存/重试、冲突重新加载和右侧历史状态 |
+
+### 9.16 阶段 4 Reviewer 审核与 Owner 验收前端契约
+
+阶段 4 前端必须建立在阶段 3 的 `SubmissionVO` 与不可变模板版本之上，不重新实现作答表单。Reviewer 详情页应复用 `TemplateRenderer` 的只读展示能力渲染提交值，并把 AI 预审结果、人工决策和时间线作为审核信息叠加展示。
+
+阶段 4 页面：
+
+| 页面 | 路由 | 产品结构 |
+| --- | --- | --- |
+| 审核工作台 | `/reviewer/reviews` | 顶部统计卡、任务/状态/AI 结论筛选、待审列表、批量操作条 |
+| 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与 diff，右侧人工决策、历史意见和审计时间线 |
+| 审核结果列表 | `/reviewer/review-results` | 已处理审核记录、按任务/结论/处理人筛选、可回看详情 |
+| Owner 数据验收 | `/owner/tasks/:taskId/acceptance` | 任务级提交、通过、打回、待审统计，AI 结论分布和抽样审核记录 |
+
+前端核心类型待阶段 4.0 与后端 SDD 对齐：
+
+```ts
+export interface ReviewVO {
+  id: string;
+  taskId: string;
+  submissionId: string;
+  assignmentId: string;
+  status: string;
+  aiConclusion: "PASS" | "RETURN" | "NEEDS_HUMAN_REVIEW" | null;
+  aiScores: Record<string, number>;
+  aiComment: string | null;
+  humanConclusion: "APPROVE" | "RETURN" | null;
+  reviewerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReviewDecisionRequest {
+  decision: "APPROVE" | "RETURN";
+  reason?: string;
+  dimensionComments?: Record<string, string>;
+  expectedVersion: number;
+}
+```
+
+交互规则：
+
+- `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
+- 批量打回也必须提供统一理由，并在每条 review 上写独立审计。
+- AI 结论只作为建议展示，不在前端直接决定终审状态。
+- Reviewer 审核通过或打回后，Labeler 贡献页和返修页必须能通过现有 `ReviewFeedbackVO` 看到最新打回意见。
+- 阶段 4 所有 Reviewer 页面仍需使用 Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 下验收，重点检查列表操作区、详情页右侧决策面板、批量操作条和时间线不遮挡。
 
 ## 10. 前后端字段映射检查清单
 
@@ -887,3 +1080,11 @@ export interface AssignmentContextVO {
 - 已验证：Owner 登录、创建阶段 1.2 任务、进入 `/owner/tasks/:taskId/datasets`、上传 `qa_quality.json` 导入 30 条、上传 `preference_compare.jsonl` 导入 12 条、上传包含缺字段和重复 id 的 JSONL 后展示 2 条错误行。
 - 数据库侧确认：`datasets=3`、`dataset_items=43`、`import_jobs=3`、`import_error_rows=2`。
 - 浏览器侧确认：Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 视口检查页面布局；Network 核心请求均为预期状态码；Console 无非预期 error/issue。
+
+本次阶段 3.0/3.1 验收使用过的有效方式：
+
+- MySQL：`localhost:3306`，执行 `uv run alembic upgrade head` 后迁移版本进入 `0004_create_labeler_foundation`。
+- API：`http://localhost:8000`，Vite proxy 通过 `/api` 转发。
+- Web：`http://localhost:5173`，Labeler 登录后默认进入 `/labeler/marketplace`。
+- 已验证：`GET /api/marketplace/tasks` 返回 200；`POST /api/tasks/{taskId}/assignments` 返回 201；领取后页面“当前页剩余题目”减少、“我已领取”增加。
+- 浏览器侧确认：Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 下检查任务广场，无横向溢出；Network 核心请求均为预期状态码；Console 仅有 Vite/React 开发提示，无业务 error/issue。

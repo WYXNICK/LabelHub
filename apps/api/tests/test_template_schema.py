@@ -394,6 +394,7 @@ def test_validate_template_schema_accepts_stage25_advanced_materials(
                 "props": {
                     "actionLabel": "Generate suggestion",
                     "promptTemplate": "Use the item and fields to produce a suggestion.",
+                    "inputItemPaths": ["$.prompt"],
                     "inputFieldKeys": ["richText", "metadata"],
                     "outputFieldKey": "richText",
                     "helperText": "Reference only.",
@@ -492,7 +493,12 @@ def test_validate_template_schema_rejects_invalid_stage25_advanced_material_prop
                 "id": "llm",
                 "type": "LLM_ACTION",
                 "label": "LLM suggestion",
-                "props": {"promptTemplate": " ", "inputFieldKeys": ["missing"], "outputFieldKey": "missing"},
+                "props": {
+                    "promptTemplate": " ",
+                    "inputItemPaths": ["prompt"],
+                    "inputFieldKeys": ["missing"],
+                    "outputFieldKey": "missing",
+                },
                 "validation": {},
                 "visibility": {},
             },
@@ -513,6 +519,7 @@ def test_validate_template_schema_rejects_invalid_stage25_advanced_material_prop
     assert "components.2.props.defaultValue" in fields
     assert "components.2.validation.required" in fields
     assert "components.3.props.promptTemplate" in fields
+    assert "components.3.props.inputItemPaths.0" in fields
     assert "components.3.props.inputFieldKeys.0" in fields
     assert "components.3.props.outputFieldKey" in fields
 

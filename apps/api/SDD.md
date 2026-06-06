@@ -294,16 +294,21 @@ class LogoutResponseVO:
 | 2 | `POST /api/tasks/{taskId}/template-versions` | `PublishTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
 | 2 | `GET /api/tasks/{taskId}/template-versions` | `ListTemplateVersionsRequest` | `PageVO[TemplateVersionVO]` | 阶段 2.7 已实现 |
 | 2 | `GET /api/template-versions/{templateVersionId}` | `GetTemplateVersionRequest` | `TemplateVersionVO` | 阶段 2.7 已实现 |
-| 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 实现 |
-| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 实现 |
-| 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2/3.5 实现 |
-| 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 实现 |
-| 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 实现 |
-| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 实现 |
-| 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 实现 |
-| 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 实现 |
-| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewVO` | 待细化 |
-| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 待细化 |
+| 3 | `GET /api/marketplace/tasks` | `ListMarketplaceTasksRequest` | `PageVO[MarketplaceTaskVO]` | 阶段 3.1 已实现 |
+| 3 | `POST /api/tasks/{taskId}/assignments` | `CreateAssignmentRequest` | `AssignmentVO` | 阶段 3.1 已实现 |
+| 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2 已实现，阶段 3.5 继续复用 |
+| 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 已实现 |
+| 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 已实现 |
+| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 已实现 |
+| 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 已实现 |
+| 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 已实现 |
+| 3 | `GET /api/me/contributions` | `ListContributionsRequest` | `PageVO[ContributionItemVO]` | 阶段 3.5 已实现 |
+| 4 | `POST /api/internal/review-jobs:claim` | `ClaimReviewJobRequest` | `ClaimReviewJobResponse` | 阶段 4.0 待对齐 |
+| 4 | `POST /api/internal/review-jobs/{jobId}/results` | `CompleteReviewJobRequest` | `ReviewJobVO` | 阶段 4.0 待对齐 |
+| 4 | `GET /api/reviews` | `ListReviewsRequest` | `PageVO[ReviewVO]` | 阶段 4.0 待对齐 |
+| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewDetailVO` | 阶段 4.0 待对齐 |
+| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.0 待对齐 |
+| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.0 待对齐 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
 
 ### 9.1 阶段 1.0 已对齐契约
@@ -783,12 +788,13 @@ Renderer 最小支持范围：
 | `FILE_UPLOAD` | 唯一且非空 | `props.accept` 为空或非空字符串数组；`props.maxFiles` 为 1-20 整数；`props.maxSizeMb` 为 1-100 整数；`props.defaultValue` 为空或字符串数组 |
 | `IMAGE_UPLOAD` | 唯一且非空 | 与 `FILE_UPLOAD` 相同，但 `accept` 只能使用 `image/*`、图片 MIME 或图片扩展名 |
 | `JSON_EDITOR` | 唯一且非空 | `props.placeholder` 为空或字符串；`props.defaultValue` 为空或 JSON Object/Array；`validation.required` 为布尔值 |
-| `LLM_ACTION` | 必须为空 | `props.promptTemplate` 必填且长度不超过 8000；`props.actionLabel/helperText` 为空或字符串；`props.inputFieldKeys` 为空或采集字段数组；`props.outputFieldKey` 为空或引用已存在采集字段 |
+| `LLM_ACTION` | 必须为空 | `props.promptTemplate` 必填且长度不超过 8000；`props.actionLabel/helperText` 为空或字符串；`props.inputItemPaths` 为空或以 `$` 开头的题目 payload 路径数组；`props.inputFieldKeys` 为空或采集字段数组；`props.outputFieldKey` 为空或引用已存在采集字段 |
 
 LLM 边界：
 
 - 阶段 2.5 的 `LLM_ACTION` 只保存配置，不调用模型、不生成结果、不写预审记录。
-- `inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
+- `inputItemPaths` 引用题目 payload 路径，通常来自 `SHOW_ITEM.props.path`；`inputFieldKeys` 与 `outputFieldKey` 使用模板采集字段 `fieldKey`，不使用组件 ID，保证后续 Labeler 提交值和 LLM 输入映射稳定。
+- `TemplateComponentDTO.label` 是 Owner 配置并展示给标注员的用户文案；前端 Designer 新增物料默认使用中文业务语义，后端只做快照保存和校验，不在保存或发布时自动翻译 label。
 - 真实题目级调用接口将在阶段 3.6 通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 接入，必须继续使用 OpenAI API 格式和结构化输出模型。
 
 验收标准：
@@ -931,14 +937,14 @@ LLM 边界：
 
 | 契约 | 字段 |
 | --- | --- |
-| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`deadlineAt`、`quota`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount` |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`deadlineAt`、`quota`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`activeAssignmentId` |
 | `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`status`、`draftValues`、`draftSavedAt`、`version`、`createdAt`、`updatedAt` |
 | `AssignmentContextVO` | `assignment`、`task`、`datasetItemPayload`、`templateSchema`、`latestSubmission`、`reviewFeedback`、`navigation` |
 | `SaveAssignmentDraftRequest` | `values`、`clientVersion` |
 | `CreateSubmissionRequest` | `values`、`idempotencyKey`、`clientDraftVersion` |
 | `SubmissionVO` | `id`、`assignmentId`、`submissionVersion`、`values`、`status`、`submittedAt` |
 | `RunLlmActionRequest` | `inputValues`、`targetFieldKey`、`idempotencyKey` |
-| `LlmActionRunVO` | `id`、`assignmentId`、`componentId`、`status`、`outputValue`、`outputValues`、`errorMessage`、`createdAt` |
+| `LlmActionRunVO` | `id`、`assignmentId`、`taskId`、`componentId`、`status`、`inputValues`、`outputValue`、`outputValues`、`errorMessage`、`idempotencyKey`、`createdAt` |
 
 任务广场与领取规则：
 
@@ -946,6 +952,87 @@ LLM 边界：
 - `POST /api/tasks/{taskId}/assignments` 在同一数据库事务内选择一个 `READY` 且未被有效 assignment 占用的 `dataset_items`，创建 assignment，并更新任务领取计数。
 - MVP 使用先到先得且同一题目只允许一个有效 assignment；多人标注以后扩展。
 - 创建 assignment 时必须固化 `template_version_id` 和 `review_config_version_id`，后续 Owner 发布新版本不得影响已领取题目。
+
+阶段 3.0/3.1 首批落地契约：
+
+| 名称 | 字段 |
+| --- | --- |
+| `MarketplaceTaskVO` | `id`、`title`、`description`、`tags`、`rewardRule`、`quota`、`claimedCount`、`submittedCount`、`approvedCount`、`availableItemCount`、`claimedByMeCount`、`submittedByMeCount`、`activeAssignmentId`、`deadlineAt`、`distributionStrategy`、`currentTemplateVersionId`、`currentReviewConfigVersionId`、`updatedAt` |
+| `AssignmentVO` | `id`、`taskId`、`datasetItemId`、`templateVersionId`、`reviewConfigVersionId`、`labelerId`、`status`、`draftValues`、`draftSavedAt`、`currentSubmissionId`、`claimedAt`、`submittedAt`、`version`、`createdAt`、`updatedAt` |
+| `CreateAssignmentRequest` | `idempotencyKey?`，用于后续防重复点击；阶段 3.1 可为空 |
+
+阶段 3.2 作答上下文契约：
+
+| 名称 | 字段/规则 |
+| --- | --- |
+| `GET /api/assignments` | 仅返回当前 Labeler 的领取列表，支持 `status`、`page`、`pageSize`，用于后续“我的贡献”和跳题候选 |
+| `GET /api/assignments/{assignmentId}` | 返回当前 Labeler 对该 assignment 的完整作答上下文；非本人领取不可访问 |
+| `AssignmentContextVO` | `assignment`、`task`、`datasetItemPayload`、`templateSchema`、`latestSubmission`、`reviewFeedback`、`navigation` |
+| `SubmissionVO` | `id`、`assignmentId`、`taskId`、`datasetItemId`、`templateVersionId`、`submissionVersion`、`values`、`status`、`submittedAt`、`createdAt`、`updatedAt` |
+| `AssignmentNavigationVO` | `previousAssignmentId`、`nextAssignmentId`、`currentIndex`、`totalCount`、`canClaimNext`、`nextClaimableTaskId` |
+
+导航规则：
+
+- 上一题/下一题限定在当前 Labeler、当前任务、未取消的 assignment 内，按 `claimedAt`、`id` 稳定排序。
+- `datasetItemPayload` 使用领取时绑定的题目原始 payload；`templateSchema` 使用 assignment 上的不可变 `templateVersionId`，不得读取任务当前草稿。
+- `latestSubmission` 取同一 assignment 下 `submissionVersion` 最大的一条；阶段 3.2 可为空，阶段 3.4 提交后复用。
+- `canClaimNext` 必须继续复用任务发布、截止时间、配额和可用题目检查；前端不可自行推断。
+
+阶段 3.3 草稿自动保存契约：
+
+| 名称 | 字段/规则 |
+| --- | --- |
+| `PUT /api/assignments/{assignmentId}/draft` | 当前 Labeler 保存本人领取题目的作答草稿；非本人领取不可访问 |
+| `SaveAssignmentDraftRequest` | `values` 为 JSON Object；`clientVersion` 必须等于当前 `assignments.version` |
+| `AssignmentVO` | 保存成功后返回最新 assignment，包含递增后的 `version`、`draftValues`、`draftSavedAt` 和 `status` |
+
+保存规则：
+
+- 草稿保存不做 required 完整性校验，允许半成品内容落库；最终提交校验放在阶段 3.4。
+- 后端仍只接受 JSON Object，拒绝数组、字符串等非对象根值，避免提交协议漂移。
+- 只允许 `CLAIMED`、`DRAFT_SAVED`、`RETURNED` 状态保存草稿；`SUBMITTED`、`APPROVED`、`CANCELLED` 返回 `409 ASSIGNMENT_NOT_EDITABLE`。
+- `clientVersion` 与当前 `assignment.version` 不一致时返回 `409 ASSIGNMENT_VERSION_CONFLICT`，`details.currentVersion` 给前端展示冲突和重新加载。
+- 首次保存从 `CLAIMED` 迁移到 `DRAFT_SAVED`；后续保存保持当前可编辑状态。
+- 每次保存写入 `audit_logs.action=ASSIGNMENT_DRAFT_SAVE`，`metadata` 至少记录 `taskId`、`datasetItemId`、`fieldKeys`。
+
+阶段 3.4 提交校验和提交版本契约：
+
+| 名称 | 字段/规则 |
+| --- | --- |
+| `POST /api/assignments/{assignmentId}/submissions` | 当前 Labeler 正式提交本人领取题目；非本人领取不可访问 |
+| `CreateSubmissionRequest` | `values` 为 JSON Object；`idempotencyKey?` 防重复点击；`clientDraftVersion?` 用于提交前乐观冲突检查 |
+| `SubmissionVO` | 返回新建或幂等命中的提交版本，包含 `submissionVersion`、清理后的 `values`、`status=SUBMITTED` 和 `submittedAt` |
+
+提交规则：
+
+- 只允许 `CLAIMED`、`DRAFT_SAVED`、`RETURNED` 状态提交；`SUBMITTED`、`APPROVED`、`CANCELLED` 返回 `409 ASSIGNMENT_NOT_EDITABLE`。
+- 若 `clientDraftVersion` 存在且落后于当前 `assignments.version`，返回 `409 ASSIGNMENT_VERSION_CONFLICT`，前端必须重新加载后再提交。
+- 后端使用 assignment 固化的 `template_version_id` 读取不可变 schema，不能读取任务当前草稿或最新模板。
+- 后端先按 `visibility`/`requiredWhen` 规则计算可见字段，清理隐藏字段；`SHOW_ITEM`、`GROUP`、`TABS`、`LLM_ACTION` 等非采集组件不得进入提交值。
+- 后端最终校验必须覆盖 required、requiredWhen、maxLength、pattern、customRuleIds、RADIO/CHECKBOX/TAG_SELECT 枚举值、JSON Object，以及 FILE/IMAGE 受控引用数组和数量限制。
+- 校验失败返回 `422 SUBMISSION_VALIDATION_FAILED`，`details.errors` 使用 `{ fieldKey, message }[]`，字段名和前端 VO 一致。
+- 每次成功提交生成 `submission_version=max+1`，写入 `submissions`，更新 `assignments.current_submission_id`、`assignments.status=SUBMITTED`、`assignments.submitted_at`、`assignments.version+1`，并递增任务提交计数。
+- `idempotencyKey` 命中同一 assignment 的既有 submission 时直接返回既有 `SubmissionVO`；命中其他 assignment 或其他用户时返回 `409 SUBMISSION_IDEMPOTENCY_CONFLICT`。
+- 提交成功写入 `audit_logs.entity_type=SUBMISSION`、`action=SUBMISSION_CREATE`，metadata 至少记录 `taskId`、`assignmentId`、`datasetItemId`、`templateVersionId`、`submissionVersion` 和 `fieldKeys`。
+
+新增枚举：
+
+| 枚举 | 值 |
+| --- | --- |
+| `AssignmentStatus` | `CLAIMED`、`DRAFT_SAVED`、`SUBMITTED`、`RETURNED`、`APPROVED`、`CANCELLED` |
+| `SubmissionStatus` | `SUBMITTED`、`AI_REVIEWING`、`HUMAN_REVIEWING`、`RETURNED`、`APPROVED` |
+| `LlmActionRunStatus` | `SUCCEEDED`、`FAILED` |
+
+阶段 3.1 错误码：
+
+| code | 场景 |
+| --- | --- |
+| `FORBIDDEN` | 非 Labeler 调用任务广场或领取接口 |
+| `TASK_NOT_CLAIMABLE` | 任务不是发布中、已过期、缺模板版本、缺审核配置或分发策略暂不支持 |
+| `NO_AVAILABLE_ITEMS` | 任务没有可领取题目或配额已满 |
+| `CLAIM_CONFLICT` | 并发领取时目标题目已被其他 Labeler 抢先锁定 |
+| `ASSIGNMENT_NOT_EDITABLE` | assignment 已提交、已通过、已取消或处于不可编辑状态 |
+| `ASSIGNMENT_VERSION_CONFLICT` | 草稿保存时 `clientVersion` 已落后服务端版本 |
 
 草稿与提交规则：
 
@@ -958,8 +1045,135 @@ LLM 边界：
 题目级 LLM 辅助：
 
 - `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 只能运行 assignment 模板版本中的 `LLM_ACTION` 组件。
-- 请求使用 OpenAI API 兼容配置，必须关闭 thinking；输出只作为参考或预填，不自动提交。
-- 后端必须记录调用输入、输出、错误和幂等键，避免重复扣费或重复写入。
+- `RunLlmActionRequest.inputValues` 使用当前 Renderer 提交值快照；题目原始数据由后端按 `LLM_ACTION.props.inputItemPaths` 从 assignment 固化的 dataset item payload 中读取，不能由前端伪造；`targetFieldKey` 为空时以后端模板 `LLM_ACTION.props.outputFieldKey` 为准。
+- 后端发送给模型的上下文只能包含 `selectedItemValues` 与 `selectedInputValues`：`selectedItemValues` 来自 `inputItemPaths` 显式选择的路径，`selectedInputValues` 来自 `inputFieldKeys` 显式选择的提交字段。不得把完整 `datasetItemPayload` 或未选择字段传给模型，避免题目级辅助读取无关列后串题。
+- 后端必须用 assignment 固化的 `template_version_id` 定位组件，不能读取任务当前草稿或最新模板；组件不存在、组件类型不是 `LLM_ACTION`、输出字段不在当前 schema 中都返回结构化错误。
+- 请求使用 OpenAI API 兼容 Chat Completions 格式，配置从 `OPENAI_API_KEY`、`BASE_URL`/`OPENAI_BASE_URL`、`MODEL_NAME`/`OPENAI_MODEL_NAME`、`OPENAI_TIMEOUT_SECONDS`/`LLM_TIMEOUT_SECONDS` 读取；真实密钥不得进入仓库。题目级 LLM 辅助默认请求超时为 90 秒，允许本地或部署环境调大到 300 秒以内。
+- thinking 必须关闭：服务端系统提示禁止输出思考过程；如供应商需要显式参数，通过 `LLM_EXTRA_BODY_JSON` 注入。当前 MiMo OpenAI 兼容服务在 `OPENAI_THINKING_ENABLED=false` 且识别到 MiMo Provider 时，后端会自动携带 `{"chat_template_kwargs":{"enable_thinking":false}}`；显式 `LLM_EXTRA_BODY_JSON` 优先级更高。未知 Provider 不自动注入额外字段，保证后续更换同协议 Provider 时仍可请求。
+- 模型输出必须解析为结构化 JSON，优先读取 `outputValues[targetFieldKey]`，其次读取 `outputValue`、目标字段同名字段或 `text`；解析失败时把原始文本作为 `outputValue`。
+- 输出只作为参考或预填草稿，不自动提交。前端采纳后仍需 Labeler 手动保存/提交，后端提交接口继续做最终模板校验。
+- 后端必须记录调用输入、输出、错误和幂等键；同一 `idempotencyKey` 重试直接返回既有 `LlmActionRunVO`，避免重复扣费或重复写入。
+- Provider 调用失败也要落 `llm_action_runs.status=FAILED` 并返回 `LlmActionRunVO`，前端用 `errorMessage` 告知用户，不把一次模型失败伪装成提交失败。超时错误必须包含当前超时秒数和排查方向，避免只显示英文内部异常。
+
+### 9.15 阶段 3.5 我的贡献与返修入口契约
+
+阶段 3.5 只消费 Labeler 已有 assignment、submission 与 audit 记录，不提前实现 Reviewer 审核流。Reviewer 阶段真正写入打回审计后，Labeler 侧继续沿用本节 VO。
+
+新增接口：
+
+| 接口 | Request | VO | 说明 |
+| --- | --- | --- | --- |
+| `GET /api/me/contribution-stats` | Cookie 鉴权，无请求体 | `ContributionStatsVO` | 返回当前 Labeler 的已提交、通过、打回、待修改、草稿/待提交、通过率等聚合统计 |
+| `GET /api/me/contributions` | `page`、`pageSize`、`bucket?`、`keyword?` | `PageVO[ContributionItemVO]` | 返回当前 Labeler 的贡献列表，支持按状态分组和任务/题目关键词筛选 |
+
+VO 字段：
+
+```python
+class ReviewFeedbackVO(CamelModel):
+    reason: str
+    source: str
+    reviewerId: str | None
+    reviewerRole: str | None
+    returnedAt: datetime
+    metadata: dict[str, Any]
+
+
+class ContributionStatsVO(CamelModel):
+    totalAssignments: int
+    draftCount: int
+    inReviewCount: int
+    submittedCount: int
+    approvedCount: int
+    returnedCount: int
+    revisionRequiredCount: int
+    totalSubmissionCount: int
+    passRate: float
+    latestUpdatedAt: datetime | None
+
+
+class ContributionItemVO(CamelModel):
+    assignmentId: str
+    taskId: str
+    taskTitle: str
+    taskDescription: str | None
+    datasetItemId: str
+    datasetItemPreview: str
+    status: AssignmentStatus
+    latestSubmissionId: str | None
+    latestSubmissionVersion: int | None
+    latestSubmissionStatus: SubmissionStatus | None
+    claimedAt: datetime
+    draftSavedAt: datetime | None
+    submittedAt: datetime | None
+    updatedAt: datetime
+    canContinue: bool
+    canRevise: bool
+    reviewFeedback: ReviewFeedbackVO | None
+```
+
+状态分组 `bucket` 取值：`ALL`、`DRAFT`、`IN_REVIEW`、`APPROVED`、`RETURNED`、`REVISION_REQUIRED`。其中 `DRAFT` 对应 `CLAIMED/DRAFT_SAVED`，`IN_REVIEW` 对应阶段 3 的 `SUBMITTED`，`RETURNED` 与 `REVISION_REQUIRED` 均对应 `RETURNED`。
+
+`AssignmentContextVO.reviewFeedback` 从最新一条 `audit_logs` 中 `entityType=ASSIGNMENT`、`entityId=assignment.id`、`toState=RETURNED` 的记录生成。阶段 4 写入真实审核打回后，必须把打回原因写入 `audit_logs.reason` 或 `metadata.reason`，Labeler 工作台即可展示上一轮审核意见。
+
+返修再提交规则：
+
+- `RETURNED` assignment 仍可保存草稿和再次提交。
+- 再次提交复用 `POST /api/assignments/{assignmentId}/submissions`，后端必须生成递增 `submissionVersion`，不覆盖历史 submission。
+- 再次提交成功后 assignment 回到 `SUBMITTED`，`reviewFeedback` 作为历史意见保留在审计日志中，不删除。
+- 当前阶段只展示最近一次打回意见；完整多轮审核时间线在阶段 4 接入审核流后扩展。
+
+### 9.16 阶段 4 AI 自动预审与人工审核流转契约
+
+阶段 4 必须在阶段 3 的正式提交版本之上推进，不修改 submission 的历史值，不读取模板草稿。提交成功后由后端创建 `review_jobs`，Agent 以 `SYSTEM` 身份领取并写回结构化 AI 预审结果，Reviewer 再做最终人工审核决策。
+
+新增枚举建议：
+
+```python
+class ReviewJobStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    NEEDS_HUMAN_REVIEW = "NEEDS_HUMAN_REVIEW"
+
+
+class AiReviewConclusion(str, Enum):
+    PASS = "PASS"
+    RETURN = "RETURN"
+    NEEDS_HUMAN_REVIEW = "NEEDS_HUMAN_REVIEW"
+
+
+class HumanReviewDecision(str, Enum):
+    APPROVE = "APPROVE"
+    RETURN = "RETURN"
+```
+
+核心 Entity：
+
+| Entity | 关键字段 |
+| --- | --- |
+| `ReviewJobEntity` | `id`、`task_id`、`submission_id`、`review_config_version_id`、`status`、`attempt_count`、`idempotency_key`、`last_error`、`started_at`、`finished_at` |
+| `ReviewEntity` | `id`、`task_id`、`submission_id`、`assignment_id`、`review_job_id`、`status`、`ai_conclusion`、`ai_scores`、`ai_comment`、`ai_issues`、`ai_suggestions`、`raw_output`、`prompt_snapshot`、`human_conclusion`、`reviewer_id`、`human_comment`、`dimension_comments`、`review_round`、`version` |
+
+核心接口：
+
+| 接口 | 权限 | 说明 |
+| --- | --- | --- |
+| `POST /api/internal/review-jobs:claim` | `SYSTEM` | 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
+| `POST /api/internal/review-jobs/{jobId}/results` | `SYSTEM` | 写回结构化 AI 预审结果或失败原因，生成 AI review 建议并写审计 |
+| `GET /api/reviews` | `REVIEWER` | 待审/已审列表，支持 `status`、`taskId`、`aiConclusion` 分页筛选 |
+| `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、diff 与时间线 |
+| `POST /api/reviews/{reviewId}/decisions` | `REVIEWER` | 单条人工通过或打回 |
+| `POST /api/reviews:batch-decide` | `REVIEWER` | 批量通过或打回，逐条校验并写审计 |
+
+状态规则：
+
+- `review_jobs.idempotency_key = submission_id + submission_version + review_config_version_id`，同一提交版本只能有一个有效 AI 预审 job。
+- Agent 写回 `PASS/RETURN/NEEDS_HUMAN_REVIEW` 只代表 AI 建议，不直接终审；submission 进入人工审核可见状态。
+- 人工 `APPROVE` 后，`submissions.status=APPROVED`、`assignments.status=APPROVED`，并递增任务 `approved_count`。
+- 人工 `RETURN` 后，`submissions.status=RETURNED`、`assignments.status=RETURNED`，打回理由必须写入 `audit_logs.reason` 或 `metadata.reason`，供阶段 3 `ReviewFeedbackVO` 复用。
+- Agent 超过最大重试、结构化输出不合法或 Provider 异常时，必须生成需要人工兜底的待审记录，不能让 job 永久卡在 `RUNNING`。
+- 所有状态迁移必须写 `audit_logs`；Actor 为 Agent 时使用 `SYSTEM` 账号，人工审核使用 Reviewer 用户。
 
 ## 10. 阶段 0 Entity 与迁移契约
 
@@ -1006,7 +1220,7 @@ class AiReviewResultDTO:
 要求：
 
 - LLM 请求使用 OpenAI API 格式。
-- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`。
+- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED`、`OPENAI_TIMEOUT_SECONDS` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`LLM_TIMEOUT_SECONDS`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`，后端可根据 MiMo Provider 自动注入该扩展。
 - LLM 输出必须通过后端结构化模型校验。
 - 校验失败不能进入终审流程，应重试或进入人工复核。
 - Agent 写回结果必须通过后端受控服务或内部接口，不直接绕过状态机。

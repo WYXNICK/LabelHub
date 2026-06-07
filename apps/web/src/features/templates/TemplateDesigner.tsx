@@ -188,8 +188,8 @@ export function TemplateDesigner({
       return;
     }
 
-    if (activeId.startsWith("canvas:") && beforeComponentId) {
-      onSchemaChange(moveComponentInSchema(schema, activeId.replace("canvas:", ""), beforeComponentId));
+    if (activeId.startsWith("canvas:") && (beforeComponentId || target?.containerId)) {
+      onSchemaChange(moveComponentInSchema(schema, activeId.replace("canvas:", ""), beforeComponentId, target));
     }
   }
 

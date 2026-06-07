@@ -272,11 +272,24 @@ export function createLayoutNodeForComponent(component: TemplateComponentDTO): T
 export function moveComponentInSchema(
   schema: TemplateSchemaVO,
   activeComponentId: string,
-  overComponentId: string,
+  overComponentId?: string | null,
+  target?: DesignerLayoutTarget | null,
 ): TemplateSchemaVO {
-  if (activeComponentId === overComponentId) {
+  if (!overComponentId && !target?.containerId) {
     return schema;
   }
+
+  if (overComponentId && activeComponentId === overComponentId) {
+    return schema;
+  }
+
+  if (target?.containerId) {
+    return {
+      ...schema,
+      layout: { ...schema.layout, root: moveLayoutNodeIntoContainer(schema.layout.root, activeComponentId, target) },
+    };
+  }
+
   return {
     ...schema,
     layout: { ...schema.layout, root: moveLayoutNodeBefore(schema.layout.root, activeComponentId, overComponentId) },
@@ -411,8 +424,12 @@ function insertLayoutNodeIntoContainer(
 function moveLayoutNodeBefore(
   nodes: TemplateLayoutNodeDTO[],
   activeComponentId: string,
-  overComponentId: string,
+  overComponentId?: string | null,
 ): TemplateLayoutNodeDTO[] {
+  if (!overComponentId || activeComponentId === overComponentId) {
+    return nodes;
+  }
+
   const activeIndex = nodes.findIndex((node) => getLayoutNodeComponentId(node) === activeComponentId);
   const overIndex = nodes.findIndex((node) => getLayoutNodeComponentId(node) === overComponentId);
   if (activeIndex >= 0 && overIndex >= 0) {
@@ -421,7 +438,106 @@ function moveLayoutNodeBefore(
     nextNodes.splice(activeIndex < overIndex ? overIndex - 1 : overIndex, 0, moved);
     return nextNodes;
   }
+
+  const extracted = extractLayoutNode(nodes, activeComponentId);
+  if (extracted.node && !layoutNodeContainsComponent(extracted.node, overComponentId)) {
+    const inserted = insertLayoutNodeBeforeDeep(extracted.nodes, extracted.node, overComponentId);
+    if (inserted.inserted) {
+      return inserted.nodes;
+    }
+  }
+
   return nodes.map((node) => mapNestedLayoutNode(node, (children) => moveLayoutNodeBefore(children, activeComponentId, overComponentId)));
+}
+
+function moveLayoutNodeIntoContainer(
+  nodes: TemplateLayoutNodeDTO[],
+  activeComponentId: string,
+  target: DesignerLayoutTarget,
+): TemplateLayoutNodeDTO[] {
+  if (!target.containerId || activeComponentId === target.containerId) {
+    return nodes;
+  }
+
+  const extracted = extractLayoutNode(nodes, activeComponentId);
+  if (!extracted.node || layoutNodeContainsComponent(extracted.node, target.containerId)) {
+    return nodes;
+  }
+
+  return insertLayoutNodeIntoContainer(extracted.nodes, extracted.node, target);
+}
+
+function extractLayoutNode(
+  nodes: TemplateLayoutNodeDTO[],
+  componentId: string,
+): { nodes: TemplateLayoutNodeDTO[]; node: TemplateLayoutNodeDTO | null } {
+  let found: TemplateLayoutNodeDTO | null = null;
+  const nextNodes: TemplateLayoutNodeDTO[] = [];
+
+  for (const node of nodes) {
+    if (getLayoutNodeComponentId(node) === componentId) {
+      found = node;
+      continue;
+    }
+    if (typeof node === "string") {
+      nextNodes.push(node);
+      continue;
+    }
+
+    const childResult = extractLayoutNode(node.children ?? [], componentId);
+    const nextTabs = node.tabs?.map((tab) => {
+      const tabResult = found ? { nodes: tab.children, node: null } : extractLayoutNode(tab.children, componentId);
+      if (tabResult.node) {
+        found = tabResult.node;
+      }
+      return { ...tab, children: tabResult.nodes };
+    });
+    if (childResult.node && !found) {
+      found = childResult.node;
+    }
+    nextNodes.push({ ...node, children: node.children ? childResult.nodes : node.children, tabs: nextTabs });
+  }
+
+  return { nodes: nextNodes, node: found };
+}
+
+function insertLayoutNodeBeforeDeep(
+  nodes: TemplateLayoutNodeDTO[],
+  layoutNode: TemplateLayoutNodeDTO,
+  beforeComponentId: string,
+): { nodes: TemplateLayoutNodeDTO[]; inserted: boolean } {
+  const directIndex = nodes.findIndex((node) => getLayoutNodeComponentId(node) === beforeComponentId);
+  if (directIndex >= 0) {
+    const nextNodes = [...nodes];
+    nextNodes.splice(directIndex, 0, layoutNode);
+    return { nodes: nextNodes, inserted: true };
+  }
+
+  let inserted = false;
+  const nextNodes = nodes.map((node) => {
+    if (typeof node === "string" || inserted) {
+      return node;
+    }
+    const childResult = insertLayoutNodeBeforeDeep(node.children ?? [], layoutNode, beforeComponentId);
+    if (childResult.inserted) {
+      inserted = true;
+      return { ...node, children: node.children ? childResult.nodes : node.children };
+    }
+    const nextTabs = node.tabs?.map((tab) => {
+      if (inserted) {
+        return tab;
+      }
+      const tabResult = insertLayoutNodeBeforeDeep(tab.children, layoutNode, beforeComponentId);
+      if (tabResult.inserted) {
+        inserted = true;
+        return { ...tab, children: tabResult.nodes };
+      }
+      return tab;
+    });
+    return { ...node, tabs: nextTabs };
+  });
+
+  return { nodes: nextNodes, inserted };
 }
 
 function moveLayoutNodeByOffset(
@@ -504,6 +620,10 @@ function flattenDesignerLayoutItems(items: DesignerLayoutItem[]): TemplateCompon
 
 function getLayoutNodeComponentId(node: TemplateLayoutNodeDTO): string {
   return typeof node === "string" ? node : node.componentId;
+}
+
+function layoutNodeContainsComponent(node: TemplateLayoutNodeDTO, componentId: string): boolean {
+  return collectLayoutNodeComponentIds(node).includes(componentId);
 }
 
 function mapNestedLayoutNode(

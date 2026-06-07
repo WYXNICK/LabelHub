@@ -1147,7 +1147,7 @@ body {
 
 .labelhub-designer-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 260px) minmax(420px, 1fr) minmax(320px, 360px);
+  grid-template-columns: minmax(280px, 300px) minmax(360px, 1fr) minmax(320px, 360px);
   gap: 16px;
   min-height: 560px;
 }

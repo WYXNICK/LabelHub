@@ -1157,6 +1157,7 @@ export interface CreateReviewDecisionRequest {
 
 - Reviewer 登录后的默认首页为 `/reviewer/ai-review-queue`，用于先观察 AI 预审运行态、失败兜底和写回结果；人工处理入口为 `/reviewer/reviews`。
 - 阶段 4.4 信息架构必须拆分为三页：`/reviewer/ai-review-queue` 只展示 AI job 与 Agent 运行健康，`/reviewer/reviews` 只展示需要人工复核的 review 记录，`/reviewer/results` 只做审核结果追溯。避免把 Agent 内部流水和人工审核任务揉在同一主列表中。
+- `/reviewer/ai-review-queue`、`/reviewer/reviews` 与 `/reviewer/reviews/:reviewId` 属于审核工作台专注场景，进入页面时左侧全局角色导航必须自动收起为窄图标栏，为队列、评分、提交快照和人工审核主内容释放宽度。
 - 人工审核页支持任务关键字、审核状态、AI 结论筛选；AI 预审队列页支持 job 状态和关键字筛选，并通过 `ReviewJobSummaryVO` 展示运行摘要。
 - 阶段 4.4 详情页必须展示状态链路、多轮历史意见和当前提交相对上一版的 diff；人工通过/打回和批量审核分别在 4.5 继续启用。
 - Reviewer 队列列表与最近待审记录应优先展示任务标题、提交版本和审核配置版本；`reviewJobId`、`submissionId`、`idempotencyKey` 等内部追踪字段不得作为主标题，必要时只作为可复制的短流水号或详情追踪信息。

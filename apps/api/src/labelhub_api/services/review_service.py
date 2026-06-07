@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from math import ceil
 from typing import Any
@@ -47,6 +48,8 @@ from labelhub_api.schemas.reviews import (
 )
 from labelhub_api.schemas.tasks import TaskVO
 from labelhub_api.schemas.templates import TemplateSchemaVO
+
+logger = logging.getLogger(__name__)
 
 
 class ReviewService:
@@ -106,6 +109,12 @@ class ReviewService:
                 "reviewConfigVersionId": assignment.review_config_version_id,
                 "idempotencyKey": idempotency_key,
             },
+        )
+        logger.info(
+            "review job enqueued job=%s task=%s submissionVersion=%s",
+            self._short_id(job.id),
+            self._short_id(assignment.task_id),
+            submission.submission_version,
         )
         return job
 
@@ -225,6 +234,13 @@ class ReviewService:
         )
         self._db.commit()
         self._db.refresh(job)
+        logger.info(
+            "review job claimed job=%s worker=%s attempt=%s/%s",
+            self._short_id(job.id),
+            worker_id,
+            job.attempt_count,
+            job.max_attempts,
+        )
         return self._build_claim_response(job)
 
     def complete_review_job(
@@ -284,6 +300,12 @@ class ReviewService:
         )
         self._db.commit()
         self._db.refresh(job)
+        logger.info(
+            "review job completed job=%s status=%s hasResult=%s",
+            self._short_id(job.id),
+            job.status,
+            body.result is not None,
+        )
         return self._to_review_job_vo(job)
 
     def list_reviews(
@@ -901,6 +923,11 @@ class ReviewService:
                 request_id=request_id,
             )
         return entity
+
+    def _short_id(self, value: str | None) -> str:
+        if not value:
+            return "-"
+        return value if len(value) <= 16 else f"{value[:8]}...{value[-6:]}"
 
     def _new_id(self, prefix: str) -> str:
         return f"{prefix}_{uuid4().hex}"

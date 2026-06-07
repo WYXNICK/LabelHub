@@ -74,7 +74,11 @@ def test_agent_builds_review_prompt_from_claim_context() -> None:
 
     assert messages[0]["role"] == "system"
     assert "不要输出思考过程" in messages[0]["content"]
+    assert "判断标注回答是否正确" in messages[0]["content"]
+    assert "字段语义" in messages[0]["content"]
     assert "Check answer quality" in messages[1]["content"]
+    assert "不要泛泛写" in messages[1]["content"]
+    assert "平局" in messages[1]["content"]
     assert "Question 1" in snapshot
     assert "answer" in snapshot
 

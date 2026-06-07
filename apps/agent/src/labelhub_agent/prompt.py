@@ -40,13 +40,18 @@ def build_review_messages(context: ClaimReviewJobResponse) -> tuple[list[dict[st
     system_message = (
         "你是 LabelHub 的 AI 自动预审 Agent。你的职责是按任务负责人发布的审核配置，"
         "对标注员提交内容进行质量预审，输出可追溯的审核建议。"
+        "你必须结合任务说明、题目原始数据、模板字段语义和 submissionValues，判断标注回答是否正确、完整、合规；"
+        "如果字段语义是概括、摘要、清洗、分类、多选或打分，应按该语义检查，不只做格式或安全检查。"
         "不要输出思考过程，不要自动终审；PASS、RETURN、NEEDS_HUMAN_REVIEW 都只是给 Reviewer 的建议。"
         "必须只返回一个 JSON 对象，字段为 conclusion、scores、summary、issues、suggestions。"
     )
     user_message = (
         f"任务负责人审核 Prompt：\n{review_config.prompt_template}\n\n"
         "请基于以下上下文完成预审。scores 的 key 必须来自 reviewConfig.dimensions，"
-        "分值必须是 0 到该维度 maxScore 之间的整数；issues 可为空数组。\n\n"
+        "分值必须是 0 到该维度 maxScore 之间的整数；issues 可为空数组。"
+        "结论规则：内容正确且只存在轻微可选优化时可给 PASS；明显答错、遗漏关键约束、格式不可接收或与原题矛盾时给 RETURN；"
+        "题目、规则或证据不足以可靠判断时给 NEEDS_HUMAN_REVIEW。summary 要面向 Reviewer 简要说明主要依据，"
+        "不要泛泛写“格式合规”或输出与题目无关的比较、平局、模型对比结论。\n\n"
         f"{prompt_snapshot}"
     )
     return [{"role": "system", "content": system_message}, {"role": "user", "content": user_message}], prompt_snapshot

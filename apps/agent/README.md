@@ -36,6 +36,8 @@ uv run python -m labelhub_agent --once
 uv run python -m labelhub_agent --loop
 ```
 
+`--loop` 会输出少量运行日志，包括启动配置摘要、空闲等待、领取 job、完成写回和失败摘要。日志只用于观察运行状态，不会打印 API Key、完整 Prompt、完整题目 payload 或提交全文。
+
 PowerShell:
 
 ```powershell

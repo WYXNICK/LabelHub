@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 
 from labelhub_agent.config import AgentSettings
 from labelhub_agent.worker import ReviewAgentWorker
 
 
 def main() -> None:
+    _configure_logging()
     parser = argparse.ArgumentParser(description="LabelHub AI review agent")
     parser.add_argument("--health", action="store_true", help="print configuration health and exit")
     parser.add_argument("--once", action="store_true", help="claim and process one review job")
@@ -38,3 +40,10 @@ def _health_payload(settings: AgentSettings) -> dict[str, object]:
         "thinkingEnabled": settings.openai_thinking_enabled,
         "workerId": settings.worker_id,
     }
+
+
+def _configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )

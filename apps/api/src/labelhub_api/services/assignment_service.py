@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from math import ceil
 from typing import Any
@@ -51,6 +52,8 @@ from labelhub_api.schemas.templates import TemplateComponentDTO, TemplateSchemaV
 from labelhub_api.services.llm_client import LlmClientError, OpenAICompatibleLlmClient
 from labelhub_api.services.review_service import ReviewService
 from labelhub_api.services.submission_validation import validate_submission_value
+
+logger = logging.getLogger(__name__)
 
 
 class AssignmentService:
@@ -655,6 +658,16 @@ class AssignmentService:
             item_payload=item.payload if isinstance(item.payload, dict) else {},
             input_values=body.input_values,
         )
+        item_paths = self._get_llm_input_item_paths(component)
+        field_keys = self._get_llm_input_field_keys(component)
+        logger.info(
+            "llm action run requested assignment=%s component=%s target=%s itemPaths=%d inputFields=%d",
+            self._short_id(assignment.id),
+            component.id,
+            target_field_key or "-",
+            len(item_paths),
+            len(field_keys),
+        )
 
         now = datetime.now(UTC)
         status = LlmActionRunStatus.SUCCEEDED
@@ -667,6 +680,12 @@ class AssignmentService:
         except LlmClientError as exc:
             status = LlmActionRunStatus.FAILED
             error_message = str(exc)
+            logger.warning(
+                "llm action run failed assignment=%s component=%s error=%s",
+                self._short_id(assignment.id),
+                component.id,
+                self._safe_log_text(error_message),
+            )
 
         run = LlmActionRunEntity(
             id=self._new_id("llm_action_run"),
@@ -719,6 +738,13 @@ class AssignmentService:
             ) from exc
 
         self._db.refresh(run)
+        if status == LlmActionRunStatus.SUCCEEDED:
+            logger.info(
+                "llm action run completed run=%s assignment=%s component=%s",
+                self._short_id(run.id),
+                self._short_id(assignment.id),
+                component.id,
+            )
         return self._to_llm_action_run_vo(run)
 
     def _get_llm_action_component(
@@ -808,6 +834,9 @@ class AssignmentService:
             "Use only selectedItemValues and selectedInputValues from the provided JSON context. "
             "You may use general knowledge to answer the selected question, but never infer from unselected raw item fields, "
             "prior tasks, hidden context, or unrelated dataset columns. "
+            "Respect the target field label and business semantics: if it asks for a summary or concise answer, compress the key facts "
+            "instead of copying the source sentence; if it asks for classification or choices, answer with the visible option wording when possible. "
+            "Use the same language as the task or target field unless the promptTemplate explicitly requests another language. "
             "Generate the value for the target field only. Do not add comparison judgments, tie judgments, review conclusions, "
             "reasoning, thinking, analysis, labels, prefixes, suffixes, or markdown unless the target field explicitly asks for them. "
             "Return one JSON object with keys outputValue and outputValues. "
@@ -932,6 +961,15 @@ class AssignmentService:
     def _compact_json(self, value: dict[str, Any], *, max_length: int = 12000) -> str:
         text = json.dumps(value, ensure_ascii=False, default=str)
         return text if len(text) <= max_length else f"{text[:max_length]}...<truncated>"
+
+    def _short_id(self, value: str | None) -> str:
+        if not value:
+            return "-"
+        return value if len(value) <= 16 else f"{value[:8]}...{value[-6:]}"
+
+    def _safe_log_text(self, value: str | None, *, limit: int = 180) -> str:
+        text = (value or "-").replace("\n", " ").strip()
+        return text if len(text) <= limit else f"{text[:limit]}..."
 
     def _get_string_prop(self, value: Any) -> str | None:
         return value if isinstance(value, str) else None

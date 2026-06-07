@@ -8,10 +8,12 @@ import {
   SaveOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import { Alert, App as AntdApp, Button, Drawer, Empty, Flex, Input, List, Space, Spin, Tag, Typography } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { Alert, App as AntdApp, Button, Drawer, Empty, Flex, Input, List, Select, Space, Spin, Tag, Typography } from "antd";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { navigate } from "../app/routes";
+import { listDatasetItems, listTaskDatasets } from "../features/datasets/api";
+import type { DatasetItemVO, DatasetVO } from "../features/datasets/types";
 import { getTask } from "../features/tasks/api";
 import type { TaskDetailVO } from "../features/tasks/types";
 import { formatTaskTime, taskStatusMeta } from "../features/tasks/view";
@@ -24,6 +26,7 @@ import {
 } from "../features/templates/api";
 import { TemplateDesigner } from "../features/templates/TemplateDesigner";
 import { TemplateRenderer } from "../features/templates/TemplateRenderer";
+import { collectPayloadFieldOptions, fallbackPreviewPayload, formatDatasetSampleLabel } from "../features/templates/preview";
 import { getTemplateInitialValue } from "../features/templates/runtime";
 import type {
   TemplateDraftVO,
@@ -41,22 +44,11 @@ import {
   summarizeTemplateValidation,
 } from "../features/templates/view";
 import { ApiClientError } from "../shared/api/client";
-import type { JsonObject } from "../shared/types/api";
 import { OwnerPublishCheckDrawer } from "./OwnerPublishCheckDrawer";
 
 interface OwnerTemplateDesignerPageProps {
   taskId: string;
 }
-
-const previewPayload: JsonObject = {
-  id: "preview_item_001",
-  prompt: "请判断下面的回答是否准确、完整，并给出必要的修正建议。",
-  question: "上海交通大学位于哪里？",
-  model_answer: "上海交通大学位于上海，是中国重点高校之一。",
-  reference: "回答需要判断事实正确性、覆盖度和表达清晰度。",
-  response_a: "回答准确，覆盖了地点和高校属性。",
-  response_b: "回答不完整，没有说明判断依据。",
-};
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
@@ -111,7 +103,19 @@ export function OwnerTemplateDesignerPage({ taskId }: OwnerTemplateDesignerPageP
   const [publishingVersion, setPublishingVersion] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [datasets, setDatasets] = useState<DatasetVO[]>([]);
+  const [datasetItems, setDatasetItems] = useState<DatasetItemVO[]>([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string | undefined>();
+  const [selectedItemId, setSelectedItemId] = useState<string | undefined>();
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
   const returnTarget = getTemplateDesignerReturnTarget(taskId, getTemplateDesignerEntry(window.location.search));
+  const selectedPreviewItem = useMemo(
+    () => datasetItems.find((item) => item.id === selectedItemId) ?? datasetItems.find((item) => item.status !== "DISABLED") ?? null,
+    [datasetItems, selectedItemId],
+  );
+  const previewPayload = selectedPreviewItem?.payload ?? fallbackPreviewPayload;
+  const sampleFieldOptions = useMemo(() => collectPayloadFieldOptions(previewPayload), [previewPayload]);
 
   useEffect(() => {
     let ignore = false;
@@ -144,6 +148,73 @@ export function OwnerTemplateDesignerPage({ taskId }: OwnerTemplateDesignerPageP
       ignore = true;
     };
   }, [taskId]);
+
+  const loadPreviewDatasets = useCallback(async () => {
+    setSampleLoading(true);
+    setSampleError(null);
+    try {
+      const response = await listTaskDatasets(taskId, { page: 1, pageSize: 50 });
+      const nextDatasets = response.data;
+      setDatasets(nextDatasets);
+      const preferredDataset =
+        nextDatasets.find((dataset) => dataset.status === "READY" && dataset.enabledItemCount > 0) ??
+        nextDatasets.find((dataset) => dataset.enabledItemCount > 0) ??
+        nextDatasets[0];
+      setSelectedDatasetId((current) =>
+        current && nextDatasets.some((dataset) => dataset.id === current) ? current : preferredDataset?.id,
+      );
+      if (!preferredDataset) {
+        setDatasetItems([]);
+        setSelectedItemId(undefined);
+      }
+    } catch (requestError) {
+      setSampleError(getErrorMessage(requestError));
+      setDatasets([]);
+      setDatasetItems([]);
+      setSelectedDatasetId(undefined);
+      setSelectedItemId(undefined);
+    } finally {
+      setSampleLoading(false);
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    void loadPreviewDatasets();
+  }, [loadPreviewDatasets]);
+
+  useEffect(() => {
+    if (!selectedDatasetId) {
+      return;
+    }
+    let ignore = false;
+    const loadItems = async () => {
+      setSampleLoading(true);
+      setSampleError(null);
+      try {
+        const response = await listDatasetItems(selectedDatasetId, { page: 1, pageSize: 20 });
+        if (ignore) {
+          return;
+        }
+        setDatasetItems(response.data);
+        const preferredItem = response.data.find((item) => item.status !== "DISABLED") ?? response.data[0];
+        setSelectedItemId(preferredItem?.id);
+      } catch (requestError) {
+        if (!ignore) {
+          setSampleError(getErrorMessage(requestError));
+          setDatasetItems([]);
+          setSelectedItemId(undefined);
+        }
+      } finally {
+        if (!ignore) {
+          setSampleLoading(false);
+        }
+      }
+    };
+    void loadItems();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDatasetId]);
 
   const loadVersions = useCallback(async () => {
     setVersionsLoading(true);
@@ -355,6 +426,7 @@ export function OwnerTemplateDesignerPage({ taskId }: OwnerTemplateDesignerPageP
           schema={schema}
           selectedComponentId={selectedComponentId}
           validation={validation}
+          sampleFieldOptions={sampleFieldOptions}
           readOnly={readOnly}
           onSchemaChange={updateSchema}
           onSelectedComponentChange={setSelectedComponentId}
@@ -375,6 +447,62 @@ export function OwnerTemplateDesignerPage({ taskId }: OwnerTemplateDesignerPageP
             message="预览使用当前画布中的 schema，不要求先保存。"
             description="后续 Labeler 工作台会复用同一个 Renderer，提交字段以 fieldKey 为准。"
           />
+          {sampleError && <Alert type="warning" showIcon message="真实样本加载失败，当前预览使用内置示例。" description={sampleError} />}
+          {!sampleError && datasets.length === 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              message="当前任务还没有可用数据集，预览使用内置示例。"
+              description="你可以先搭建模板并手动输入 JSONPath；导入数据后再从真实样本字段中选择。"
+            />
+          )}
+          {datasets.length > 0 && (
+            <div className="labelhub-preview-sample-picker">
+              <div>
+                <Typography.Text strong>预览样本</Typography.Text>
+                <Typography.Text type="secondary">选择当前任务数据集中的题目，字段下拉会随样本 payload 更新。</Typography.Text>
+              </div>
+              <Space wrap>
+                <Select
+                  style={{ minWidth: 220 }}
+                  aria-label="预览数据集"
+                  value={selectedDatasetId}
+                  loading={sampleLoading}
+                  options={datasets.map((dataset) => ({
+                    label: `${dataset.name} · ${dataset.enabledItemCount}/${dataset.itemCount} 条`,
+                    value: dataset.id,
+                  }))}
+                  onChange={(datasetId) => {
+                    setSelectedDatasetId(datasetId);
+                    setDatasetItems([]);
+                    setSelectedItemId(undefined);
+                  }}
+                />
+                <Select
+                  style={{ minWidth: 320 }}
+                  aria-label="预览题目"
+                  value={selectedItemId}
+                  loading={sampleLoading}
+                  placeholder={datasetItems.length > 0 ? "选择题目样本" : "当前数据集暂无题目"}
+                  options={datasetItems.map((item, index) => ({
+                    label: formatDatasetSampleLabel(item, index),
+                    value: item.id,
+                  }))}
+                  onChange={setSelectedItemId}
+                />
+                <Button loading={sampleLoading} onClick={() => void loadPreviewDatasets()}>
+                  刷新样本
+                </Button>
+              </Space>
+            </div>
+          )}
+          {datasets.length > 0 && datasetItems.length === 0 && !sampleLoading && (
+            <Alert
+              type="warning"
+              showIcon
+              message="所选数据集暂时没有可预览题目，当前预览使用内置示例。"
+            />
+          )}
           <TemplateRenderer
             schema={schema}
             itemPayload={previewPayload}

@@ -74,6 +74,8 @@ export function RoleShell({ user, path }: RoleShellProps) {
   const labelerAssignmentId = matchLabelerAssignmentPath(path);
   const labelerReviseAssignmentId = matchLabelerAssignmentRevisePath(path);
   const isLabelerWorkspaceFocus = user.role === "LABELER" && Boolean(labelerAssignmentId || labelerReviseAssignmentId);
+  const isOwnerDesignerFocus = user.role === "OWNER" && Boolean(matchOwnerTaskDesignerPath(path));
+  const isWorkspaceFocus = isLabelerWorkspaceFocus || isOwnerDesignerFocus;
   const selectedMenuKey = matchOwnerTaskDesignerPath(path)
     ? "/owner/templates"
     : labelerReviseAssignmentId
@@ -94,16 +96,16 @@ export function RoleShell({ user, path }: RoleShellProps) {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Layout.Sider
-        className={isLabelerWorkspaceFocus ? "labelhub-role-sider labelhub-role-sider-focus" : "labelhub-role-sider"}
+        className={isWorkspaceFocus ? "labelhub-role-sider labelhub-role-sider-focus" : "labelhub-role-sider"}
         width={248}
         breakpoint="lg"
-        collapsed={isLabelerWorkspaceFocus}
-        collapsedWidth={isLabelerWorkspaceFocus ? 64 : 0}
+        collapsed={isWorkspaceFocus}
+        collapsedWidth={isWorkspaceFocus ? 64 : 0}
       >
         <Flex vertical style={{ height: "100%", padding: 16 }}>
           <Space style={{ padding: "8px 8px 24px" }}>
             <span className="labelhub-shell-logo">L</span>
-            {!isLabelerWorkspaceFocus && (
+            {!isWorkspaceFocus && (
               <div>
                 <Typography.Text strong style={{ color: "#1f2329" }}>
                   LabelHub
@@ -141,7 +143,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
             </Space>
           </Flex>
         </Layout.Header>
-        <Layout.Content className={isLabelerWorkspaceFocus ? "labelhub-page labelhub-page-focus" : "labelhub-page"}>
+        <Layout.Content className={isWorkspaceFocus ? "labelhub-page labelhub-page-focus" : "labelhub-page"}>
           {renderRoleContent(user, path)}
         </Layout.Content>
       </Layout>

@@ -760,6 +760,13 @@ Renderer 最小支持范围：
 | 获取草稿 | `GET /api/tasks/{taskId}/template-draft` | Designer 初始化时读取同一份 `TemplateSchemaVO` |
 | 保存草稿 | `PUT /api/tasks/{taskId}/template-draft` | Designer 保存当前画布、物料属性、默认值与校验配置 |
 | 校验 schema | `POST /api/template-schemas:validate` | Designer 点击校验或保存前展示结构化错误 |
+| 真实样本预览 | `GET /api/tasks/{taskId}/datasets`、`GET /api/datasets/{datasetId}/items` | Designer 可复用当前任务已导入的 `DatasetItemVO.payload` 作为预览样本；后端不新增表和路由 |
+
+样本字段选择约束：
+
+- 后端继续只返回 `DatasetItemVO.payload`，不在后端额外解析字段树。
+- 前端基于样本 payload 派生 `PayloadFieldOption`，供 ShowItem 和 LLM_ACTION 选择 `$.prompt`、`$.response_a` 等安全 JSONPath。
+- 任务尚未导入数据或数据集为空时，Designer 使用前端内置示例 payload，模板仍可手动输入 JSONPath 并正常保存。
 
 基础物料后端语义校验：
 

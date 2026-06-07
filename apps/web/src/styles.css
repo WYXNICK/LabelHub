@@ -735,6 +735,20 @@ body {
   line-height: 1.6;
 }
 
+.labelhub-preview-sample-picker {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.labelhub-preview-sample-picker > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
 .labelhub-review-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -1133,7 +1147,7 @@ body {
 
 .labelhub-designer-grid {
   display: grid;
-  grid-template-columns: minmax(190px, 220px) minmax(360px, 1fr) minmax(280px, 320px);
+  grid-template-columns: minmax(230px, 260px) minmax(420px, 1fr) minmax(320px, 360px);
   gap: 16px;
   min-height: 560px;
 }
@@ -1166,18 +1180,33 @@ body {
 .labelhub-property-panel {
   position: sticky;
   top: 16px;
-  height: calc(100vh - 150px);
-  min-height: 560px;
+  height: min(720px, calc(100vh - 320px));
+  min-height: 420px;
 }
 
 .labelhub-designer-palette {
+  display: flex;
+  flex-direction: column;
   padding-bottom: 12px;
+}
+
+.labelhub-property-empty {
+  display: grid;
+  min-height: 100%;
+  place-items: start center;
+  padding: 72px 24px 24px;
+  text-align: center;
 }
 
 .labelhub-palette-groups {
   display: grid;
+  flex: 1;
   gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
   padding: 12px;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
 }
 
 .labelhub-palette-group {
@@ -1458,6 +1487,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
   overflow: auto;
   padding-bottom: 14px;
 }
@@ -1465,6 +1495,7 @@ body {
 .labelhub-property-panel > .ant-form,
 .labelhub-property-panel > .ant-alert,
 .labelhub-property-panel > .ant-empty {
+  min-width: 0;
   margin: 0 14px;
 }
 
@@ -1481,13 +1512,37 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   min-height: 32px;
   margin-bottom: 12px;
+}
+
+.labelhub-property-static-row > span:first-child,
+.labelhub-panel-heading > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-property-panel .ant-select,
+.labelhub-property-panel .ant-input,
+.labelhub-property-panel .ant-input-number,
+.labelhub-property-panel .ant-form-item-control {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.labelhub-property-panel .ant-select-selection-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .labelhub-property-section {
   display: grid;
   gap: 10px;
+  min-width: 0;
   padding: 12px;
   background: #fbfcff;
   border: 1px solid #eff0f1;

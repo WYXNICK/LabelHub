@@ -184,6 +184,7 @@ export interface LogoutResponseVO {
 | 2 | 模板草稿 | `TemplateDraftVO`、`TemplateSchemaVO`、`SaveTemplateDraftRequest` | `GET/PUT /api/tasks/{taskId}/template-draft` | 阶段 2.1 已实现 |
 | 2 | 模板校验 | `ValidateTemplateSchemaRequest`、`TemplateSchemaValidationVO` | `POST /api/template-schemas:validate` | 阶段 2.1 已实现 |
 | 2 | 模板版本 | `TemplateVersionVO`、`PublishTemplateVersionRequest` | `POST/GET /api/tasks/{taskId}/template-versions`、`GET /api/template-versions/{templateVersionId}` | 阶段 2.7 已实现 |
+| 2 | 模板真实样本预览 | `DatasetVO`、`DatasetItemVO`、`PayloadFieldOption` | 复用 `GET /api/tasks/{taskId}/datasets`、`GET /api/datasets/{datasetId}/items` | 设计器预览优先使用当前任务数据集样本；无数据集时使用内置示例并允许手动 JSONPath |
 | 3 | 任务广场 | `MarketplaceTaskVO` | `GET /api/marketplace/tasks` | 阶段 3.1 已实现 |
 | 3 | 标注领取 | `AssignmentVO` | `POST /api/tasks/{taskId}/assignments` | 阶段 3.1 已实现 |
 | 3 | 作答上下文 | `AssignmentContextVO` | `GET /api/assignments/{assignmentId}` | 阶段 3.2 已实现 |
@@ -679,6 +680,7 @@ Renderer 行为：
 - Designer 生成的 schema 必须可被后端校验接口直接验证，不出现前端私有字段。
 - Designer 新增物料的默认 `label` 必须使用中文业务语义，例如 `SHOW_ITEM=题目原文`、`TEXTAREA=回答内容`、`LLM_ACTION=AI 辅助动作`；`fieldKey` 仍使用稳定机器字段，不用中文 label 作为提交 key。
 - `LLM_ACTION` 必须在高级物料分组首位展示，确保 `1280×800` 下无需滚到底部也能发现“题目级 LLM 辅助”能力。
+- 物料区必须作为独立滚动区域展示完整分组；在 `1280×800` 下不应因为卡片高度裁切而无法访问 `JSON_EDITOR`、`GROUP`、`TABS`。
 - `LLM_ACTION.props.inputItemPaths` 用于引用题目原始数据路径，通常来自 `SHOW_ITEM.props.path`；`inputFieldKeys/outputFieldKey` 只能引用当前 schema 中已存在的采集字段。展示项不进入提交值，但可以作为题目级 LLM 辅助的输入上下文。
 - 预览抽屉必须用当前未保存 schema 渲染高级物料，验证 Designer/Renderer 共用契约。
 
@@ -740,6 +742,10 @@ type TemplateLayoutNodeDTO =
 
 - `GROUP` 默认生成空 `children`，可从分组内部添加子物料；Renderer 用分组卡片渲染 children。
 - `TABS` 默认生成两个 tab，可在属性面板编辑 Tab 名称；Renderer 用 Ant Design Tabs 渲染各 tab children。
+- 左侧物料区必须可完整访问布局物料，不能依赖整页滚动后碰运气露出底部内容。
+- Owner 进入 `/owner/tasks/{taskId}/designer` 时使用工作台专注布局，左侧全局角色导航自动收起为窄图标栏，为物料区、画布和属性区释放宽度。
+- 嵌套在 `GROUP/TABS` 内的子物料必须能单独点击选中并打开属性配置，点击事件不得被父容器抢占。
+- 未选择物料时，属性面板展示居中空状态，不贴近面板顶部。
 - 删除容器时同步删除其嵌套 children 对应的组件，避免 schema 中出现孤儿组件。
 - 组件上移/下移在其所在兄弟节点内生效；根节点、分组 children、Tab children 均保持同一规则。
 - 预览抽屉直接消费当前未保存 schema，并展示条件显示、联动必填、正则和自定义规则的运行时反馈。

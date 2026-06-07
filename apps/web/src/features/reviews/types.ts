@@ -19,6 +19,11 @@ export interface ReviewJobVO {
   reviewConfigVersionId: string;
   reviewConfigVersionNo: number | null;
   status: ReviewJobStatus;
+  reviewId: string | null;
+  aiConclusion: AiReviewConclusion | null;
+  aiScoreTotal: number | null;
+  aiIssueCount: number;
+  aiComment: string | null;
   attemptCount: number;
   maxAttempts: number;
   idempotencyKey: string;
@@ -29,6 +34,29 @@ export interface ReviewJobVO {
   finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReviewJobSummaryVO {
+  totalJobs: number;
+  statusCounts: Record<ReviewJobStatus, number>;
+  aiConclusionCounts: Record<AiReviewConclusion, number>;
+  pendingReviewCount: number;
+  todayProcessedCount: number;
+  todaySucceededCount: number;
+  todayFailedCount: number;
+  todayFallbackCount: number;
+  todayPassCount: number;
+  todayReturnCount: number;
+  todayManualCount: number;
+  averageLatencySeconds: number | null;
+  failureRate: number;
+  maxAttempts: number;
+  runningJobCount: number;
+  staleRunningJobCount: number;
+  activeWorkerCount: number;
+  lockTimeoutSeconds: number;
+  latestWorkerId: string | null;
+  latestJobUpdatedAt: string | null;
 }
 
 export interface AiReviewIssueDTO {
@@ -137,6 +165,11 @@ export interface ListReviewJobsRequest {
   page?: number;
   pageSize?: number;
   status?: ReviewJobStatus;
+  taskId?: string;
+  keyword?: string;
+}
+
+export interface GetReviewJobSummaryRequest {
   taskId?: string;
   keyword?: string;
 }

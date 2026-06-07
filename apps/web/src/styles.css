@@ -1985,6 +1985,277 @@ body {
   padding: 12px 16px;
 }
 
+.labelhub-ai-review-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-ai-review-queue-card,
+.labelhub-ai-review-main,
+.labelhub-ai-review-side {
+  min-width: 0;
+}
+
+.labelhub-ai-review-queue-card {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+}
+
+.labelhub-ai-review-side {
+  grid-column: 1 / -1;
+}
+
+.labelhub-ai-review-queue-card .ant-card-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.labelhub-ai-review-queue-card .ant-card-body,
+.labelhub-ai-review-card .ant-card-body,
+.labelhub-ai-review-comment-card .ant-card-body {
+  padding: 16px;
+}
+
+.labelhub-ai-review-queue-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 160px);
+}
+
+.labelhub-ai-review-status-tabs,
+.labelhub-ai-review-today-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.labelhub-ai-review-metric-pill {
+  padding: 10px 12px;
+  background: #f7f8fa;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-ai-review-metric-pill[data-active="true"] {
+  color: #1456f0;
+  background: #edf4ff;
+  border-color: #b7d4ff;
+}
+
+.labelhub-ai-review-metric-pill span,
+.labelhub-ai-review-metric-pill strong {
+  display: block;
+}
+
+.labelhub-ai-review-metric-pill span {
+  color: #646a73;
+  font-size: 12px;
+}
+
+.labelhub-ai-review-metric-pill strong {
+  margin-top: 2px;
+  font-size: 20px;
+}
+
+.labelhub-ai-review-job-list {
+  display: grid;
+  gap: 10px;
+  max-height: clamp(280px, calc(100vh - 430px), 620px);
+  padding-right: 2px;
+  overflow-y: auto;
+}
+
+.labelhub-ai-review-job-row {
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  overflow: hidden;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.labelhub-ai-review-job-row:hover,
+.labelhub-ai-review-job-row[data-selected="true"] {
+  background: #f8fbff;
+  border-color: #8fb8ff;
+  box-shadow: 0 8px 24px rgba(51, 112, 255, 0.08);
+}
+
+.labelhub-ai-review-job-row-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.labelhub-ai-review-job-title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-ai-review-job-meta {
+  min-width: 0;
+  margin: 6px 0;
+}
+
+.labelhub-ai-review-selected-head .ant-card-body {
+  padding: 18px 20px;
+}
+
+.labelhub-ai-review-selected-head-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+}
+
+.labelhub-ai-review-selected-main {
+  min-width: 0;
+}
+
+.labelhub-ai-review-selected-title {
+  max-width: 100%;
+  margin: 10px 0 4px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-ai-review-selected-actions {
+  display: grid;
+  min-width: 220px;
+  gap: 10px;
+  justify-items: end;
+}
+
+.labelhub-ai-review-selected-time {
+  white-space: nowrap;
+}
+
+.labelhub-ai-review-insight-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.72fr);
+  gap: 16px;
+}
+
+.labelhub-ai-review-json {
+  max-height: 280px;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  color: #1f2329;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fbfcff;
+  border: 1px dashed #c8d2e0;
+  border-radius: 8px;
+}
+
+.labelhub-ai-review-score-line {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.35fr) minmax(140px, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.labelhub-ai-review-score-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-ai-review-score-line .ant-progress-text,
+.labelhub-review-score-row .ant-progress-text {
+  min-width: 56px;
+  color: #1f2329;
+  font-variant-numeric: tabular-nums;
+}
+
+.labelhub-ai-review-comment-card {
+  border-color: #e2d6ff;
+  background: linear-gradient(180deg, #fff 0%, #fbf8ff 100%);
+}
+
+.labelhub-ai-review-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.labelhub-ai-review-dot-green {
+  background: #13a867;
+}
+
+.labelhub-ai-review-dot-orange {
+  background: #ff8800;
+}
+
+.labelhub-review-results-list {
+  display: grid;
+  gap: 12px;
+}
+
+.labelhub-review-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, auto);
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+@media (min-width: 1680px) {
+  .labelhub-ai-review-layout {
+    grid-template-columns: minmax(320px, 410px) minmax(0, 1fr) minmax(280px, 320px);
+  }
+
+  .labelhub-ai-review-side {
+    position: sticky;
+    top: 76px;
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 1280px) {
+  .labelhub-ai-review-selected-head-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-ai-review-selected-actions {
+    min-width: 0;
+    justify-items: start;
+  }
+
+  .labelhub-ai-review-selected-actions .ant-flex {
+    justify-content: flex-start !important;
+  }
+
+  .labelhub-ai-review-selected-title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+
 .labelhub-reviewer-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
@@ -2510,11 +2781,31 @@ body {
 
   .labelhub-reviewer-summary-grid,
   .labelhub-reviewer-side,
-  .labelhub-review-ai-summary {
+  .labelhub-review-ai-summary,
+  .labelhub-ai-review-layout,
+  .labelhub-ai-review-insight-grid {
     grid-template-columns: 1fr;
   }
 
   .labelhub-reviewer-job-row {
+    grid-template-columns: 1fr;
+  }
+
+  .labelhub-ai-review-side {
+    grid-column: auto;
+  }
+
+  .labelhub-ai-review-queue-card {
+    position: static;
+    max-height: none;
+  }
+
+  .labelhub-ai-review-queue-body,
+  .labelhub-ai-review-job-list {
+    max-height: none;
+  }
+
+  .labelhub-review-result-row {
     grid-template-columns: 1fr;
   }
 

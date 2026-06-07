@@ -36,35 +36,37 @@ def test_ai_review_result_contract_rejects_unknown_conclusion() -> None:
         )
 
 
-def test_agent_settings_accepts_provider_aliases_and_disables_thinking(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1")
-    monkeypatch.setenv("MODEL_NAME", "mimo-v2.5-pro")
+def test_agent_settings_accepts_provider_aliases_without_private_extension(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BASE_URL", "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2")
+    monkeypatch.setenv("MODEL_NAME", "astron-code-latest")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_THINKING_ENABLED", "false")
 
     settings = AgentSettings(_env_file=None)
 
-    assert settings.openai_base_url == "https://token-plan-cn.xiaomimimo.com/v1"
-    assert settings.openai_model == "mimo-v2.5-pro"
+    assert settings.openai_base_url == "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
+    assert settings.openai_model == "astron-code-latest"
     assert settings.openai_api_key == "test-key"
-    assert settings.openai_thinking_enabled is False
     assert settings.is_llm_configured is True
-    assert settings.chat_completion_extra_body == {
-        "chat_template_kwargs": {
-            "enable_thinking": False,
-        }
-    }
+    assert settings.chat_completion_extra_body == {}
 
 
 def test_agent_settings_keeps_unknown_provider_openai_compatible(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BASE_URL", "https://api.example.com/v1")
     monkeypatch.setenv("MODEL_NAME", "openai-compatible-model")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_THINKING_ENABLED", "false")
 
     settings = AgentSettings(_env_file=None)
 
     assert settings.chat_completion_extra_body == {}
+
+
+def test_agent_settings_forwards_explicit_extra_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_EXTRA_BODY_JSON", '{"top_p":0.8}')
+
+    settings = AgentSettings(_env_file=None)
+
+    assert settings.chat_completion_extra_body == {"top_p": 0.8}
 
 
 def test_agent_builds_review_prompt_from_claim_context() -> None:
@@ -121,6 +123,24 @@ def test_agent_normalizes_review_config_output_schema_payload() -> None:
     assert result.scores == {"accuracy": 3}
     assert result.summary == "needs human check"
     assert result.raw_output and result.raw_output["decision"] == "HUMAN_REVIEW"
+
+
+def test_agent_normalizes_string_issues_from_provider() -> None:
+    context = _claim_context()
+    _, snapshot = build_review_messages(context)
+
+    result = parse_ai_review_result(
+        content=(
+            '{"conclusion":"RETURN","scores":{"accuracy":2},"summary":"needs fix",'
+            '"issues":["reason is empty"],"suggestions":["fill reason","check answer"]}'
+        ),
+        dimensions=context.review_config_version.dimensions,
+        prompt_snapshot=snapshot,
+    )
+
+    assert result.issues[0].code == "MODEL_NOTE"
+    assert result.issues[0].message == "reason is empty"
+    assert result.suggestions == "fill reason；check answer"
 
 
 def test_worker_processes_one_job_and_writes_result() -> None:

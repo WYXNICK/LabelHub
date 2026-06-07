@@ -37,7 +37,6 @@ def _health_payload(settings: AgentSettings) -> dict[str, object]:
         "modelConfigured": bool(settings.openai_model),
         "apiKeyConfigured": bool(settings.openai_api_key),
         "llmConfigured": settings.is_llm_configured,
-        "thinkingEnabled": settings.openai_thinking_enabled,
         "workerId": settings.worker_id,
     }
 

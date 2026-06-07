@@ -13,6 +13,7 @@ from labelhub_api.schemas.reviews import (
     ClaimReviewJobResponse,
     CompleteReviewJobRequest,
     ReviewDetailVO,
+    ReviewJobSummaryVO,
     ReviewJobVO,
     ReviewVO,
 )
@@ -21,6 +22,16 @@ from labelhub_api.services.review_service import ReviewService
 review_job_router = APIRouter(prefix="/api/review-jobs", tags=["stage4-review-jobs"])
 internal_review_job_router = APIRouter(prefix="/api/internal", tags=["stage4-internal-review-jobs"])
 review_router = APIRouter(prefix="/api/reviews", tags=["stage4-reviews"])
+
+
+@review_job_router.get("/summary", response_model=ReviewJobSummaryVO, response_model_by_alias=True)
+def get_review_job_summary(
+    task_id: str | None = Query(default=None, alias="taskId"),
+    keyword: str | None = Query(default=None, max_length=120),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> ReviewJobSummaryVO:
+    return ReviewService(db).get_review_job_summary(user=user, task_id=task_id, keyword=keyword)
 
 
 @review_job_router.get("", response_model=PageVO[ReviewJobVO], response_model_by_alias=True)

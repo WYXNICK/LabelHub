@@ -6,6 +6,7 @@ import {
   FormOutlined,
   LogoutOutlined,
   SafetyCertificateOutlined,
+  ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { Button, Flex, Layout, Menu, Space, Tag, Typography } from "antd";
@@ -26,8 +27,10 @@ import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
+import { ReviewerAiReviewQueuePage } from "./ReviewerAiReviewQueuePage";
 import { ReviewerReviewDetailPage } from "./ReviewerReviewDetailPage";
 import { ReviewerReviewQueuePage } from "./ReviewerReviewQueuePage";
+import { ReviewerReviewResultsPage } from "./ReviewerReviewResultsPage";
 import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
 import { LabelerContributionsPage } from "./LabelerContributionsPage";
 import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
@@ -54,7 +57,8 @@ const menuItems: Record<Exclude<UserRole, "SYSTEM">, MenuProps["items"]> = {
   ],
   REVIEWER: [
     { key: "/reviewer/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
-    { key: "/reviewer/reviews", icon: <AuditOutlined />, label: "审核工作台" },
+    { key: "/reviewer/ai-review-queue", icon: <ThunderboltOutlined />, label: "AI 预审队列" },
+    { key: "/reviewer/reviews", icon: <AuditOutlined />, label: "人工审核" },
     { key: "/reviewer/results", icon: <FileDoneOutlined />, label: "审核结果" },
   ],
 };
@@ -162,7 +166,9 @@ function getRouteChipLabel(role: UserRole, path: string): string {
   }
   if (role === "REVIEWER") {
     if (matchReviewerReviewDetailPath(path)) return "AI 预审详情";
-    if (path === "/reviewer/reviews") return "审核工作台";
+    if (path === "/reviewer/ai-review-queue") return "AI 预审队列";
+    if (path === "/reviewer/reviews") return "人工审核";
+    if (path === "/reviewer/results") return "审核结果";
   }
   return path;
 }
@@ -211,8 +217,14 @@ function renderRoleContent(user: UserVO, path: string) {
       return <LabelerAssignmentWorkspacePage assignmentId={assignmentId} />;
     }
   }
+  if (user.role === "REVIEWER" && path === "/reviewer/ai-review-queue") {
+    return <ReviewerAiReviewQueuePage />;
+  }
   if (user.role === "REVIEWER" && path === "/reviewer/reviews") {
     return <ReviewerReviewQueuePage />;
+  }
+  if (user.role === "REVIEWER" && path === "/reviewer/results") {
+    return <ReviewerReviewResultsPage />;
   }
   if (user.role === "REVIEWER") {
     const reviewId = matchReviewerReviewDetailPath(path);

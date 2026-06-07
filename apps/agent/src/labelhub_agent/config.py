@@ -14,12 +14,12 @@ class AgentSettings(BaseSettings):
     )
 
     openai_base_url: str = Field(
-        default="https://token-plan-cn.xiaomimimo.com/v1",
+        default="https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
         validation_alias=AliasChoices("BASE_URL", "OPENAI_BASE_URL"),
     )
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(
-        default="mimo-v2.5-pro",
+        default="astron-code-latest",
         validation_alias=AliasChoices("MODEL_NAME", "OPENAI_MODEL"),
     )
     openai_timeout_seconds: float = Field(
@@ -33,10 +33,6 @@ class AgentSettings(BaseSettings):
         ge=0,
         le=2,
         validation_alias=AliasChoices("OPENAI_TEMPERATURE", "LLM_TEMPERATURE"),
-    )
-    openai_thinking_enabled: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("OPENAI_THINKING_ENABLED", "THINKING_ENABLED"),
     )
     openai_extra_body_json: str | None = Field(
         default=None,
@@ -61,21 +57,4 @@ class AgentSettings(BaseSettings):
                 raise ValueError("OPENAI_EXTRA_BODY_JSON must be a JSON object.")
             parsed = extra_body
 
-        if self.openai_thinking_enabled is False and self._is_mimo_provider:
-            return self._deep_merge({"chat_template_kwargs": {"enable_thinking": False}}, parsed)
         return parsed
-
-    @property
-    def _is_mimo_provider(self) -> bool:
-        base_url = self.openai_base_url.lower()
-        model = self.openai_model.lower()
-        return "xiaomimimo.com" in base_url or model.startswith("mimo-")
-
-    def _deep_merge(self, base: dict[str, object], override: dict[str, object]) -> dict[str, object]:
-        merged = dict(base)
-        for key, value in override.items():
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key] = self._deep_merge(merged[key], value)
-            else:
-                merged[key] = value
-        return merged

@@ -24,10 +24,9 @@ class FakeResponse:
 def make_settings(**overrides: Any) -> SimpleNamespace:
     values: dict[str, Any] = {
         "openai_api_key": "test-key",
-        "openai_base_url": "https://token-plan-cn.xiaomimimo.com/v1",
-        "openai_model_name": "mimo-v2.5-pro",
+        "openai_base_url": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+        "openai_model_name": "astron-code-latest",
         "openai_timeout_seconds": 90.0,
-        "openai_thinking_enabled": False,
         "llm_temperature": 0.2,
         "llm_extra_body_json": None,
     }
@@ -35,7 +34,7 @@ def make_settings(**overrides: Any) -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
-def test_mimo_thinking_flag_is_translated_to_openai_compatible_extra_body(
+def test_openai_compatible_request_uses_config_without_provider_extension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
@@ -53,11 +52,11 @@ def test_mimo_thinking_flag_is_translated_to_openai_compatible_extra_body(
 
     assert content == '{"outputValue":"ok"}'
     assert captured["timeout"] == 90.0
-    assert captured["payload"]["model"] == "mimo-v2.5-pro"
-    assert captured["payload"]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert captured["payload"]["model"] == "astron-code-latest"
+    assert set(captured["payload"]) == {"model", "messages", "temperature"}
 
 
-def test_unknown_provider_does_not_receive_thinking_extension_by_default(
+def test_openai_compatible_provider_does_not_receive_extra_body_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
@@ -72,10 +71,10 @@ def test_unknown_provider_does_not_receive_thinking_extension_by_default(
         make_settings(openai_base_url="https://api.openai.com/v1", openai_model_name="gpt-4o-mini")
     ).complete(messages=[{"role": "user", "content": "hello"}])
 
-    assert "chat_template_kwargs" not in captured["payload"]
+    assert set(captured["payload"]) == {"model", "messages", "temperature"}
 
 
-def test_explicit_extra_body_overrides_inferred_thinking_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_explicit_extra_body_is_forwarded(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
     def fake_urlopen(request: Any, timeout: float) -> FakeResponse:
@@ -85,11 +84,11 @@ def test_explicit_extra_body_overrides_inferred_thinking_config(monkeypatch: pyt
     monkeypatch.setattr(llm_client, "urlopen", fake_urlopen)
 
     OpenAICompatibleLlmClient(
-        make_settings(llm_extra_body_json='{"chat_template_kwargs":{"enable_thinking":true},"top_p":0.8}')
+        make_settings(llm_extra_body_json='{"top_p":0.8,"response_format":{"type":"json_object"}}')
     ).complete(messages=[{"role": "user", "content": "hello"}])
 
-    assert captured["payload"]["chat_template_kwargs"] == {"enable_thinking": True}
     assert captured["payload"]["top_p"] == 0.8
+    assert captured["payload"]["response_format"] == {"type": "json_object"}
 
 
 def test_timeout_error_message_is_actionable(monkeypatch: pytest.MonkeyPatch) -> None:

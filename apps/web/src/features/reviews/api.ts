@@ -1,6 +1,14 @@
 import { apiRequest, withQuery } from "../../shared/api/client";
 import type { PageVO } from "../../shared/types/api";
-import type { ListReviewJobsRequest, ListReviewsRequest, ReviewDetailVO, ReviewJobVO, ReviewVO } from "./types";
+import type {
+  GetReviewJobSummaryRequest,
+  ListReviewJobsRequest,
+  ListReviewsRequest,
+  ReviewDetailVO,
+  ReviewJobSummaryVO,
+  ReviewJobVO,
+  ReviewVO,
+} from "./types";
 
 export function listReviewJobs(request: ListReviewJobsRequest = {}): Promise<PageVO<ReviewJobVO>> {
   return apiRequest<PageVO<ReviewJobVO>>(
@@ -8,6 +16,15 @@ export function listReviewJobs(request: ListReviewJobsRequest = {}): Promise<Pag
       page: request.page,
       pageSize: request.pageSize,
       status: request.status,
+      taskId: request.taskId,
+      keyword: request.keyword,
+    }),
+  );
+}
+
+export function getReviewJobSummary(request: GetReviewJobSummaryRequest = {}): Promise<ReviewJobSummaryVO> {
+  return apiRequest<ReviewJobSummaryVO>(
+    withQuery("/api/review-jobs/summary", {
       taskId: request.taskId,
       keyword: request.keyword,
     }),

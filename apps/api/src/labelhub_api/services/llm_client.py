@@ -66,35 +66,13 @@ class OpenAICompatibleLlmClient:
             if not isinstance(extra_body, dict):
                 raise LlmClientError("LLM_EXTRA_BODY_JSON must be a JSON object.")
             parsed = extra_body
-
-        # MiMo 兼容 OpenAI Chat Completions，但关闭 thinking 需要额外请求体参数。
-        # 对未知 Provider 不自动注入，避免破坏更严格的 OpenAI 兼容服务。
-        if self._settings.openai_thinking_enabled is False and self._is_mimo_provider():
-            parsed = self._deep_merge(
-                {"chat_template_kwargs": {"enable_thinking": False}},
-                parsed,
-            )
         return parsed
-
-    def _is_mimo_provider(self) -> bool:
-        base_url = self._settings.openai_base_url.lower()
-        model_name = self._settings.openai_model_name.lower()
-        return "xiaomimimo.com" in base_url or model_name.startswith("mimo-")
-
-    def _deep_merge(self, base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-        merged = dict(base)
-        for key, value in override.items():
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key] = self._deep_merge(merged[key], value)
-            else:
-                merged[key] = value
-        return merged
 
     def _timeout_error(self) -> LlmClientError:
         timeout = self._settings.openai_timeout_seconds
         return LlmClientError(
             f"LLM 供应商请求超过 {timeout:g} 秒仍未返回。"
-            "请稍后重试，或联系管理员检查 Provider 可用性、thinking 关闭配置和 OPENAI_TIMEOUT_SECONDS。"
+            "请稍后重试，或联系管理员检查 Provider 可用性、模型响应速度和 OPENAI_TIMEOUT_SECONDS。"
         )
 
     def _is_timeout_error(self, error: object) -> bool:

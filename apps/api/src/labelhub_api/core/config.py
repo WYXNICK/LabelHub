@@ -28,16 +28,22 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = Field(default=False, alias="SESSION_COOKIE_SECURE")
     session_max_age_seconds: int = Field(default=60 * 60 * 8, alias="SESSION_MAX_AGE_SECONDS")
     system_agent_token: str = Field(default="dev-system-agent-token", alias="SYSTEM_AGENT_TOKEN")
+    review_job_lock_timeout_seconds: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+        alias="REVIEW_JOB_LOCK_TIMEOUT_SECONDS",
+    )
     openai_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("OPENAI_API_KEY", "LLM_API_KEY"),
     )
     openai_base_url: str = Field(
-        default="https://api.openai.com/v1",
+        default="https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
         validation_alias=AliasChoices("BASE_URL", "OPENAI_BASE_URL", "LLM_BASE_URL"),
     )
     openai_model_name: str = Field(
-        default="gpt-4o-mini",
+        default="astron-code-latest",
         validation_alias=AliasChoices("MODEL_NAME", "OPENAI_MODEL_NAME", "OPENAI_MODEL", "LLM_MODEL_NAME"),
     )
     openai_timeout_seconds: float = Field(
@@ -45,10 +51,6 @@ class Settings(BaseSettings):
         ge=1,
         le=300,
         validation_alias=AliasChoices("OPENAI_TIMEOUT_SECONDS", "LLM_TIMEOUT_SECONDS", "LLM_REQUEST_TIMEOUT_SECONDS"),
-    )
-    openai_thinking_enabled: bool | None = Field(
-        default=None,
-        validation_alias=AliasChoices("OPENAI_THINKING_ENABLED", "LLM_THINKING_ENABLED"),
     )
     llm_temperature: float = Field(
         default=0.2,

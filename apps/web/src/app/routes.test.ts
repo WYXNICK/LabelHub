@@ -6,7 +6,7 @@ describe("role routes", () => {
   it("maps roles to isolated home paths", () => {
     expect(roleHomePath.OWNER).toBe("/owner/foundation");
     expect(roleHomePath.LABELER).toBe("/labeler/marketplace");
-    expect(roleHomePath.REVIEWER).toBe("/reviewer/reviews");
+    expect(roleHomePath.REVIEWER).toBe("/reviewer/ai-review-queue");
   });
 
   it("allows only paths under the current role prefix", () => {

@@ -88,13 +88,51 @@ def _normalize_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
         normalized["scores"] = normalized["dimensionScores"]
     if "summary" not in normalized and isinstance(normalized.get("comment"), str):
         normalized["summary"] = normalized["comment"]
-    if "issues" not in normalized:
-        normalized["issues"] = []
+    normalized["issues"] = _normalize_issues(normalized.get("issues"))
+    normalized["suggestions"] = _normalize_suggestions(normalized.get("suggestions"))
 
     # 保留最终 DTO 的严格性：归一化后移除审核配置旧 schema 中的兼容字段。
     for legacy_key in ["decision", "totalScore", "dimensionScores", "comment"]:
         normalized.pop(legacy_key, None)
     return normalized
+
+
+def _normalize_suggestions(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, list):
+        parts = [str(item).strip() for item in value if str(item).strip()]
+        return "；".join(parts) if parts else None
+    return str(value).strip() or None
+
+
+def _normalize_issues(value: Any) -> list[dict[str, str | None]]:
+    if value in (None, ""):
+        return []
+    raw_issues = value if isinstance(value, list) else [value]
+    issues: list[dict[str, str | None]] = []
+    for index, item in enumerate(raw_issues):
+        if isinstance(item, str):
+            message = item.strip()
+            if message:
+                issues.append({"field": None, "code": "MODEL_NOTE", "message": message})
+            continue
+        if isinstance(item, dict):
+            message = str(item.get("message") or item.get("reason") or item.get("description") or "").strip()
+            if not message:
+                message = _json_dumps(item)
+            code = str(item.get("code") or item.get("type") or f"MODEL_ISSUE_{index + 1}").strip()
+            field = item.get("field")
+            issues.append(
+                {
+                    "field": str(field).strip() if field not in (None, "") else None,
+                    "code": code or "MODEL_ISSUE",
+                    "message": message,
+                }
+            )
+    return issues
 
 
 def _normalize_decision(value: str) -> str:

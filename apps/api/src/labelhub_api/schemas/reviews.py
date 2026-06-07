@@ -30,6 +30,11 @@ class ReviewJobVO(CamelModel):
     review_config_version_id: str
     review_config_version_no: int | None = None
     status: ReviewJobStatus
+    review_id: str | None = None
+    ai_conclusion: AiReviewConclusion | None = None
+    ai_score_total: float | None = None
+    ai_issue_count: int = 0
+    ai_comment: str | None = None
     attempt_count: int
     max_attempts: int
     idempotency_key: str
@@ -40,6 +45,29 @@ class ReviewJobVO(CamelModel):
     finished_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ReviewJobSummaryVO(CamelModel):
+    total_jobs: int
+    status_counts: dict[str, int]
+    ai_conclusion_counts: dict[str, int]
+    pending_review_count: int
+    today_processed_count: int
+    today_succeeded_count: int
+    today_failed_count: int
+    today_fallback_count: int
+    today_pass_count: int
+    today_return_count: int
+    today_manual_count: int
+    average_latency_seconds: float | None = None
+    failure_rate: float
+    max_attempts: int
+    running_job_count: int
+    stale_running_job_count: int
+    active_worker_count: int
+    lock_timeout_seconds: int
+    latest_worker_id: str | None = None
+    latest_job_updated_at: datetime | None = None
 
 
 class ClaimReviewJobRequest(CamelModel):

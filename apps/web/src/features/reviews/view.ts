@@ -51,6 +51,9 @@ export const submissionDiffChangeMeta: Record<string, { label: string; color: st
 };
 
 const reviewerReviewDetailPattern = /^\/reviewer\/reviews\/([^/?#]+)$/;
+export const reviewerAiReviewQueuePath = "/reviewer/ai-review-queue";
+export const reviewerManualReviewPath = "/reviewer/reviews";
+export const reviewerReviewResultsPath = "/reviewer/results";
 
 export function buildReviewerReviewDetailPath(reviewId: string): string {
   return `/reviewer/reviews/${reviewId}`;
@@ -70,6 +73,30 @@ export function formatReviewConfigVersion(version: number | null): string {
 
 export function formatAiScoreTotal(score: number | null): string {
   return typeof score === "number" ? `${score}` : "待评分";
+}
+
+export function normalizeReviewScoreToPercent(score: number | null | undefined, maxScore: number | null | undefined): number {
+  if (typeof score !== "number" || typeof maxScore !== "number" || maxScore <= 0) {
+    return 0;
+  }
+  const percent = (score / maxScore) * 100;
+  return Math.max(0, Math.min(100, Number(percent.toFixed(1))));
+}
+
+export function formatReviewScorePercent(score: number | null | undefined, maxScore: number | null | undefined): string {
+  const percent = normalizeReviewScoreToPercent(score, maxScore);
+  const value = Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(1);
+  return `${value} 分`;
+}
+
+export function formatLatency(seconds: number | null): string {
+  if (typeof seconds !== "number") {
+    return "暂无";
+  }
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 2)}s`;
+  }
+  return `${(seconds / 60).toFixed(1)}min`;
 }
 
 export function formatReviewTraceCode(id: string): string {

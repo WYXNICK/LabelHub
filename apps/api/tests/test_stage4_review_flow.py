@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -18,6 +19,7 @@ from test_stage3_assignments import client_with_db, create_task, login, prepare_
 
 STAGE4_PATHS = {
     "/api/review-jobs": {"get"},
+    "/api/review-jobs/summary": {"get"},
     "/api/internal/review-jobs:claim": {"post"},
     "/api/internal/review-jobs/{jobId}/results": {"post"},
     "/api/reviews": {"get"},
@@ -47,6 +49,7 @@ def test_stage4_openapi_and_metadata_contract_are_registered() -> None:
         "CompleteReviewJobRequest",
         "ReviewVO",
         "ReviewDetailVO",
+        "ReviewJobSummaryVO",
     ]:
         assert schema_name in schemas
 
@@ -184,6 +187,76 @@ def test_reviewer_can_list_review_jobs_and_system_can_claim_context(
         assert audit_log.request_id == "req_stage4_claim"
 
 
+def test_system_agent_recovers_stale_running_review_job_before_claiming(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    task = create_task(client, title="Stage 4 stale running task", quota=1)
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    login(client, "labeler@labelhub.dev")
+    assignment = client.post(f"/api/tasks/{task['id']}/assignments", json={}).json()
+    client.post(
+        f"/api/assignments/{assignment['id']}/submissions",
+        json={
+            "values": {"answer": "stale running answer"},
+            "idempotencyKey": "submit-stage4-stale-running",
+            "clientDraftVersion": assignment["version"],
+        },
+    )
+
+    claim_response = client.post(
+        "/api/internal/review-jobs:claim",
+        json={"workerId": "agent-stage4-stale-old"},
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token"},
+    )
+    assert claim_response.status_code == 200
+    job_id = claim_response.json()["job"]["id"]
+
+    with session_factory() as session:
+        job = session.get(ReviewJobEntity, job_id)
+        assert job is not None
+        job.locked_at = datetime.now(UTC) - timedelta(seconds=600)
+        job.updated_at = job.locked_at
+        session.commit()
+
+    login(client, "reviewer@labelhub.dev")
+    summary_response = client.get("/api/review-jobs/summary")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["runningJobCount"] == 1
+    assert summary["staleRunningJobCount"] == 1
+    assert summary["activeWorkerCount"] == 0
+    assert summary["lockTimeoutSeconds"] == 300
+
+    retry_claim_response = client.post(
+        "/api/internal/review-jobs:claim",
+        json={"workerId": "agent-stage4-stale-new"},
+        headers={"X-LabelHub-System-Token": "dev-system-agent-token", "X-Request-ID": "req_stage4_stale_reclaim"},
+    )
+    assert retry_claim_response.status_code == 200
+    retried_job = retry_claim_response.json()["job"]
+    assert retried_job["id"] == job_id
+    assert retried_job["status"] == ReviewJobStatus.RUNNING.value
+    assert retried_job["attemptCount"] == 2
+    assert retried_job["lockedBy"] == "agent-stage4-stale-new"
+
+    with session_factory() as session:
+        job = session.get(ReviewJobEntity, job_id)
+        assert job is not None
+        assert job.status == ReviewJobStatus.RUNNING.value
+        assert job.last_error is None
+        timeout_audit = session.scalar(
+            select(AuditLogEntity).where(
+                AuditLogEntity.entity_type == AuditEntityType.REVIEW_JOB.value,
+                AuditLogEntity.entity_id == job_id,
+                AuditLogEntity.request_id == "req_stage4_stale_reclaim",
+                AuditLogEntity.to_state == ReviewJobStatus.FAILED.value,
+            )
+        )
+        assert timeout_audit is not None
+        assert timeout_audit.metadata_json["timeout"] is True
+
+
 def test_system_agent_success_creates_traceable_ai_review_suggestion(
     client_with_db: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
@@ -241,6 +314,23 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     assert listed_review["aiConclusion"] == "PASS"
     assert listed_review["aiScoreTotal"] == 5
     assert listed_review["aiIssueCount"] == 1
+
+    jobs_response = client.get("/api/review-jobs?page=1&pageSize=10")
+    assert jobs_response.status_code == 200
+    listed_job = jobs_response.json()["data"][0]
+    assert listed_job["reviewId"] == listed_review["id"]
+    assert listed_job["aiConclusion"] == "PASS"
+    assert listed_job["aiScoreTotal"] == 5
+    assert listed_job["aiIssueCount"] == 1
+
+    summary_response = client.get("/api/review-jobs/summary")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["totalJobs"] == 1
+    assert summary["statusCounts"]["SUCCEEDED"] == 1
+    assert summary["aiConclusionCounts"]["PASS"] == 1
+    assert summary["pendingReviewCount"] == 1
+    assert summary["maxAttempts"] == 3
 
     detail_response = client.get(f"/api/reviews/{listed_review['id']}")
     assert detail_response.status_code == 200
@@ -308,6 +398,13 @@ def test_system_agent_failure_retries_and_falls_back_to_human_review(
     assert listed_review["taskTitle"] == "Stage 4 retry task"
     assert listed_review["submissionVersion"] == 1
     assert listed_review["reviewConfigVersionNo"] == 1
+
+    summary_response = client.get("/api/review-jobs/summary")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["statusCounts"]["NEEDS_HUMAN_REVIEW"] == 1
+    assert summary["aiConclusionCounts"]["NEEDS_HUMAN_REVIEW"] == 1
+    assert summary["todayFallbackCount"] == 1
 
     with session_factory() as session:
         job = session.get(ReviewJobEntity, claimed_job_id)

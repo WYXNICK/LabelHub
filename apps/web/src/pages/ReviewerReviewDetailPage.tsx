@@ -16,8 +16,10 @@ import {
   aiConclusionMeta,
   formatAiScoreTotal,
   formatReviewConfigVersion,
+  formatReviewScorePercent,
   formatReviewValue,
   formatSubmissionVersion,
+  normalizeReviewScoreToPercent,
   reviewJobStatusMeta,
   reviewerAssignmentStatusMeta,
   reviewerSubmissionStatusMeta,
@@ -170,7 +172,7 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
             <Space direction="vertical" size={12} style={{ width: "100%" }}>
               {reviewConfigVersion.dimensions.map((dimension) => {
                 const score = review.aiScores[dimension.key] ?? 0;
-                const percent = Math.min(100, Math.round((score / dimension.maxScore) * 100));
+                const percent = normalizeReviewScoreToPercent(score, dimension.maxScore);
                 return (
                   <div key={dimension.key} className="labelhub-review-score-row">
                     <div>
@@ -186,7 +188,7 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
                       percent={percent}
                       size="small"
                       strokeColor={percent >= 80 ? "#13a867" : percent >= 60 ? "#ff8800" : "#ff4d4f"}
-                      format={() => `${score}/${dimension.maxScore}`}
+                      format={() => formatReviewScorePercent(score, dimension.maxScore)}
                     />
                   </div>
                 );

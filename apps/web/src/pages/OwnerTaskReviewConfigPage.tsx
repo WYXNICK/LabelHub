@@ -76,7 +76,7 @@ const newDimension: ReviewDimensionDTO = {
   key: "new_dimension",
   name: "新评分维度",
   description: null,
-  maxScore: 5,
+  maxScore: 100,
   weight: 1,
 };
 

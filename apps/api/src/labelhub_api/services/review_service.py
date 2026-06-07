@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from math import ceil
 from typing import Any
 from uuid import uuid4
@@ -21,6 +21,7 @@ from labelhub_api.core.enums import (
     SubmissionStatus,
     UserRole,
 )
+from labelhub_api.core.config import get_settings
 from labelhub_api.core.errors import ApiException
 from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
 from labelhub_api.models.audit import AuditLogEntity
@@ -40,6 +41,7 @@ from labelhub_api.schemas.reviews import (
     ReviewDetailVO,
     ReviewHistoryItemVO,
     ReviewJobVO,
+    ReviewJobSummaryVO,
     ReviewPromptSnapshotSummaryVO,
     ReviewStateLinkVO,
     SubmissionDiffItemVO,
@@ -55,6 +57,7 @@ logger = logging.getLogger(__name__)
 class ReviewService:
     def __init__(self, db: Session) -> None:
         self._db = db
+        self._settings = get_settings()
 
     def enqueue_for_submission(
         self,
@@ -175,6 +178,73 @@ class ReviewService:
             ),
         )
 
+    def get_review_job_summary(
+        self,
+        *,
+        user: UserVO,
+        task_id: str | None = None,
+        keyword: str | None = None,
+    ) -> ReviewJobSummaryVO:
+        self._require_reviewer_or_system(user)
+        query = select(ReviewJobEntity)
+        if task_id:
+            query = query.where(ReviewJobEntity.task_id == task_id)
+        if keyword and keyword.strip():
+            query = query.join(TaskEntity, ReviewJobEntity.task_id == TaskEntity.id).where(
+                self._task_keyword_clause(keyword.strip())
+            )
+
+        jobs = list(self._db.scalars(query))
+        job_ids = [job.id for job in jobs]
+        reviews = (
+            list(self._db.scalars(select(ReviewEntity).where(ReviewEntity.review_job_id.in_(job_ids)))) if job_ids else []
+        )
+        # SQLAlchemy 在 SQLite 测试库中会读出 naive datetime；统计侧统一使用 naive UTC 日界。
+        today_start = datetime.combine(datetime.now(UTC).date(), time.min)
+        completed_jobs = [job for job in jobs if job.finished_at is not None]
+        today_jobs = [job for job in completed_jobs if job.finished_at and job.finished_at >= today_start]
+        today_reviews = [review for review in reviews if review.created_at >= today_start]
+        now = datetime.now(UTC)
+        running_jobs = [job for job in jobs if job.status == ReviewJobStatus.RUNNING.value]
+        stale_running_jobs = [job for job in running_jobs if self._is_stale_running_job(job, now=now)]
+        stale_running_job_ids = {job.id for job in stale_running_jobs}
+        active_running_jobs = [job for job in running_jobs if job.id not in stale_running_job_ids]
+        running_workers = {job.locked_by for job in active_running_jobs if job.locked_by}
+        latest_job = max(jobs, key=lambda item: item.updated_at, default=None)
+        latest_active_worker_job = max(active_running_jobs, key=lambda item: item.updated_at, default=None)
+
+        status_counts = {status.value: 0 for status in ReviewJobStatus}
+        status_counts.update(self._count_by(jobs, lambda job: job.status))
+        conclusion_counts = {conclusion.value: 0 for conclusion in AiReviewConclusion}
+        conclusion_counts.update(
+            self._count_by([review for review in reviews if review.ai_conclusion], lambda review: str(review.ai_conclusion))
+        )
+
+        return ReviewJobSummaryVO(
+            total_jobs=len(jobs),
+            status_counts=status_counts,
+            ai_conclusion_counts=conclusion_counts,
+            pending_review_count=sum(1 for review in reviews if review.status == ReviewStatus.PENDING_HUMAN_REVIEW.value),
+            today_processed_count=len(today_jobs),
+            today_succeeded_count=sum(1 for job in today_jobs if job.status == ReviewJobStatus.SUCCEEDED.value),
+            today_failed_count=sum(1 for job in today_jobs if job.status == ReviewJobStatus.FAILED.value),
+            today_fallback_count=sum(1 for job in today_jobs if job.status == ReviewJobStatus.NEEDS_HUMAN_REVIEW.value),
+            today_pass_count=sum(1 for review in today_reviews if review.ai_conclusion == AiReviewConclusion.PASS.value),
+            today_return_count=sum(1 for review in today_reviews if review.ai_conclusion == AiReviewConclusion.RETURN.value),
+            today_manual_count=sum(
+                1 for review in today_reviews if review.ai_conclusion == AiReviewConclusion.NEEDS_HUMAN_REVIEW.value
+            ),
+            average_latency_seconds=self._average_latency_seconds(completed_jobs),
+            failure_rate=self._failure_rate(completed_jobs),
+            max_attempts=max((job.max_attempts for job in jobs), default=0),
+            running_job_count=len(running_jobs),
+            stale_running_job_count=len(stale_running_jobs),
+            active_worker_count=len(running_workers),
+            lock_timeout_seconds=self._settings.review_job_lock_timeout_seconds,
+            latest_worker_id=latest_active_worker_job.locked_by if latest_active_worker_job is not None else None,
+            latest_job_updated_at=latest_job.updated_at if latest_job is not None else None,
+        )
+
     def claim_review_job(
         self,
         *,
@@ -183,6 +253,10 @@ class ReviewService:
         request_id: str,
     ) -> ClaimReviewJobResponse:
         self._require_system(user)
+        now = datetime.now(UTC)
+        recovered_count = self._recover_stale_running_jobs(user=user, request_id=request_id, now=now)
+        if recovered_count:
+            self._db.flush()
         job = self._db.scalar(
             select(ReviewJobEntity)
             .where(
@@ -193,9 +267,10 @@ class ReviewService:
             .limit(1)
         )
         if job is None:
+            if recovered_count:
+                self._db.commit()
             return ClaimReviewJobResponse()
 
-        now = datetime.now(UTC)
         previous_status = job.status
         result = self._db.execute(
             update(ReviewJobEntity)
@@ -242,6 +317,63 @@ class ReviewService:
             job.max_attempts,
         )
         return self._build_claim_response(job)
+
+    def _recover_stale_running_jobs(self, *, user: UserVO, request_id: str, now: datetime) -> int:
+        running_jobs = list(
+            self._db.scalars(select(ReviewJobEntity).where(ReviewJobEntity.status == ReviewJobStatus.RUNNING.value))
+        )
+        stale_jobs = [job for job in running_jobs if self._is_stale_running_job(job, now=now)]
+        for job in stale_jobs:
+            previous_status = job.status
+            next_status = (
+                ReviewJobStatus.NEEDS_HUMAN_REVIEW.value
+                if job.attempt_count >= job.max_attempts
+                else ReviewJobStatus.FAILED.value
+            )
+            timeout_message = (
+                f"Agent processing timed out after {self._settings.review_job_lock_timeout_seconds}s; "
+                "waiting for retry or human fallback."
+            )
+            job.status = next_status
+            job.last_error = timeout_message
+            job.finished_at = now
+            job.locked_by = None
+            job.locked_at = None
+            job.updated_at = now
+            if next_status == ReviewJobStatus.NEEDS_HUMAN_REVIEW.value:
+                self._create_ai_review_from_failure(job, now=now, request_id=request_id)
+            self._append_audit(
+                entity_type=AuditEntityType.REVIEW_JOB,
+                entity_id=job.id,
+                actor=user,
+                action=AuditAction.REVIEW_JOB_RESULT,
+                request_id=request_id,
+                from_state=previous_status,
+                to_state=next_status,
+                metadata={
+                    "timeout": True,
+                    "lockTimeoutSeconds": self._settings.review_job_lock_timeout_seconds,
+                    "attempt": job.attempt_count,
+                    "maxAttempts": job.max_attempts,
+                },
+            )
+            logger.warning(
+                "review job lock timed out job=%s nextStatus=%s attempt=%s/%s",
+                self._short_id(job.id),
+                next_status,
+                job.attempt_count,
+                job.max_attempts,
+            )
+        return len(stale_jobs)
+
+    def _is_stale_running_job(self, job: ReviewJobEntity, *, now: datetime) -> bool:
+        if job.status != ReviewJobStatus.RUNNING.value:
+            return False
+        if job.locked_at is None:
+            return True
+        locked_at = self._as_naive_utc(job.locked_at)
+        cutoff = self._as_naive_utc(now) - timedelta(seconds=self._settings.review_job_lock_timeout_seconds)
+        return locked_at < cutoff
 
     def complete_review_job(
         self,
@@ -516,6 +648,7 @@ class ReviewService:
         task = self._db.get(TaskEntity, job.task_id)
         submission = self._db.get(SubmissionEntity, job.submission_id)
         review_config = self._db.get(ReviewConfigVersionEntity, job.review_config_version_id)
+        review = self._db.scalar(select(ReviewEntity).where(ReviewEntity.review_job_id == job.id))
         return ReviewJobVO(
             id=job.id,
             task_id=job.task_id,
@@ -526,6 +659,11 @@ class ReviewService:
             review_config_version_id=job.review_config_version_id,
             review_config_version_no=review_config.version_no if review_config is not None else None,
             status=ReviewJobStatus(job.status),
+            review_id=review.id if review is not None else None,
+            ai_conclusion=AiReviewConclusion(review.ai_conclusion) if review is not None and review.ai_conclusion else None,
+            ai_score_total=self._calculate_score_total(review.ai_scores, review_config) if review is not None else None,
+            ai_issue_count=len(review.ai_issues or []) if review is not None else 0,
+            ai_comment=review.ai_comment if review is not None else None,
             attempt_count=job.attempt_count,
             max_attempts=job.max_attempts,
             idempotency_key=job.idempotency_key,
@@ -834,6 +972,38 @@ class ReviewService:
             weight = float(dimensions.get(key, {}).get("weight", 1.0))
             total += float(score) * weight
         return round(total, 2)
+
+    def _count_by(self, items: list[Any], key_fn) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for item in items:
+            key = str(key_fn(item))
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    def _as_naive_utc(self, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(UTC).replace(tzinfo=None)
+
+    def _average_latency_seconds(self, jobs: list[ReviewJobEntity]) -> float | None:
+        latencies = [
+            (job.finished_at - job.started_at).total_seconds()
+            for job in jobs
+            if job.started_at is not None and job.finished_at is not None and job.finished_at >= job.started_at
+        ]
+        if not latencies:
+            return None
+        return round(sum(latencies) / len(latencies), 2)
+
+    def _failure_rate(self, jobs: list[ReviewJobEntity]) -> float:
+        if not jobs:
+            return 0.0
+        failed = sum(
+            1
+            for job in jobs
+            if job.status in {ReviewJobStatus.FAILED.value, ReviewJobStatus.NEEDS_HUMAN_REVIEW.value}
+        )
+        return round((failed / len(jobs)) * 100, 2)
 
     def _to_prompt_snapshot_summary_vo(self, prompt_snapshot: str | None) -> ReviewPromptSnapshotSummaryVO | None:
         summary = self._summarize_prompt_snapshot(prompt_snapshot)

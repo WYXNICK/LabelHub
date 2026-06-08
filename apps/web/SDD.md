@@ -198,7 +198,8 @@ export interface LogoutResponseVO {
 | 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.4 已补充状态链路、多轮历史和提交 diff |
 | 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 已实现 |
 | 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.6 已实现 |
-| 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
+| 5 | 导出字段选项 | `ExportFieldOptionsVO` | `GET /api/tasks/:taskId/export-field-options` | 阶段 5 待实现；必须先与后端 SDD 对齐 |
+| 5 | 导出任务 | `ExportJobVO`、`CreateExportJobRequest` | `POST /api/tasks/:taskId/export-jobs`、`GET /api/tasks/:taskId/export-jobs` | 阶段 5 待实现；导出配置、历史、下载共用 |
 
 ### 9.1 阶段 1.0 已对齐前端契约
 
@@ -967,7 +968,7 @@ export interface ContributionItemVO {
 交互规则：
 
 - `/labeler/contributions` 是 Labeler 的“我的数据”主入口，页面要同时展示统计卡、状态分组、关键词筛选和列表，不依赖任务广场上下文。
-- 打回原因必须使用 `reviewFeedback.reason` 展示；若阶段 4 尚未写入真实审核意见，页面展示“暂无详细审核意见”，但不得把打回入口隐藏。
+- 打回原因必须使用 `reviewFeedback.reason` 展示；阶段 4 已写入真实审核意见，只有历史数据缺少原因时才展示“暂无详细审核意见”，但不得把打回入口隐藏。
 - `/labeler/assignments/:assignmentId/revise` 复用 `LabelerAssignmentWorkspacePage` 与 `TemplateRenderer`，仅在顶部和右侧增强打回意见、返修文案和返回路径。
 - 从返修页点击返回必须回到 `/labeler/contributions`；从普通作答页返回仍回到 `/labeler/marketplace`。
 - 返修再次提交继续调用 `createSubmission`，按钮文案为“重新提交审核”；提交成功后刷新上下文并回到只读提交态。
@@ -1246,6 +1247,78 @@ export interface AcceptanceStatsVO {
 - Reviewer 审核通过或打回后，Labeler 贡献页和返修页必须能通过现有 `ReviewFeedbackVO` 看到最新打回意见。
 - Owner 数据验收页从 `/owner/tasks/:taskId/acceptance` 进入，展示任务通过率、打回率、待审量、AI 结论分布和最近验收样本；页面为只读分析视图，不承担人工审核决策。
 - 阶段 4 所有 Reviewer 页面仍需使用 Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 下验收，重点检查列表操作区、详情页右侧决策面板、批量操作条和时间线不遮挡。
+
+### 9.17 阶段 5 Owner 导出中心前端契约
+
+阶段 5 前端优先补齐 Owner 的多格式导出闭环。导出中心必须建立在阶段 4 的人工通过数据之上，不允许导出待审、AI 预审中或已打回数据。页面设计应延续 Owner 后台的紧凑白底卡片风格，避免把字段映射、导出历史和下载状态拆得过散。
+
+阶段 5 页面：
+
+| 页面 | 路由 | 职责 |
+| --- | --- | --- |
+| 任务导出中心 | `/owner/tasks/:taskId/exports` | 查看可导出数据量、选择格式、配置字段映射、创建导出任务、展示导出历史和下载入口 |
+| 导出参数抽屉 | 同页抽屉/弹层 | JSON、JSONL、CSV、Excel 格式选择；字段顺序、字段名、是否包含审核记录和关键审计时间线 |
+| 交付材料 | `submission/` 文档目录 | 部署说明、演示脚本、截图、OpenAPI 地址和测试账号说明 |
+
+前端核心类型：
+
+```ts
+export type ExportFormat = "JSON" | "JSONL" | "CSV" | "EXCEL";
+export type ExportJobStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+export type ExportFieldSource = "DATASET_PAYLOAD" | "SUBMISSION_VALUE" | "REVIEW_METADATA" | "AUDIT_TIMELINE";
+
+export interface ExportFieldOptionVO {
+  source: ExportFieldSource;
+  path: string;
+  label: string;
+  sampleValue: unknown | null;
+  defaultSelected: boolean;
+}
+
+export interface ExportFieldMappingDTO {
+  source: ExportFieldSource;
+  path: string;
+  outputKey: string;
+  label: string | null;
+  order: number;
+  selected: boolean;
+}
+
+export interface CreateExportJobRequest {
+  format: ExportFormat;
+  fieldMappings: ExportFieldMappingDTO[];
+  includeReviewRecords: boolean;
+  includeAuditTimeline: boolean;
+  idempotencyKey?: string;
+}
+
+export interface ExportJobVO {
+  id: string;
+  taskId: string;
+  taskTitle: string | null;
+  format: ExportFormat;
+  status: ExportJobStatus;
+  totalRows: number;
+  exportedRows: number;
+  fileObjectId: string | null;
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  errorMessage: string | null;
+  createdBy: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+```
+
+交互规则：
+
+- 入口从 Owner 任务列表和 Owner 数据验收页进入，优先让用户先看“可导出通过数据量”，再创建导出任务。
+- 字段映射选项来自后端 `ExportFieldOptionVO`，前端只负责重命名、排序和选择，不自行猜测后端字段。
+- CSV/Excel 创建前必须提示“数组/对象字段会被 JSON 字符串化或扁平化”，具体策略以后端 SDD 为准。
+- 导出历史列表必须展示状态、进度、创建人、创建时间、完成时间、失败原因和下载按钮；`RUNNING/QUEUED` 支持刷新，不做假进度。
+- 下载入口只在 `status=SUCCEEDED` 且 `fileObjectId` 存在时可用。
+- 前端浏览器验收必须覆盖 `1280×800` 与 `1920×1080`：字段映射表不横向溢出，长字段名省略并可查看完整值，导出历史在空态、失败态、成功态均清晰。
 
 ## 10. 前后端字段映射检查清单
 

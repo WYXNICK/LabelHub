@@ -17,7 +17,7 @@
 - MySQL Driver：PyMySQL
 - 队列：阶段 0 只保留接口边界，正式队列实现后续阶段确认
 - 包管理器：uv
-- LLM 接入：OpenAI API 格式；Agent 当前使用 `BASE_URL=https://maas-coding-api.cn-huabei-1.xf-yun.com/v2`、`MODEL_NAME=astron-code-latest`
+- LLM 接入：OpenAI API 格式；`OPENAI_API_KEY`、`BASE_URL`、`MODEL_NAME` 通过环境变量配置，不绑定供应商私有 SDK
 - 鉴权：HttpOnly Cookie Session
 
 ## 3. uv 包管理规则
@@ -313,7 +313,11 @@ class LogoutResponseVO:
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.5 已实现 |
 | 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.5 已实现 |
 | 4 | `GET /api/tasks/{taskId}/acceptance-stats` | `GetAcceptanceStatsRequest` | `AcceptanceStatsVO` | 阶段 4.6 已实现 |
-| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
+| 5 | `GET /api/tasks/{taskId}/export-field-options` | `GetExportFieldOptionsRequest` | `ExportFieldOptionsVO` | 阶段 5 待实现；必须先与前端 SDD 对齐 |
+| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 阶段 5 待实现；创建异步导出任务 |
+| 5 | `GET /api/tasks/{taskId}/export-jobs` | `ListExportJobsRequest` | `PageVO[ExportJobVO]` | 阶段 5 待实现；导出历史 |
+| 5 | `GET /api/export-jobs/{exportJobId}` | `GetExportJobRequest` | `ExportJobVO` | 阶段 5 待实现；导出详情 |
+| 5 | `GET /api/export-jobs/{exportJobId}/download` | `GetExportJobFileRequest` | 文件响应 | 阶段 5 待实现；只允许下载成功导出 |
 
 ### 9.1 阶段 1.0 已对齐契约
 
@@ -1201,7 +1205,7 @@ class HumanReviewDecision(str, Enum):
 - 时间线按 assignment 聚合同一题目的 submission/review 审计事件，避免只查当前 review/job 导致 AI 预审节点丢失；历史数据缺少 `REVIEW_AI_SUGGESTION` 审计时，可从已落库 `ReviewEntity` 兜底补出 AI 预审节点。
 - `ReviewTimelineItemVO` 必须返回 `actorId`、`actorName`、`actorRole`、`action`、`fromState`、`toState`、`reason`、`metadata`、`createdAt`，前端优先展示人员名称与右侧时间，下方展示流转动作。
 
-阶段 4.0/4.1/4.2/4.3/4.4 当前完成状态：
+阶段 4.0-4.6 当前完成状态：
 
 - Alembic `0005_create_review_foundation.py` 已创建 `review_jobs` 与 `reviews` 表，并注册到 SQLAlchemy metadata。
 - `ReviewJobStatus`、`AiReviewConclusion`、`ReviewStatus`、`HumanReviewDecision` 枚举已进入后端统一枚举。
@@ -1216,7 +1220,76 @@ class HumanReviewDecision(str, Enum):
 - `ReviewVO` 已补充 `aiScoreTotal` 与 `aiIssueCount`；`ReviewDetailVO` 已补充 `promptSnapshotSummary`，用于 Reviewer 查看 AI 建议时快速理解 Agent 使用的任务、题目字段、提交字段和评分维度。
 - 阶段 4.4 起，`ReviewDetailVO` 进一步补充 `stateLink`、`reviewHistory` 与 `submissionDiff`：`stateLink` 展示 assignment/submission/job/review 当前状态与下一步动作；`reviewHistory` 展示同一 assignment 的多轮提交与 AI/人工意见；`submissionDiff` 只比较当前提交与上一版提交的可提交字段，辅助 Reviewer 快速判断返修改动。
 - Agent 与后端都保留少量运行日志：后端记录预审 job 入队、领取和写回；Agent 记录 loop 启动、空闲等待、领取、完成和失败。日志只输出短 ID、任务标题摘要、尝试次数、结论、耗时和错误摘要，不输出密钥、完整 prompt、完整提交值或完整题目 payload。
-- `GET /api/review-jobs`、`GET /api/review-jobs/summary`、`GET /api/reviews/tasks`、`GET /api/reviews`、`GET /api/reviews/{reviewId}` 已进入 OpenAPI；阶段 4.6 起人工审核入口先按任务聚合，再进入任务内工作台。
+- `GET /api/review-jobs`、`GET /api/review-jobs/summary`、`GET /api/reviews/tasks`、`GET /api/reviews`、`GET /api/reviews/{reviewId}`、`POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` 和 `GET /api/tasks/{taskId}/acceptance-stats` 已进入 OpenAPI；阶段 4.6 起人工审核入口先按任务聚合，再进入任务内工作台。
+
+### 9.17 阶段 5 多格式导出与交付契约
+
+阶段 5 必须在阶段 4 人工审核闭环之后实现，只导出已经人工通过或 Reviewer 直接修订入库的数据。导出不得读取模板草稿，也不得导出仍处于 AI 预审、待人工审核或已打回状态的提交。
+
+后端核心 DTO：
+
+```python
+class ExportFieldOptionVO:
+    source: str  # DATASET_PAYLOAD | SUBMISSION_VALUE | REVIEW_METADATA | AUDIT_TIMELINE
+    path: str
+    label: str
+    sample_value: object | None
+    default_selected: bool
+
+
+class ExportFieldMappingDTO:
+    source: str
+    path: str
+    output_key: str
+    label: str | None
+    order: int
+    selected: bool = True
+
+
+class CreateExportJobRequest:
+    format: str  # JSON | JSONL | CSV | EXCEL
+    field_mappings: list[ExportFieldMappingDTO]
+    include_review_records: bool = False
+    include_audit_timeline: bool = False
+    idempotency_key: str | None = None
+
+
+class ExportJobVO:
+    id: str
+    task_id: str
+    task_title: str | None
+    format: str
+    status: str  # QUEUED | RUNNING | SUCCEEDED | FAILED
+    total_rows: int
+    exported_rows: int
+    file_object_id: str | None
+    file_name: str | None
+    file_size_bytes: int | None
+    error_message: str | None
+    created_by: str
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+```
+
+接口规则：
+
+| 接口 | 权限 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/export-field-options` | `OWNER` | 根据当前任务数据集 payload、模板版本提交字段和审核记录推导可导出字段，返回示例值和默认选择 |
+| `POST /api/tasks/{taskId}/export-jobs` | `OWNER` | 创建异步导出任务，校验格式、字段映射、任务归属和可导出记录数 |
+| `GET /api/tasks/{taskId}/export-jobs` | `OWNER` | 分页查询导出历史，展示进度、状态、失败原因和下载入口 |
+| `GET /api/export-jobs/{exportJobId}` | `OWNER` | 查询导出详情和最终参数快照 |
+| `GET /api/export-jobs/{exportJobId}/download` | `OWNER` | 下载成功导出的文件；未成功或无权限返回业务错误 |
+
+状态与审计：
+
+- 创建任务后进入 `QUEUED`；MVP 可以由 API 进程同步完成小文件生成，但对前端仍暴露异步状态，保留后续 worker 化空间。
+- 导出只读取 `reviews.status=APPROVED`、`submissions.status=APPROVED` 的最终提交值；`DIRECT_REVISE` 通过后的导出值以修订后的 submission values 为准。
+- `field_mappings` 必须作为快照保存到 `export_jobs`，避免后续模板或字段名变化影响历史导出复现。
+- JSON/JSONL 保留结构化字段；CSV/Excel 必须按 `field_mappings.order` 生成稳定列顺序。
+- 创建、完成、失败和下载均写 `audit_logs`，`entityType=EXPORT_JOB`。
+- 导出文件通过 `file_objects.purpose=EXPORT` 关联，不把文件内容写入业务表。
 
 ## 10. 阶段 0 Entity 与迁移契约
 
@@ -1296,4 +1369,4 @@ class AiReviewResultDTO:
 
 - 队列实现方案。
 - 前端类型是否从后端 OpenAPI 自动生成，阶段 0 先手写契约类型。
-- 当前 OpenAI API 兼容供应商的基础 Chat Completions 请求已通过阶段 4.4 端到端验证；Agent 结构化输出归一化后可写回 AI 预审结果。
+- 当前 OpenAI API 兼容供应商的基础 Chat Completions 请求已通过阶段 4 端到端验证；Agent 结构化输出归一化后可写回 AI 预审结果。

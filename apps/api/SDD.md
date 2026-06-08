@@ -313,11 +313,11 @@ class LogoutResponseVO:
 | 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.5 已实现 |
 | 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.5 已实现 |
 | 4 | `GET /api/tasks/{taskId}/acceptance-stats` | `GetAcceptanceStatsRequest` | `AcceptanceStatsVO` | 阶段 4.6 已实现 |
-| 5 | `GET /api/tasks/{taskId}/export-field-options` | `GetExportFieldOptionsRequest` | `ExportFieldOptionsVO` | 阶段 5 待实现；必须先与前端 SDD 对齐 |
-| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 阶段 5 待实现；创建异步导出任务 |
-| 5 | `GET /api/tasks/{taskId}/export-jobs` | `ListExportJobsRequest` | `PageVO[ExportJobVO]` | 阶段 5 待实现；导出历史 |
-| 5 | `GET /api/export-jobs/{exportJobId}` | `GetExportJobRequest` | `ExportJobVO` | 阶段 5 待实现；导出详情 |
-| 5 | `GET /api/export-jobs/{exportJobId}/download` | `GetExportJobFileRequest` | 文件响应 | 阶段 5 待实现；只允许下载成功导出 |
+| 5 | `GET /api/tasks/{taskId}/export-field-options` | `GetExportFieldOptionsRequest` | `ExportFieldOptionsVO` | 阶段 5.1 已实现；字段选项来自数据集、提交字段、审核元数据和时间线 |
+| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 阶段 5.1 已实现；创建异步导出任务快照 |
+| 5 | `GET /api/tasks/{taskId}/export-jobs` | `ListExportJobsRequest` | `PageVO[ExportJobVO]` | 阶段 5.1 已实现；导出历史 |
+| 5 | `GET /api/export-jobs/{exportJobId}` | `GetExportJobRequest` | `ExportJobVO` | 阶段 5.1 已实现；导出详情 |
+| 5 | `GET /api/export-jobs/{exportJobId}/download` | `GetExportJobFileRequest` | `ExportJobVO/文件响应` | 阶段 5.1 已占位校验；5.2-5.4 生成文件后返回下载 |
 
 ### 9.1 阶段 1.0 已对齐契约
 
@@ -1237,6 +1237,14 @@ class ExportFieldOptionVO:
     default_selected: bool
 
 
+class ExportFieldOptionsVO:
+    task_id: str
+    task_title: str
+    approved_count: int
+    latest_approved_at: datetime | None
+    options: list[ExportFieldOptionVO]
+
+
 class ExportFieldMappingDTO:
     source: str
     path: str
@@ -1284,11 +1292,11 @@ class ExportJobVO:
 
 状态与审计：
 
-- 创建任务后进入 `QUEUED`；MVP 可以由 API 进程同步完成小文件生成，但对前端仍暴露异步状态，保留后续 worker 化空间。
+- 阶段 5.1 创建任务后进入 `QUEUED` 并保存导出参数快照；阶段 5.2-5.4 再生成 JSON/JSONL/CSV/Excel 文件并推进 `RUNNING/SUCCEEDED/FAILED`。
 - 导出只读取 `reviews.status=APPROVED`、`submissions.status=APPROVED` 的最终提交值；`DIRECT_REVISE` 通过后的导出值以修订后的 submission values 为准。
 - `field_mappings` 必须作为快照保存到 `export_jobs`，避免后续模板或字段名变化影响历史导出复现。
 - JSON/JSONL 保留结构化字段；CSV/Excel 必须按 `field_mappings.order` 生成稳定列顺序。
-- 创建、完成、失败和下载均写 `audit_logs`，`entityType=EXPORT_JOB`。
+- 阶段 5.1 创建导出任务写 `audit_logs`，`entityType=EXPORT_JOB`；完成、失败和下载审计在文件生成阶段补齐。
 - 导出文件通过 `file_objects.purpose=EXPORT` 关联，不把文件内容写入业务表。
 
 ## 10. 阶段 0 Entity 与迁移契约

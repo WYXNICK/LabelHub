@@ -17,6 +17,7 @@ import { useAuthStore } from "../features/auth/store";
 import type { UserRole, UserVO } from "../features/auth/types";
 import { matchLabelerAssignmentPath, matchLabelerAssignmentRevisePath } from "../features/assignments/view";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
+import { matchOwnerTaskExportsPath } from "../features/exports/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
 import { matchReviewerReviewDetailPath, matchReviewerReviewTaskPath } from "../features/reviews/view";
 import { matchOwnerTaskAcceptancePath, matchOwnerTaskSettingsPath } from "../features/tasks/view";
@@ -24,6 +25,7 @@ import { matchOwnerTaskDesignerPath } from "../features/templates/view";
 import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
 import { OwnerTaskAcceptancePage } from "./OwnerTaskAcceptancePage";
+import { OwnerTaskExportsPage } from "./OwnerTaskExportsPage";
 import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
@@ -164,6 +166,7 @@ function getRouteChipLabel(role: UserRole, path: string): string {
   if (role === "OWNER") {
     if (matchOwnerTaskDesignerPath(path)) return "模板搭建器";
     if (matchOwnerTaskAcceptancePath(path)) return "数据验收";
+    if (matchOwnerTaskExportsPath(path)) return "导出中心";
     if (matchOwnerTaskDatasetsPath(path)) return "任务数据集";
     if (matchOwnerTaskReviewConfigPath(path)) return "审核配置";
     if (matchOwnerTaskSettingsPath(path)) return "任务设置";
@@ -212,6 +215,10 @@ function renderRoleContent(user: UserVO, path: string) {
     const taskAcceptanceId = matchOwnerTaskAcceptancePath(path);
     if (taskAcceptanceId) {
       return <OwnerTaskAcceptancePage taskId={taskAcceptanceId} />;
+    }
+    const taskExportsId = matchOwnerTaskExportsPath(path);
+    if (taskExportsId) {
+      return <OwnerTaskExportsPage taskId={taskExportsId} />;
     }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {

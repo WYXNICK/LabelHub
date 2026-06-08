@@ -3,6 +3,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   DatabaseOutlined,
+  DownloadOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
   FileDoneOutlined,
@@ -96,6 +97,7 @@ type TaskActionMenuKey =
   | "template-preview"
   | "publish-check"
   | "acceptance"
+  | "exports"
   | `transition:${TaskStatus}`;
 
 export function OwnerTaskListPage() {
@@ -234,6 +236,11 @@ export function OwnerTaskListPage() {
         icon: <FileDoneOutlined />,
         label: "数据验收",
       },
+      {
+        key: "exports",
+        icon: <DownloadOutlined />,
+        label: "导出中心",
+      },
     ];
 
     if (secondaryTransitions.length > 0) {
@@ -264,6 +271,10 @@ export function OwnerTaskListPage() {
       }
       if (actionKey === "acceptance") {
         navigate(`/owner/tasks/${task.id}/acceptance`);
+        return;
+      }
+      if (actionKey === "exports") {
+        navigate(`/owner/tasks/${task.id}/exports`);
         return;
       }
       if (actionKey.startsWith("transition:")) {

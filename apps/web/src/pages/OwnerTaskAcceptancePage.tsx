@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Empty, Flex, Progress, Skeleton, Space, Statistic, Tag, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -99,6 +99,9 @@ function OwnerTaskAcceptanceContent({
           </Typography.Text>
         </div>
         <Space wrap>
+          <Button icon={<DownloadOutlined />} type="primary" onClick={() => navigate(`/owner/tasks/${task.id}/exports`)}>
+            导出中心
+          </Button>
           <Button onClick={() => navigate(`/owner/tasks/${task.id}/datasets`)}>查看数据集</Button>
           <Button onClick={() => navigate(`/owner/tasks/${task.id}/review-config`)}>审核配置</Button>
           <Button icon={<ReloadOutlined />} onClick={() => void onReload()}>

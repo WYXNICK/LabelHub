@@ -198,8 +198,8 @@ export interface LogoutResponseVO {
 | 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.4 已补充状态链路、多轮历史和提交 diff |
 | 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 已实现 |
 | 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.6 已实现 |
-| 5 | 导出字段选项 | `ExportFieldOptionsVO` | `GET /api/tasks/:taskId/export-field-options` | 阶段 5 待实现；必须先与后端 SDD 对齐 |
-| 5 | 导出任务 | `ExportJobVO`、`CreateExportJobRequest` | `POST /api/tasks/:taskId/export-jobs`、`GET /api/tasks/:taskId/export-jobs` | 阶段 5 待实现；导出配置、历史、下载共用 |
+| 5 | 导出字段选项 | `ExportFieldOptionsVO` | `GET /api/tasks/:taskId/export-field-options` | 阶段 5.1 已实现；字段来源与后端 SDD 对齐 |
+| 5 | 导出任务 | `ExportJobVO`、`CreateExportJobRequest` | `POST /api/tasks/:taskId/export-jobs`、`GET /api/tasks/:taskId/export-jobs` | 阶段 5.1 已实现；导出配置、历史、下载入口共用 |
 
 ### 9.1 阶段 1.0 已对齐前端契约
 
@@ -1275,6 +1275,14 @@ export interface ExportFieldOptionVO {
   defaultSelected: boolean;
 }
 
+export interface ExportFieldOptionsVO {
+  taskId: string;
+  taskTitle: string;
+  approvedCount: number;
+  latestApprovedAt: string | null;
+  options: ExportFieldOptionVO[];
+}
+
 export interface ExportFieldMappingDTO {
   source: ExportFieldSource;
   path: string;
@@ -1316,8 +1324,8 @@ export interface ExportJobVO {
 - 入口从 Owner 任务列表和 Owner 数据验收页进入，优先让用户先看“可导出通过数据量”，再创建导出任务。
 - 字段映射选项来自后端 `ExportFieldOptionVO`，前端只负责重命名、排序和选择，不自行猜测后端字段。
 - CSV/Excel 创建前必须提示“数组/对象字段会被 JSON 字符串化或扁平化”，具体策略以后端 SDD 为准。
-- 导出历史列表必须展示状态、进度、创建人、创建时间、完成时间、失败原因和下载按钮；`RUNNING/QUEUED` 支持刷新，不做假进度。
-- 下载入口只在 `status=SUCCEEDED` 且 `fileObjectId` 存在时可用。
+- 阶段 5.1 导出历史列表展示 `QUEUED` 任务、创建人、创建时间、失败原因占位和下载入口禁用态；阶段 5.2-5.4 生成真实文件后再展示完成时间、文件大小和可下载状态。
+- 下载入口只在 `status=SUCCEEDED` 且 `fileObjectId` 存在时可用；当前阶段不会伪造下载。
 - 前端浏览器验收必须覆盖 `1280×800` 与 `1920×1080`：字段映射表不横向溢出，长字段名省略并可查看完整值，导出历史在空态、失败态、成功态均清晰。
 
 ## 10. 前后端字段映射检查清单

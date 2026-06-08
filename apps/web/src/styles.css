@@ -602,6 +602,81 @@ body {
   padding-inline: 2px;
 }
 
+.labelhub-export-hero {
+  border: 0;
+  box-shadow: 0 8px 24px rgba(31, 35, 41, 0.04);
+}
+
+.labelhub-export-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.labelhub-export-summary-grid h3 {
+  margin: 6px 0 2px !important;
+  color: #245bdb;
+}
+
+.labelhub-export-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-export-card {
+  height: 100%;
+}
+
+.labelhub-export-field-list {
+  display: grid;
+  gap: 10px;
+}
+
+.labelhub-export-field-item {
+  padding: 14px;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.labelhub-export-field-path {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-export-sample {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.labelhub-export-create-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.labelhub-export-create-stats .ant-statistic {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.labelhub-export-control {
+  display: flex;
+  min-width: 180px;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .labelhub-table-description {
   display: -webkit-box;
   max-width: 520px;
@@ -3017,6 +3092,14 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .labelhub-export-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .labelhub-export-grid {
+    grid-template-columns: 1fr;
+  }
+
   .labelhub-review-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -3273,6 +3356,8 @@ body {
   .labelhub-review-ai-summary,
   .labelhub-acceptance-summary-grid,
   .labelhub-acceptance-grid,
+  .labelhub-export-summary-grid,
+  .labelhub-export-grid,
   .labelhub-ai-review-layout,
   .labelhub-ai-review-insight-grid {
     grid-template-columns: 1fr;

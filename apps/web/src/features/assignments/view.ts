@@ -156,3 +156,21 @@ export function resolveAssignmentInitialValue(context: AssignmentContextVO): Tem
   }
   return getTemplateInitialValue(context.templateSchema);
 }
+
+export function serializeAssignmentDraftValue(value: TemplateSubmissionValue): string {
+  return JSON.stringify(toStableJsonValue(value));
+}
+
+function toStableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(toStableJsonValue);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+      .map(([key, item]) => [key, toStableJsonValue(item)]),
+  );
+}

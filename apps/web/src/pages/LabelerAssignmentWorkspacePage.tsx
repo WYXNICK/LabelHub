@@ -49,6 +49,7 @@ import {
   getAssignmentProgressText,
   isAssignmentEditable,
   resolveAssignmentInitialValue,
+  serializeAssignmentDraftValue,
   summarizeAssignmentQueue,
   type DraftSaveStatus,
 } from "../features/assignments/view";
@@ -104,7 +105,7 @@ function getServerSubmissionErrors(error: unknown): TemplateSubmissionError[] {
 }
 
 function serializeDraftValue(value: TemplateSubmissionValue): string {
-  return JSON.stringify(value);
+  return serializeAssignmentDraftValue(value);
 }
 
 function formatPayload(payload: unknown): string {
@@ -158,6 +159,7 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
   const saveInFlightRef = useRef(false);
   const lastSavedDraftRef = useRef("");
   const lastFailedDraftRef = useRef("");
+  const valueRef = useRef<TemplateSubmissionValue>({});
   const queueSummary = useMemo(() => summarizeAssignmentQueue(jumpAssignments), [jumpAssignments]);
   const localSubmitErrors = useMemo(() => {
     if (!context) {
@@ -184,6 +186,10 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
   }, []);
 
   const handleValueChange = useCallback((nextValue: TemplateSubmissionValue) => {
+    if (serializeDraftValue(valueRef.current) === serializeDraftValue(nextValue)) {
+      return;
+    }
+    valueRef.current = nextValue;
     setValue(nextValue);
     setSubmitErrors([]);
     setSubmitError(null);
@@ -247,8 +253,12 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
     setError(null);
     try {
       const nextContext = await getAssignmentContext(assignmentId);
-      const initialValue = resolveAssignmentInitialValue(nextContext);
+      const initialValue = pruneHiddenSubmissionValue(
+        nextContext.templateSchema,
+        resolveAssignmentInitialValue(nextContext),
+      );
       setContext(nextContext);
+      valueRef.current = initialValue;
       setValue(initialValue);
       lastSavedDraftRef.current = serializeDraftValue(initialValue);
       lastFailedDraftRef.current = "";
@@ -269,6 +279,10 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
   useEffect(() => {
     void fetchContext();
   }, [fetchContext]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   useEffect(() => clearDraftTimer, [clearDraftTimer]);
 
@@ -291,7 +305,11 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
             ? { ...current, assignment: savedAssignment }
             : current,
         );
-        lastSavedDraftRef.current = serializeDraftValue(savedAssignment.draftValues ?? nextValue);
+        const savedValue = pruneHiddenSubmissionValue(
+          context.templateSchema,
+          (savedAssignment.draftValues ?? nextValue) as TemplateSubmissionValue,
+        );
+        lastSavedDraftRef.current = serializeDraftValue(savedValue);
         lastFailedDraftRef.current = "";
         setDraftStatus("saved");
         if (source === "manual") {
@@ -318,6 +336,11 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
     }
     const serializedValue = serializeDraftValue(value);
     if (serializedValue === lastSavedDraftRef.current) {
+      clearDraftTimer();
+      if (draftStatus === "dirty" || draftStatus === "error") {
+        setDraftStatus(context.assignment.draftSavedAt ? "saved" : "idle");
+        setDraftError(null);
+      }
       return;
     }
     if (draftStatus === "error" && serializedValue === lastFailedDraftRef.current) {
@@ -356,6 +379,13 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
       void fetchContext();
       return;
     }
+    if (serializeDraftValue(value) === lastSavedDraftRef.current) {
+      clearDraftTimer();
+      setDraftStatus(context?.assignment.draftSavedAt ? "saved" : "idle");
+      setDraftError(null);
+      message.info("当前没有新的草稿改动。");
+      return;
+    }
     void persistDraft(value, "manual");
   }
 
@@ -375,7 +405,10 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
     clearDraftTimer();
     const cleanedValue = pruneHiddenSubmissionValue(context.templateSchema, value);
     const nextErrors = validateTemplateSubmissionValue(context.templateSchema, cleanedValue);
-    setValue(cleanedValue);
+    if (serializeDraftValue(value) !== serializeDraftValue(cleanedValue)) {
+      valueRef.current = cleanedValue;
+      setValue(cleanedValue);
+    }
     if (nextErrors.length > 0) {
       setSubmitErrors([]);
       setSubmitError("请先修正字段错误后再提交。");
@@ -393,6 +426,7 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
         clientDraftVersion: context.assignment.version,
       });
       lastSavedDraftRef.current = serializeDraftValue(submission.values);
+      valueRef.current = submission.values;
       setValue(submission.values);
       const isReturnedRevision = isReviseMode && context.assignment.status === "RETURNED";
       message.success(`${isReturnedRevision ? "返修提交成功" : "提交成功"}，已生成第 ${submission.submissionVersion} 版`);

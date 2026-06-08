@@ -143,9 +143,17 @@ def prepare_claimable_task(session_factory: sessionmaker[Session], task_id: str,
             task_id=task_id,
             version_no=1,
             prompt_template="review",
-            dimensions=[],
-            thresholds={},
-            output_schema={},
+            dimensions=[
+                {
+                    "key": "accuracy",
+                    "name": "准确性",
+                    "description": "答案是否准确。",
+                    "maxScore": 5,
+                    "weight": 1,
+                }
+            ],
+            thresholds={"passMinScore": 4, "humanReviewMinScore": 3, "returnBelowScore": 2},
+            output_schema={"type": "object"},
             status=ReviewConfigVersionStatus.ACTIVE.value,
             published_by="user_owner_demo",
             published_at=now,
@@ -475,7 +483,7 @@ def test_labeler_can_submit_assignment_and_create_submission_version(
     assert submission["assignmentId"] == assignment["id"]
     assert submission["submissionVersion"] == 1
     assert submission["values"] == {"answer": "最终答案"}
-    assert submission["status"] == "SUBMITTED"
+    assert submission["status"] == "AI_REVIEWING"
     assert submission["submittedAt"] is not None
 
     context_response = client.get(f"/api/assignments/{assignment['id']}")
@@ -504,9 +512,11 @@ def test_labeler_can_submit_assignment_and_create_submission_version(
         assert stored_assignment.current_submission_id == submission["id"]
         assert stored_submission is not None
         assert stored_submission.idempotency_key == "submit-stage3-1"
+        assert stored_submission.status == "AI_REVIEWING"
         assert audit_log is not None
         assert audit_log.request_id == "req_stage3_submit"
         assert audit_log.metadata_json["fieldKeys"] == ["answer"]
+        assert audit_log.metadata_json["submissionStatus"] == "AI_REVIEWING"
 
 
 def test_submit_assignment_rejects_required_field_errors(

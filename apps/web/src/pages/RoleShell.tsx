@@ -6,6 +6,7 @@ import {
   FormOutlined,
   LogoutOutlined,
   SafetyCertificateOutlined,
+  ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { Button, Flex, Layout, Menu, Space, Tag, Typography } from "antd";
@@ -17,14 +18,21 @@ import type { UserRole, UserVO } from "../features/auth/types";
 import { matchLabelerAssignmentPath, matchLabelerAssignmentRevisePath } from "../features/assignments/view";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
-import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
+import { matchReviewerReviewDetailPath, matchReviewerReviewTaskPath } from "../features/reviews/view";
+import { matchOwnerTaskAcceptancePath, matchOwnerTaskSettingsPath } from "../features/tasks/view";
 import { matchOwnerTaskDesignerPath } from "../features/templates/view";
 import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
+import { OwnerTaskAcceptancePage } from "./OwnerTaskAcceptancePage";
 import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
 import { OwnerTemplateHubPage } from "./OwnerTemplateHubPage";
+import { ReviewerAiReviewQueuePage } from "./ReviewerAiReviewQueuePage";
+import { ReviewerReviewDetailPage } from "./ReviewerReviewDetailPage";
+import { ReviewerReviewQueuePage } from "./ReviewerReviewQueuePage";
+import { ReviewerReviewResultsPage } from "./ReviewerReviewResultsPage";
+import { ReviewerReviewTaskListPage } from "./ReviewerReviewTaskListPage";
 import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
 import { LabelerContributionsPage } from "./LabelerContributionsPage";
 import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
@@ -51,7 +59,8 @@ const menuItems: Record<Exclude<UserRole, "SYSTEM">, MenuProps["items"]> = {
   ],
   REVIEWER: [
     { key: "/reviewer/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
-    { key: "/reviewer/reviews", icon: <AuditOutlined />, label: "审核工作台" },
+    { key: "/reviewer/ai-review-queue", icon: <ThunderboltOutlined />, label: "AI 预审队列" },
+    { key: "/reviewer/reviews", icon: <AuditOutlined />, label: "人工审核" },
     { key: "/reviewer/results", icon: <FileDoneOutlined />, label: "审核结果" },
   ],
 };
@@ -66,13 +75,24 @@ export function RoleShell({ user, path }: RoleShellProps) {
   const role = user.role === "SYSTEM" ? "OWNER" : user.role;
   const labelerAssignmentId = matchLabelerAssignmentPath(path);
   const labelerReviseAssignmentId = matchLabelerAssignmentRevisePath(path);
+  const reviewerReviewTaskId = matchReviewerReviewTaskPath(path);
   const isLabelerWorkspaceFocus = user.role === "LABELER" && Boolean(labelerAssignmentId || labelerReviseAssignmentId);
+  const isOwnerDesignerFocus = user.role === "OWNER" && Boolean(matchOwnerTaskDesignerPath(path));
+  const isReviewerAuditFocus =
+    user.role === "REVIEWER" &&
+    (path === "/reviewer/ai-review-queue" ||
+      path === "/reviewer/reviews" ||
+      Boolean(reviewerReviewTaskId) ||
+      Boolean(matchReviewerReviewDetailPath(path)));
+  const isWorkspaceFocus = isLabelerWorkspaceFocus || isOwnerDesignerFocus || isReviewerAuditFocus;
   const selectedMenuKey = matchOwnerTaskDesignerPath(path)
     ? "/owner/templates"
     : labelerReviseAssignmentId
       ? "/labeler/contributions"
     : labelerAssignmentId
       ? "/labeler/marketplace"
+    : matchReviewerReviewDetailPath(path) || reviewerReviewTaskId
+      ? "/reviewer/reviews"
     : path.startsWith("/owner/tasks")
       ? "/owner/tasks"
       : path;
@@ -85,16 +105,16 @@ export function RoleShell({ user, path }: RoleShellProps) {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Layout.Sider
-        className={isLabelerWorkspaceFocus ? "labelhub-role-sider labelhub-role-sider-focus" : "labelhub-role-sider"}
+        className={isWorkspaceFocus ? "labelhub-role-sider labelhub-role-sider-focus" : "labelhub-role-sider"}
         width={248}
         breakpoint="lg"
-        collapsed={isLabelerWorkspaceFocus}
-        collapsedWidth={isLabelerWorkspaceFocus ? 64 : 0}
+        collapsed={isWorkspaceFocus}
+        collapsedWidth={isWorkspaceFocus ? 64 : 0}
       >
         <Flex vertical style={{ height: "100%", padding: 16 }}>
           <Space style={{ padding: "8px 8px 24px" }}>
             <span className="labelhub-shell-logo">L</span>
-            {!isLabelerWorkspaceFocus && (
+            {!isWorkspaceFocus && (
               <div>
                 <Typography.Text strong style={{ color: "#1f2329" }}>
                   LabelHub
@@ -121,7 +141,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
             <Space size={12}>
               <Typography.Text strong>{roleName[user.role]}</Typography.Text>
               <Tag color="blue">{user.role}</Tag>
-              <span className="labelhub-route-chip">{path}</span>
+              <span className="labelhub-route-chip">{getRouteChipLabel(user.role, path)}</span>
             </Space>
             <Space>
               <UserOutlined />
@@ -132,12 +152,38 @@ export function RoleShell({ user, path }: RoleShellProps) {
             </Space>
           </Flex>
         </Layout.Header>
-        <Layout.Content className={isLabelerWorkspaceFocus ? "labelhub-page labelhub-page-focus" : "labelhub-page"}>
+        <Layout.Content className={isWorkspaceFocus ? "labelhub-page labelhub-page-focus" : "labelhub-page"}>
           {renderRoleContent(user, path)}
         </Layout.Content>
       </Layout>
     </Layout>
   );
+}
+
+function getRouteChipLabel(role: UserRole, path: string): string {
+  if (role === "OWNER") {
+    if (matchOwnerTaskDesignerPath(path)) return "模板搭建器";
+    if (matchOwnerTaskAcceptancePath(path)) return "数据验收";
+    if (matchOwnerTaskDatasetsPath(path)) return "任务数据集";
+    if (matchOwnerTaskReviewConfigPath(path)) return "审核配置";
+    if (matchOwnerTaskSettingsPath(path)) return "任务设置";
+    if (path === "/owner/templates") return "模板工作台";
+    if (path === "/owner/tasks") return "任务管理";
+  }
+  if (role === "LABELER") {
+    if (matchLabelerAssignmentRevisePath(path)) return "返修工作台";
+    if (matchLabelerAssignmentPath(path)) return "标注工作台";
+    if (path === "/labeler/marketplace") return "任务广场";
+    if (path === "/labeler/contributions") return "我的贡献";
+  }
+  if (role === "REVIEWER") {
+    if (matchReviewerReviewTaskPath(path)) return "人工审核任务";
+    if (matchReviewerReviewDetailPath(path)) return "AI 预审详情";
+    if (path === "/reviewer/ai-review-queue") return "AI 预审队列";
+    if (path === "/reviewer/reviews") return "人工审核";
+    if (path === "/reviewer/results") return "审核结果";
+  }
+  return path;
 }
 
 function renderRoleContent(user: UserVO, path: string) {
@@ -163,6 +209,10 @@ function renderRoleContent(user: UserVO, path: string) {
     if (taskDesignerId) {
       return <OwnerTemplateDesignerPage taskId={taskDesignerId} />;
     }
+    const taskAcceptanceId = matchOwnerTaskAcceptancePath(path);
+    if (taskAcceptanceId) {
+      return <OwnerTaskAcceptancePage taskId={taskAcceptanceId} />;
+    }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {
       return <OwnerTaskSettingsPage taskId={taskId} />;
@@ -182,6 +232,25 @@ function renderRoleContent(user: UserVO, path: string) {
     const assignmentId = matchLabelerAssignmentPath(path);
     if (assignmentId) {
       return <LabelerAssignmentWorkspacePage assignmentId={assignmentId} />;
+    }
+  }
+  if (user.role === "REVIEWER" && path === "/reviewer/ai-review-queue") {
+    return <ReviewerAiReviewQueuePage />;
+  }
+  if (user.role === "REVIEWER" && path === "/reviewer/reviews") {
+    return <ReviewerReviewTaskListPage />;
+  }
+  if (user.role === "REVIEWER" && path === "/reviewer/results") {
+    return <ReviewerReviewResultsPage />;
+  }
+  if (user.role === "REVIEWER") {
+    const reviewTaskId = matchReviewerReviewTaskPath(path);
+    if (reviewTaskId) {
+      return <ReviewerReviewQueuePage taskId={reviewTaskId} />;
+    }
+    const reviewId = matchReviewerReviewDetailPath(path);
+    if (reviewId) {
+      return <ReviewerReviewDetailPage reviewId={reviewId} />;
     }
   }
   return <RoleHomePage path={path} user={user} />;

@@ -17,7 +17,7 @@
 - MySQL Driver：PyMySQL
 - 队列：阶段 0 只保留接口边界，正式队列实现后续阶段确认
 - 包管理器：uv
-- LLM 接入：OpenAI API 格式；Agent 默认 `BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`、`MODEL_NAME=mimo-v2.5-pro`、thinking 关闭
+- LLM 接入：OpenAI API 格式；`OPENAI_API_KEY`、`BASE_URL`、`MODEL_NAME` 通过环境变量配置，不绑定供应商私有 SDK
 - 鉴权：HttpOnly Cookie Session
 
 ## 3. uv 包管理规则
@@ -299,17 +299,25 @@ class LogoutResponseVO:
 | 3 | `GET /api/assignments` | `ListAssignmentsRequest` | `PageVO[AssignmentVO]` | 阶段 3.2 已实现，阶段 3.5 继续复用 |
 | 3 | `GET /api/assignments/{assignmentId}` | `GetAssignmentRequest` | `AssignmentContextVO` | 阶段 3.2 已实现 |
 | 3 | `PUT /api/assignments/{assignmentId}/draft` | `SaveAssignmentDraftRequest` | `AssignmentVO` | 阶段 3.3 已实现 |
-| 3 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 已实现 |
+| 3/4 | `POST /api/assignments/{assignmentId}/submissions` | `CreateSubmissionRequest` | `SubmissionVO` | 阶段 3.4 已实现；阶段 4.1 已接入 Review job 幂等入队 |
 | 3 | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | `RunLlmActionRequest` | `LlmActionRunVO` | 阶段 3.6 已实现 |
 | 3 | `GET /api/me/contribution-stats` | `GetContributionStatsRequest` | `ContributionStatsVO` | 阶段 3.5 已实现 |
 | 3 | `GET /api/me/contributions` | `ListContributionsRequest` | `PageVO[ContributionItemVO]` | 阶段 3.5 已实现 |
-| 4 | `POST /api/internal/review-jobs:claim` | `ClaimReviewJobRequest` | `ClaimReviewJobResponse` | 阶段 4.0 待对齐 |
-| 4 | `POST /api/internal/review-jobs/{jobId}/results` | `CompleteReviewJobRequest` | `ReviewJobVO` | 阶段 4.0 待对齐 |
-| 4 | `GET /api/reviews` | `ListReviewsRequest` | `PageVO[ReviewVO]` | 阶段 4.0 待对齐 |
-| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewDetailVO` | 阶段 4.0 待对齐 |
-| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.0 待对齐 |
-| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.0 待对齐 |
-| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
+| 4 | `GET /api/review-jobs` | `ListReviewJobsRequest` | `PageVO[ReviewJobVO]` | 阶段 4.0 已实现 |
+| 4 | `GET /api/review-jobs/summary` | `GetReviewJobSummaryRequest` | `ReviewJobSummaryVO` | 阶段 4.4 已实现 |
+| 4 | `POST /api/internal/review-jobs:claim` | `ClaimReviewJobRequest` | `ClaimReviewJobResponse` | 阶段 4.0 已实现 |
+| 4 | `POST /api/internal/review-jobs/{jobId}/results` | `CompleteReviewJobRequest` | `ReviewJobVO` | 阶段 4.0 基线已实现；阶段 4.3 深化 AI 结果写回 |
+| 4 | `GET /api/reviews/tasks` | `ListReviewTasksRequest` | `PageVO[ReviewTaskSummaryVO]` | 阶段 4.6 已实现，供人工审核先按任务进入 |
+| 4 | `GET /api/reviews` | `ListReviewsRequest` | `PageVO[ReviewVO]` | 阶段 4.4 已深化为待审记录主视角，支持 `keyword/status/aiConclusion` 筛选 |
+| 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewDetailVO` | 阶段 4.4 已补充状态链路、多轮历史和提交 diff |
+| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.5 已实现 |
+| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.5 已实现 |
+| 4 | `GET /api/tasks/{taskId}/acceptance-stats` | `GetAcceptanceStatsRequest` | `AcceptanceStatsVO` | 阶段 4.6 已实现 |
+| 5 | `GET /api/tasks/{taskId}/export-field-options` | `GetExportFieldOptionsRequest` | `ExportFieldOptionsVO` | 阶段 5 待实现；必须先与前端 SDD 对齐 |
+| 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 阶段 5 待实现；创建异步导出任务 |
+| 5 | `GET /api/tasks/{taskId}/export-jobs` | `ListExportJobsRequest` | `PageVO[ExportJobVO]` | 阶段 5 待实现；导出历史 |
+| 5 | `GET /api/export-jobs/{exportJobId}` | `GetExportJobRequest` | `ExportJobVO` | 阶段 5 待实现；导出详情 |
+| 5 | `GET /api/export-jobs/{exportJobId}/download` | `GetExportJobFileRequest` | 文件响应 | 阶段 5 待实现；只允许下载成功导出 |
 
 ### 9.1 阶段 1.0 已对齐契约
 
@@ -758,6 +766,13 @@ Renderer 最小支持范围：
 | 获取草稿 | `GET /api/tasks/{taskId}/template-draft` | Designer 初始化时读取同一份 `TemplateSchemaVO` |
 | 保存草稿 | `PUT /api/tasks/{taskId}/template-draft` | Designer 保存当前画布、物料属性、默认值与校验配置 |
 | 校验 schema | `POST /api/template-schemas:validate` | Designer 点击校验或保存前展示结构化错误 |
+| 真实样本预览 | `GET /api/tasks/{taskId}/datasets`、`GET /api/datasets/{datasetId}/items` | Designer 可复用当前任务已导入的 `DatasetItemVO.payload` 作为预览样本；后端不新增表和路由 |
+
+样本字段选择约束：
+
+- 后端继续只返回 `DatasetItemVO.payload`，不在后端额外解析字段树。
+- 前端基于样本 payload 派生 `PayloadFieldOption`，供 ShowItem 和 LLM_ACTION 选择 `$.prompt`、`$.response_a` 等安全 JSONPath。
+- 任务尚未导入数据或数据集为空时，Designer 使用前端内置示例 payload，模板仍可手动输入 JSONPath 并正常保存。
 
 基础物料后端语义校验：
 
@@ -1049,11 +1064,13 @@ LLM 边界：
 - 后端发送给模型的上下文只能包含 `selectedItemValues` 与 `selectedInputValues`：`selectedItemValues` 来自 `inputItemPaths` 显式选择的路径，`selectedInputValues` 来自 `inputFieldKeys` 显式选择的提交字段。不得把完整 `datasetItemPayload` 或未选择字段传给模型，避免题目级辅助读取无关列后串题。
 - 后端必须用 assignment 固化的 `template_version_id` 定位组件，不能读取任务当前草稿或最新模板；组件不存在、组件类型不是 `LLM_ACTION`、输出字段不在当前 schema 中都返回结构化错误。
 - 请求使用 OpenAI API 兼容 Chat Completions 格式，配置从 `OPENAI_API_KEY`、`BASE_URL`/`OPENAI_BASE_URL`、`MODEL_NAME`/`OPENAI_MODEL_NAME`、`OPENAI_TIMEOUT_SECONDS`/`LLM_TIMEOUT_SECONDS` 读取；真实密钥不得进入仓库。题目级 LLM 辅助默认请求超时为 90 秒，允许本地或部署环境调大到 300 秒以内。
-- thinking 必须关闭：服务端系统提示禁止输出思考过程；如供应商需要显式参数，通过 `LLM_EXTRA_BODY_JSON` 注入。当前 MiMo OpenAI 兼容服务在 `OPENAI_THINKING_ENABLED=false` 且识别到 MiMo Provider 时，后端会自动携带 `{"chat_template_kwargs":{"enable_thinking":false}}`；显式 `LLM_EXTRA_BODY_JSON` 优先级更高。未知 Provider 不自动注入额外字段，保证后续更换同协议 Provider 时仍可请求。
+- 服务端系统提示禁止输出思考过程；当前 LLM API 按标准 OpenAI Chat Completions 兼容格式请求，不默认注入供应商私有扩展。如供应商需要显式参数，通过 `OPENAI_EXTRA_BODY_JSON` / `LLM_EXTRA_BODY_JSON` 注入，保证后续更换同协议 Provider 时仍可请求。
 - 模型输出必须解析为结构化 JSON，优先读取 `outputValues[targetFieldKey]`，其次读取 `outputValue`、目标字段同名字段或 `text`；解析失败时把原始文本作为 `outputValue`。
+- 服务端系统提示必须尊重目标字段语义：摘要/概括类字段应生成更凝练的关键事实，分类/选项类字段应尽量输出可见选项，不得混入偏好对比、平局判断、审核结论或其它题型话术。
 - 输出只作为参考或预填草稿，不自动提交。前端采纳后仍需 Labeler 手动保存/提交，后端提交接口继续做最终模板校验。
 - 后端必须记录调用输入、输出、错误和幂等键；同一 `idempotencyKey` 重试直接返回既有 `LlmActionRunVO`，避免重复扣费或重复写入。
 - Provider 调用失败也要落 `llm_action_runs.status=FAILED` 并返回 `LlmActionRunVO`，前端用 `errorMessage` 告知用户，不把一次模型失败伪装成提交失败。超时错误必须包含当前超时秒数和排查方向，避免只显示英文内部异常。
+- 后端仅保留少量运行日志：LLM_ACTION 请求、成功和失败分别输出 assignment 短 ID、组件、目标字段、输入映射数量和错误摘要；不得输出 API Key、完整题目 payload、完整 prompt 或用户提交全文。
 
 ### 9.15 阶段 3.5 我的贡献与返修入口契约
 
@@ -1146,34 +1163,133 @@ class AiReviewConclusion(str, Enum):
 class HumanReviewDecision(str, Enum):
     APPROVE = "APPROVE"
     RETURN = "RETURN"
+    DIRECT_REVISE = "DIRECT_REVISE"
 ```
 
 核心 Entity：
 
 | Entity | 关键字段 |
 | --- | --- |
-| `ReviewJobEntity` | `id`、`task_id`、`submission_id`、`review_config_version_id`、`status`、`attempt_count`、`idempotency_key`、`last_error`、`started_at`、`finished_at` |
+| `ReviewJobEntity` | `id`、`task_id`、`assignment_id`、`submission_id`、`review_config_version_id`、`status`、`attempt_count`、`max_attempts`、`idempotency_key`、`last_error`、`locked_by`、`locked_at`、`started_at`、`finished_at` |
 | `ReviewEntity` | `id`、`task_id`、`submission_id`、`assignment_id`、`review_job_id`、`status`、`ai_conclusion`、`ai_scores`、`ai_comment`、`ai_issues`、`ai_suggestions`、`raw_output`、`prompt_snapshot`、`human_conclusion`、`reviewer_id`、`human_comment`、`dimension_comments`、`review_round`、`version` |
 
 核心接口：
 
 | 接口 | 权限 | 说明 |
 | --- | --- | --- |
-| `POST /api/internal/review-jobs:claim` | `SYSTEM` | 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
+| `GET /api/review-jobs` | `REVIEWER` | 查询 AI 预审 job 队列，支持 `status`、`taskId`、`keyword`、分页；阶段 4.1 Reviewer 页面用于展示提交入队状态 |
+| `GET /api/review-jobs/summary` | `REVIEWER` | 汇总 AI 预审队列状态、AI 结论分布、今日处理、失败率、平均耗时、RUNNING/超时 job 与活跃 worker，用于独立 AI 预审队列页 |
+| `POST /api/internal/review-jobs:claim` | `SYSTEM` | 通过 `X-LabelHub-System-Token` 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
 | `POST /api/internal/review-jobs/{jobId}/results` | `SYSTEM` | 写回结构化 AI 预审结果或失败原因，生成 AI review 建议并写审计 |
-| `GET /api/reviews` | `REVIEWER` | 待审/已审列表，支持 `status`、`taskId`、`aiConclusion` 分页筛选 |
-| `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、diff 与时间线 |
-| `POST /api/reviews/{reviewId}/decisions` | `REVIEWER` | 单条人工通过或打回 |
+| `GET /api/reviews/tasks` | `REVIEWER` | 人工审核任务聚合列表，支持 `status`、`keyword`、`aiConclusion` 筛选，返回每个任务的待审数、AI 建议分布、最近 review 和审核配置版本 |
+| `GET /api/reviews` | `REVIEWER` | 待审/已审列表，支持 `status`、`taskId`、`keyword`、`aiConclusion` 分页筛选 |
+| `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、Prompt 摘要、状态链路、多轮历史、提交 diff 与时间线 |
+| `POST /api/reviews/{reviewId}/decisions` | `REVIEWER` | 单条人工打回、直接修订或通过入库；`DIRECT_REVISE` 可携带 `revisedValues`，后端按当前模板版本校验后写入提交值 |
 | `POST /api/reviews:batch-decide` | `REVIEWER` | 批量通过或打回，逐条校验并写审计 |
+| `GET /api/tasks/{taskId}/acceptance-stats` | `OWNER` | Owner 查看任务级验收统计、AI 结论分布和最近审核样本 |
 
 状态规则：
 
 - `review_jobs.idempotency_key = submission_id + submission_version + review_config_version_id`，同一提交版本只能有一个有效 AI 预审 job。
+- 阶段 4.1 起，Labeler 正式提交后 `submissions.status=AI_REVIEWING`，`assignments.status=SUBMITTED`；Labeler 侧仍表现为“审核中”，系统侧可追踪 AI 队列状态。
 - Agent 写回 `PASS/RETURN/NEEDS_HUMAN_REVIEW` 只代表 AI 建议，不直接终审；submission 进入人工审核可见状态。
 - 人工 `APPROVE` 后，`submissions.status=APPROVED`、`assignments.status=APPROVED`，并递增任务 `approved_count`。
 - 人工 `RETURN` 后，`submissions.status=RETURNED`、`assignments.status=RETURNED`，打回理由必须写入 `audit_logs.reason` 或 `metadata.reason`，供阶段 3 `ReviewFeedbackVO` 复用。
+- 单条与批量人工决策均必须校验 `review.version`：版本不一致返回冲突，避免多审核员覆盖彼此结论。
+- 批量决策逐条执行，单条失败不能回滚已成功记录；响应返回 `succeededIds` 和 `failed`，前端据此提示用户重试失败项。
+- Owner 验收统计只读展示，不改变任务、提交或审核状态；最近样本必须优先展示业务标题、提交版本、AI/人工结论和更新时间，不把内部长 ID 作为主信息。
 - Agent 超过最大重试、结构化输出不合法或 Provider 异常时，必须生成需要人工兜底的待审记录，不能让 job 永久卡在 `RUNNING`。
 - 所有状态迁移必须写 `audit_logs`；Actor 为 Agent 时使用 `SYSTEM` 账号，人工审核使用 Reviewer 用户。
+- Agent 成功或兜底生成 `ReviewEntity` 时必须同步写入 `AuditAction.REVIEW_AI_SUGGESTION`，metadata 记录 `reviewJobId`、`submissionId`、`reviewConfigVersionId`、`aiConclusion`、`scoreTotal`、`issueCount` 和 Prompt 摘要。
+- `ReviewDetailVO.timeline` 只返回审核链路关键节点：`ASSIGNMENT_CLAIM`、`SUBMISSION_CREATE`、`REVIEW_AI_SUGGESTION`、`REVIEW_DECISION`；草稿保存等高频过程日志不进入 Reviewer 工作台时间线。
+- 时间线按 assignment 聚合同一题目的 submission/review 审计事件，避免只查当前 review/job 导致 AI 预审节点丢失；历史数据缺少 `REVIEW_AI_SUGGESTION` 审计时，可从已落库 `ReviewEntity` 兜底补出 AI 预审节点。
+- `ReviewTimelineItemVO` 必须返回 `actorId`、`actorName`、`actorRole`、`action`、`fromState`、`toState`、`reason`、`metadata`、`createdAt`，前端优先展示人员名称与右侧时间，下方展示流转动作。
+
+阶段 4.0-4.6 当前完成状态：
+
+- Alembic `0005_create_review_foundation.py` 已创建 `review_jobs` 与 `reviews` 表，并注册到 SQLAlchemy metadata。
+- `ReviewJobStatus`、`AiReviewConclusion`、`ReviewStatus`、`HumanReviewDecision` 枚举已进入后端统一枚举。
+- `POST /api/assignments/{assignmentId}/submissions` 在同一事务内创建唯一 `review_jobs`，重复提交命中同一 submission 时不会生成重复 job。
+- `ReviewJobVO` 与 `ReviewVO` 在保留内部追踪 ID 的同时，补充 `taskTitle`、`submissionVersion`、`reviewConfigVersionNo`，供 Reviewer UI 优先展示业务可读信息，避免把内部 ID 作为列表主标题。
+- 阶段 4.4 起，`ReviewJobVO` 进一步补充 `reviewId`、`aiConclusion`、`aiScoreTotal`、`aiIssueCount`、`aiComment`，让 AI 预审队列列表可直接展示写回后的业务结论，并能跳转到人工审核详情。
+- `POST /api/internal/review-jobs:claim` 已返回 job、submission、assignment、task、dataset item payload、template schema 和 review config version，供阶段 4.2 Agent 组装 Prompt。
+- `POST /api/internal/review-jobs:claim` 领取前必须回收超时 `RUNNING` job：未达到最大尝试次数时转为 `FAILED` 等待重试，达到最大尝试次数时转入 `NEEDS_HUMAN_REVIEW` 并生成兜底 review，避免 Agent 中断后队列永久卡在处理中。
+- `apps/agent` 已实现 `--once` 单次处理与 `--loop` 轮询：System 身份领取 job，基于审核配置版本、题目 payload、模板字段和提交值组装 Prompt，调用 OpenAI 兼容 Chat Completions，并用 Pydantic 校验结构化 JSON。
+- Agent 写回失败时使用同一内部结果接口提交 `errorMessage`；后端会将 job 置为 `FAILED` 供重试，达到 `maxAttempts` 后置为 `NEEDS_HUMAN_REVIEW` 并生成人工兜底 review。
+- Agent 默认保持标准 OpenAI Chat Completions 请求，不注入私有扩展；如供应商需要额外请求体参数，可通过 `OPENAI_EXTRA_BODY_JSON`/`LLM_EXTRA_BODY_JSON` 显式扩展。
+- `ReviewVO` 已补充 `aiScoreTotal` 与 `aiIssueCount`；`ReviewDetailVO` 已补充 `promptSnapshotSummary`，用于 Reviewer 查看 AI 建议时快速理解 Agent 使用的任务、题目字段、提交字段和评分维度。
+- 阶段 4.4 起，`ReviewDetailVO` 进一步补充 `stateLink`、`reviewHistory` 与 `submissionDiff`：`stateLink` 展示 assignment/submission/job/review 当前状态与下一步动作；`reviewHistory` 展示同一 assignment 的多轮提交与 AI/人工意见；`submissionDiff` 只比较当前提交与上一版提交的可提交字段，辅助 Reviewer 快速判断返修改动。
+- Agent 与后端都保留少量运行日志：后端记录预审 job 入队、领取和写回；Agent 记录 loop 启动、空闲等待、领取、完成和失败。日志只输出短 ID、任务标题摘要、尝试次数、结论、耗时和错误摘要，不输出密钥、完整 prompt、完整提交值或完整题目 payload。
+- `GET /api/review-jobs`、`GET /api/review-jobs/summary`、`GET /api/reviews/tasks`、`GET /api/reviews`、`GET /api/reviews/{reviewId}`、`POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` 和 `GET /api/tasks/{taskId}/acceptance-stats` 已进入 OpenAPI；阶段 4.6 起人工审核入口先按任务聚合，再进入任务内工作台。
+
+### 9.17 阶段 5 多格式导出与交付契约
+
+阶段 5 必须在阶段 4 人工审核闭环之后实现，只导出已经人工通过或 Reviewer 直接修订入库的数据。导出不得读取模板草稿，也不得导出仍处于 AI 预审、待人工审核或已打回状态的提交。
+
+后端核心 DTO：
+
+```python
+class ExportFieldOptionVO:
+    source: str  # DATASET_PAYLOAD | SUBMISSION_VALUE | REVIEW_METADATA | AUDIT_TIMELINE
+    path: str
+    label: str
+    sample_value: object | None
+    default_selected: bool
+
+
+class ExportFieldMappingDTO:
+    source: str
+    path: str
+    output_key: str
+    label: str | None
+    order: int
+    selected: bool = True
+
+
+class CreateExportJobRequest:
+    format: str  # JSON | JSONL | CSV | EXCEL
+    field_mappings: list[ExportFieldMappingDTO]
+    include_review_records: bool = False
+    include_audit_timeline: bool = False
+    idempotency_key: str | None = None
+
+
+class ExportJobVO:
+    id: str
+    task_id: str
+    task_title: str | None
+    format: str
+    status: str  # QUEUED | RUNNING | SUCCEEDED | FAILED
+    total_rows: int
+    exported_rows: int
+    file_object_id: str | None
+    file_name: str | None
+    file_size_bytes: int | None
+    error_message: str | None
+    created_by: str
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+```
+
+接口规则：
+
+| 接口 | 权限 | 说明 |
+| --- | --- | --- |
+| `GET /api/tasks/{taskId}/export-field-options` | `OWNER` | 根据当前任务数据集 payload、模板版本提交字段和审核记录推导可导出字段，返回示例值和默认选择 |
+| `POST /api/tasks/{taskId}/export-jobs` | `OWNER` | 创建异步导出任务，校验格式、字段映射、任务归属和可导出记录数 |
+| `GET /api/tasks/{taskId}/export-jobs` | `OWNER` | 分页查询导出历史，展示进度、状态、失败原因和下载入口 |
+| `GET /api/export-jobs/{exportJobId}` | `OWNER` | 查询导出详情和最终参数快照 |
+| `GET /api/export-jobs/{exportJobId}/download` | `OWNER` | 下载成功导出的文件；未成功或无权限返回业务错误 |
+
+状态与审计：
+
+- 创建任务后进入 `QUEUED`；MVP 可以由 API 进程同步完成小文件生成，但对前端仍暴露异步状态，保留后续 worker 化空间。
+- 导出只读取 `reviews.status=APPROVED`、`submissions.status=APPROVED` 的最终提交值；`DIRECT_REVISE` 通过后的导出值以修订后的 submission values 为准。
+- `field_mappings` 必须作为快照保存到 `export_jobs`，避免后续模板或字段名变化影响历史导出复现。
+- JSON/JSONL 保留结构化字段；CSV/Excel 必须按 `field_mappings.order` 生成稳定列顺序。
+- 创建、完成、失败和下载均写 `audit_logs`，`entityType=EXPORT_JOB`。
+- 导出文件通过 `file_objects.purpose=EXPORT` 关联，不把文件内容写入业务表。
 
 ## 10. 阶段 0 Entity 与迁移契约
 
@@ -1215,14 +1331,19 @@ class AiReviewResultDTO:
     summary: str
     issues: list[AiReviewIssueDTO]
     suggestions: str | None
+    raw_output: dict | None
+    prompt_snapshot: str | None
 ```
 
 要求：
 
 - LLM 请求使用 OpenAI API 格式。
-- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_THINKING_ENABLED`、`OPENAI_TIMEOUT_SECONDS` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`LLM_TIMEOUT_SECONDS`；日志中不得输出 API Key。当前 MiMo OpenAI 兼容服务关闭 thinking 需要在请求体中携带 `chat_template_kwargs.enable_thinking=false`，后端可根据 MiMo Provider 自动注入该扩展。
-- LLM 输出必须通过后端结构化模型校验。
-- 校验失败不能进入终审流程，应重试或进入人工复核。
+- `BASE_URL`、`MODEL_NAME`、`OPENAI_API_KEY`、`OPENAI_TIMEOUT_SECONDS` 从环境变量读取；兼容旧别名 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`LLM_TIMEOUT_SECONDS`；日志中不得输出 API Key。当前新 LLM API 保持标准 OpenAI Chat Completions 请求；如需供应商扩展参数，使用 `OPENAI_EXTRA_BODY_JSON` / `LLM_EXTRA_BODY_JSON` 显式配置。
+- Agent Prompt 必须把 AI 预审定义为“提交质量建议”：要结合任务说明、题目 payload、模板字段语义、提交值和审核维度检查回答是否正确、完整、合规；摘要/概括/清洗/分类等字段按字段语义审核。`PASS` 只表示 AI 认为可进入人工通过候选，不能替代 Reviewer 终审。
+- `REVIEW_JOB_LOCK_TIMEOUT_SECONDS` 默认 300 秒；Agent 领取前必须按该阈值回收超时 `RUNNING` job，前端 summary 中 `activeWorkerCount` 只统计未超时的锁。
+- Agent 使用 `response_format={"type":"json_object"}` 请求 JSON 对象。最终写回统一 `AiReviewResultDTO`；为兼容阶段 1.4 审核配置默认 `outputSchema`，模型返回 `decision/dimensionScores/comment` 时会先归一化为 `conclusion/scores/summary`，`issues` 字符串数组会归一化为标准问题对象，`suggestions` 数组会归一化为字符串。归一化后通过 Pydantic 校验；`scores` 必须覆盖审核配置维度，不能包含未知维度，分数不能超过维度 `maxScore`。
+- 阶段 4.4 起，默认审核配置维度采用 100 分制：默认 `maxScore=100`，阈值按加权总分配置。后端仍按配置版本保存原始 `scores`，前端负责归一化为 100 分展示，从而兼容早期 5 分制历史记录。
+- 校验失败不能进入终审流程，Agent 必须通过内部接口写回失败原因，由后端状态机重试或进入人工复核。
 - Agent 写回结果必须通过后端受控服务或内部接口，不直接绕过状态机。
 
 ## 12. 前后端字段映射检查清单
@@ -1248,4 +1369,4 @@ class AiReviewResultDTO:
 
 - 队列实现方案。
 - 前端类型是否从后端 OpenAPI 自动生成，阶段 0 先手写契约类型。
-- 当前 OpenAI API 兼容供应商的基础 Chat Completions 请求和 `chat_template_kwargs.enable_thinking=false` 已验证可用；结构化输出能力仍需在正式 Agent 调用阶段联调。
+- 当前 OpenAI API 兼容供应商的基础 Chat Completions 请求已通过阶段 4 端到端验证；Agent 结构化输出归一化后可写回 AI 预审结果。

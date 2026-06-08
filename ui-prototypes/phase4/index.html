@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LabelHub Phase 4 原型索引</title>
+    <link rel="stylesheet" href="./assets/phase4.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="top-left">
+          <a class="brand" href="./index.html"><span class="logo">L</span><span>LabelHub</span></a>
+          <span class="breadcrumb">Phase 4 / AI 预审与人工审核原型</span>
+        </div>
+        <div class="top-right">
+          <span class="pill blue">1280×800 / 1920×1080</span>
+          <span class="avatar system">A</span>
+          <span class="muted">Design Prototype</span>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="page-head">
+          <div>
+            <h1 class="page-title">阶段 4 页面原型</h1>
+            <p class="page-subtitle">
+              覆盖 AI 自动预审、Reviewer 人工审核、审核结果追踪与 Owner 数据验收。原型以官方示意图为功能参考，
+              视觉与交互结构对齐当前 LabelHub 企业后台风格。
+            </p>
+          </div>
+        </section>
+
+        <section class="index-grid">
+          <a class="card prototype-link" href="./ai-review-queue/code.html">
+            <span class="tag purple">System Agent</span>
+            <strong>AI 自动预审队列</strong>
+            <span class="muted">异步 job 队列、结构化评分、Prompt 快照、失败重试与人工兜底。</span>
+          </a>
+          <a class="card prototype-link" href="./reviewer-workbench/code.html">
+            <span class="tag orange">Reviewer</span>
+            <strong>审核工作台</strong>
+            <span class="muted">待审队列、批量操作、AI 建议、提交 diff 与人工决策面板。</span>
+          </a>
+          <a class="card prototype-link" href="./reviewer-detail/code.html">
+            <span class="tag blue">Review Detail</span>
+            <strong>审核详情</strong>
+            <span class="muted">原题、提交快照、AI 评语、审计时间线和复审/终审操作。</span>
+          </a>
+          <a class="card prototype-link" href="./review-results/code.html">
+            <span class="tag green">History</span>
+            <strong>审核结果列表</strong>
+            <span class="muted">通过、打回、人工复核历史，支持任务、结论和处理人筛选。</span>
+          </a>
+          <a class="card prototype-link" href="./owner-acceptance/code.html">
+            <span class="tag blue">Owner</span>
+            <strong>Owner 数据验收</strong>
+            <span class="muted">任务质量漏斗、AI 分布、人工审核结果、抽样记录与导出准备度。</span>
+          </a>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

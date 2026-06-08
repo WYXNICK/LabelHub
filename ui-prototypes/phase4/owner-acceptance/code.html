@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase 4 / Owner 数据验收</title>
+    <link rel="stylesheet" href="../assets/phase4.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="top-left">
+          <a class="brand" href="../index.html"><span class="logo">L</span><span>LabelHub</span></a>
+          <span class="breadcrumb">任务负责人后台 / 数据验收 / 商品标题清洗 v3</span>
+        </div>
+        <div class="top-right">
+          <button class="btn">返回任务管理</button>
+          <button class="btn">抽样检查</button>
+          <button class="btn primary">进入导出配置</button>
+          <span class="avatar">张</span>
+          <span class="muted">张满 · Owner</span>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="nav-title">数据生产</div>
+          <div class="nav-item"><span class="nav-icon"></span>任务管理</div>
+          <div class="nav-item"><span class="nav-icon"></span>模板工作台</div>
+          <div class="nav-item"><span class="nav-icon"></span>数据集</div>
+          <div class="nav-title">审核与交付</div>
+          <div class="nav-item active"><span class="nav-icon"></span>数据验收</div>
+          <div class="nav-item"><span class="nav-icon"></span>导出中心</div>
+        </aside>
+
+        <main class="main">
+          <section class="page-head">
+            <div>
+              <h1 class="page-title">数据验收</h1>
+              <p class="page-subtitle">
+                聚合任务提交、AI 预审、人工审核与打回返修状态，判断当前数据是否达到导出交付标准。
+              </p>
+            </div>
+            <div class="toolbar">
+              <span class="pill green">质量阈值已达标</span>
+              <span class="pill blue">可导出 2,318 条</span>
+            </div>
+          </section>
+
+          <section class="stats-grid" style="margin-bottom:12px">
+            <div class="stat"><div class="label">累计提交</div><div class="value">3,481</div><div class="hint">本周新增 1,204</div></div>
+            <div class="stat"><div class="label">人工通过</div><div class="value" style="color:var(--success)">2,318</div><div class="hint">通过率 86.7%</div></div>
+            <div class="stat"><div class="label">打回返修</div><div class="value" style="color:var(--warning)">427</div><div class="hint">返修完成 318</div></div>
+            <div class="stat"><div class="label">待审核</div><div class="value" style="color:var(--primary)">314</div><div class="hint">AI 队列 88 / 人工 226</div></div>
+          </section>
+
+          <section class="two-column">
+            <div class="detail-stack">
+              <div class="card pad">
+                <div class="detail-title-row">
+                  <h2 class="section-title">质量漏斗</h2>
+                  <span class="tag blue">任务 T-2041 · 截至 2026/06/06 18:12</span>
+                </div>
+                <div class="funnel" style="margin-top:14px">
+                  <div class="funnel-row"><span>已领取</span><div class="bar"><span style="--w:94%;--c:var(--primary)"></span></div><strong>4,702</strong></div>
+                  <div class="funnel-row"><span>已提交</span><div class="bar"><span style="--w:74%;--c:var(--primary)"></span></div><strong>3,481</strong></div>
+                  <div class="funnel-row"><span>AI 预审完成</span><div class="bar"><span style="--w:68%;--c:var(--purple)"></span></div><strong>3,212</strong></div>
+                  <div class="funnel-row"><span>人工通过</span><div class="bar"><span style="--w:49%;--c:var(--success)"></span></div><strong>2,318</strong></div>
+                  <div class="funnel-row"><span>可导出</span><div class="bar"><span style="--w:49%;--c:var(--success)"></span></div><strong>2,318</strong></div>
+                </div>
+              </div>
+
+              <div class="split">
+                <div class="card pad chart-card">
+                  <h3 class="section-title">AI 结论分布</h3>
+                  <div class="donut" style="margin-top:20px"></div>
+                  <div class="queue-meta" style="justify-content:center; margin-top:16px">
+                    <span class="tag green">通过 58%</span>
+                    <span class="tag orange">打回 21%</span>
+                    <span class="tag red">兜底 12%</span>
+                    <span class="tag blue">终审 9%</span>
+                  </div>
+                </div>
+                <div class="card pad chart-card">
+                  <h3 class="section-title">打回原因趋势</h3>
+                  <div class="mini-bars" style="margin-top:18px">
+                    <div class="funnel-row"><span>关键词不足</span><div class="bar"><span style="--w:72%;--c:var(--warning)"></span></div><strong>164</strong></div>
+                    <div class="funnel-row"><span>类目错误</span><div class="bar"><span style="--w:48%;--c:var(--warning)"></span></div><strong>91</strong></div>
+                    <div class="funnel-row"><span>格式问题</span><div class="bar"><span style="--w:35%;--c:var(--primary)"></span></div><strong>66</strong></div>
+                    <div class="funnel-row"><span>安全风险</span><div class="bar"><span style="--w:18%;--c:var(--danger)"></span></div><strong>34</strong></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>抽样记录</th>
+                      <th>AI 结论</th>
+                      <th>人工结论</th>
+                      <th>轮次</th>
+                      <th>质量信号</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div class="row-title">户外便携野营折叠桌椅套装 5 件套</div>
+                        <div class="muted">SUB-2041-00607 · 李雷 · 18:01</div>
+                      </td>
+                      <td><span class="tag green">建议通过 86</span></td>
+                      <td><span class="tag green">通过</span></td>
+                      <td>第 2 轮</td>
+                      <td>打回后修复</td>
+                      <td><button class="btn">查看审核</button></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="row-title">加厚蓝牙智能音箱</div>
+                        <div class="muted">SUB-2041-00605 · 王芳 · 18:00</div>
+                      </td>
+                      <td><span class="tag red">失败兜底</span></td>
+                      <td><span class="tag red">打回</span></td>
+                      <td>第 1 轮</td>
+                      <td>安全风险</td>
+                      <td><button class="btn">查看审核</button></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="row-title">儿童学习平板电脑 8 英寸护眼大屏</div>
+                        <div class="muted">SUB-2041-00606 · 王芳 · 18:00</div>
+                      </td>
+                      <td><span class="tag green">建议通过 91</span></td>
+                      <td><span class="tag green">通过</span></td>
+                      <td>第 1 轮</td>
+                      <td>一致通过</td>
+                      <td><button class="btn">查看审核</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <aside class="detail-stack">
+              <div class="card pad">
+                <h3 class="section-title">交付检查</h3>
+                <div class="kv" style="margin-top:12px">
+                  <div class="kv-row"><span class="muted">模板版本</span><span><span class="dot green"></span> r12 已冻结</span></div>
+                  <div class="kv-row"><span class="muted">审核配置</span><span><span class="dot green"></span> v2 已绑定</span></div>
+                  <div class="kv-row"><span class="muted">通过数据</span><span><span class="dot green"></span> 2,318 条</span></div>
+                  <div class="kv-row"><span class="muted">阻塞项</span><span>无</span></div>
+                </div>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">Reviewer 表现</h3>
+                <div class="mini-bars" style="margin-top:14px">
+                  <div class="funnel-row"><span>王芳</span><div class="bar"><span style="--w:90%;--c:var(--success)"></span></div><strong>214</strong></div>
+                  <div class="funnel-row"><span>张敏</span><div class="bar"><span style="--w:66%;--c:var(--primary)"></span></div><strong>158</strong></div>
+                  <div class="funnel-row"><span>赵强</span><div class="bar"><span style="--w:42%;--c:var(--warning)"></span></div><strong>101</strong></div>
+                </div>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">验收建议</h3>
+                <p class="page-subtitle">
+                  当前通过率与 SLA 均达标，可进入阶段 5 导出。建议导出前抽样查看“AI 失败兜底”和“AI 与人工结论不一致”的样本。
+                </p>
+                <div class="toolbar" style="margin-top:12px">
+                  <button class="btn">抽样 50 条</button>
+                  <button class="btn primary">配置导出</button>
+                </div>
+              </div>
+
+              <div class="card pad">
+                <h3 class="section-title">最近审计</h3>
+                <div class="timeline" style="margin-top:12px">
+                  <div class="timeline-item"><div><strong>18:05</strong><br /><span class="muted">王芳通过 SUB-00607</span></div></div>
+                  <div class="timeline-item"><div><strong>18:03</strong><br /><span class="muted">张敏打回 SUB-00605</span></div></div>
+                  <div class="timeline-item"><div><strong>18:01</strong><br /><span class="muted">AI Agent 写回第 2 轮建议</span></div></div>
+                </div>
+              </div>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

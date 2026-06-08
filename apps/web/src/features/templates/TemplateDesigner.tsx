@@ -76,11 +76,13 @@ import {
   type DesignerLayoutTarget,
 } from "./designer";
 import { collectTemplateFieldKeys, collectableTemplateComponentTypes, templateComponentTypeLabels } from "./view";
+import type { PayloadFieldOption } from "./preview";
 
 interface TemplateDesignerProps {
   schema: TemplateSchemaVO;
   selectedComponentId: string | null;
   validation: TemplateSchemaValidationVO | null;
+  sampleFieldOptions?: PayloadFieldOption[];
   readOnly?: boolean;
   onSchemaChange: (schema: TemplateSchemaVO) => void;
   onSelectedComponentChange: (componentId: string | null) => void;
@@ -125,6 +127,7 @@ export function TemplateDesigner({
   schema,
   selectedComponentId,
   validation,
+  sampleFieldOptions = [],
   readOnly = false,
   onSchemaChange,
   onSelectedComponentChange,
@@ -185,8 +188,8 @@ export function TemplateDesigner({
       return;
     }
 
-    if (activeId.startsWith("canvas:") && beforeComponentId) {
-      onSchemaChange(moveComponentInSchema(schema, activeId.replace("canvas:", ""), beforeComponentId));
+    if (activeId.startsWith("canvas:") && (beforeComponentId || target?.containerId)) {
+      onSchemaChange(moveComponentInSchema(schema, activeId.replace("canvas:", ""), beforeComponentId, target));
     }
   }
 
@@ -214,6 +217,7 @@ export function TemplateDesigner({
           component={selectedComponent}
           schema={schema}
           validation={validation}
+          sampleFieldOptions={sampleFieldOptions}
           readOnly={readOnly}
           onSchemaChange={onSchemaChange}
         />
@@ -393,7 +397,10 @@ function CanvasItem({
       data-over={isOver ? "true" : undefined}
       data-dragging={isDragging ? "true" : undefined}
       style={style}
-      onClick={() => onSelect(component.id)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(component.id);
+      }}
       aria-label={`${component.label} 属性`}
     >
       <div className="labelhub-canvas-item-head">
@@ -661,19 +668,23 @@ function PropertyPanel({
   component,
   schema,
   validation,
+  sampleFieldOptions,
   readOnly,
   onSchemaChange,
 }: {
   component: TemplateComponentDTO | null;
   schema: TemplateSchemaVO;
   validation: TemplateSchemaValidationVO | null;
+  sampleFieldOptions: PayloadFieldOption[];
   readOnly: boolean;
   onSchemaChange: (schema: TemplateSchemaVO) => void;
 }) {
   if (!component) {
     return (
       <aside className="labelhub-designer-panel labelhub-property-panel">
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择画布中的物料后配置属性" />
+        <div className="labelhub-property-empty">
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择画布中的物料后配置属性" />
+        </div>
       </aside>
     );
   }
@@ -736,15 +747,12 @@ function PropertyPanel({
             </Form.Item>
           )}
           {component.type === "SHOW_ITEM" && (
-            <Form.Item label="展示路径" htmlFor={controlId("path")}>
-              <Input
-                id={controlId("path")}
-                name={controlId("path")}
-                value={String(component.props.path ?? "")}
-                placeholder="$.prompt"
-                onChange={(event) => patchProps({ path: event.target.value })}
-              />
-            </Form.Item>
+            <ShowItemPathEditor
+              component={component}
+              controlId={controlId}
+              sampleFieldOptions={sampleFieldOptions}
+              patchProps={patchProps}
+            />
           )}
           {component.type === "GROUP" && <GroupPropertyEditor component={component} patchProps={patchProps} />}
           {component.type === "TABS" && (
@@ -804,7 +812,14 @@ function PropertyPanel({
             <UploadPropertyEditor component={component} patchProps={patchProps} />
           )}
           {component.type === "JSON_EDITOR" && <JsonDefaultValueEditor component={component} patchProps={patchProps} />}
-          {component.type === "LLM_ACTION" && <LlmActionPropertyEditor component={component} schema={schema} patchProps={patchProps} />}
+          {component.type === "LLM_ACTION" && (
+            <LlmActionPropertyEditor
+              component={component}
+              schema={schema}
+              sampleFieldOptions={sampleFieldOptions}
+              patchProps={patchProps}
+            />
+          )}
         </div>
 
         <div className="labelhub-property-section">
@@ -876,6 +891,59 @@ function PropertyPanel({
         )}
       </Form>
     </aside>
+  );
+}
+
+function ShowItemPathEditor({
+  component,
+  controlId,
+  sampleFieldOptions,
+  patchProps,
+}: {
+  component: TemplateComponentDTO;
+  controlId: (name: string) => string;
+  sampleFieldOptions: PayloadFieldOption[];
+  patchProps: (nextProps: Record<string, unknown>) => void;
+}) {
+  const path = String(component.props.path ?? "");
+  const selectOptions = sampleFieldOptions.map((option) => ({
+    label: option.label,
+    value: option.value,
+  }));
+  const currentPathInOptions = selectOptions.some((option) => option.value === path);
+  const options = path && !currentPathInOptions ? [{ label: `当前路径 ${path}`, value: path }, ...selectOptions] : selectOptions;
+
+  return (
+    <>
+      <Form.Item label="数据字段" htmlFor={controlId("path-select")}>
+        <Select
+          id={controlId("path-select")}
+          showSearch
+          allowClear
+          placement="bottomRight"
+          popupMatchSelectWidth={280}
+          optionFilterProp="label"
+          optionLabelProp="value"
+          options={options}
+          value={path || undefined}
+          placeholder={sampleFieldOptions.length > 0 ? "从当前样本字段中选择" : "暂无样本字段，可在下方手动输入"}
+          notFoundContent="暂无可选样本字段"
+          onChange={(nextPath) => patchProps({ path: nextPath ?? "" })}
+        />
+      </Form.Item>
+      <Form.Item label="展示路径 JSONPath" htmlFor={controlId("path")}>
+        <Input
+          id={controlId("path")}
+          name={controlId("path")}
+          value={path}
+          placeholder="$.prompt"
+          onChange={(event) => patchProps({ path: event.target.value })}
+        />
+        <Typography.Text type="secondary">
+          支持安全 JSONPath 子集，例如 $.prompt、$.response_a、$.metadata.title。
+        </Typography.Text>
+      </Form.Item>
+    </>
   );
 }
 
@@ -1251,19 +1319,25 @@ function JsonDefaultValueEditor({
 function LlmActionPropertyEditor({
   component,
   schema,
+  sampleFieldOptions,
   patchProps,
 }: {
   component: TemplateComponentDTO;
   schema: TemplateSchemaVO;
+  sampleFieldOptions: PayloadFieldOption[];
   patchProps: (nextProps: Record<string, unknown>) => void;
 }) {
   const fieldOptions = collectTemplateFieldKeys(schema).map((fieldKey) => ({ label: fieldKey, value: fieldKey }));
-  const itemPathOptions = schema.components
+  const showItemPathOptions = schema.components
     .filter((item) => item.type === "SHOW_ITEM")
     .flatMap((item) => {
       const path = typeof item.props.path === "string" ? item.props.path.trim() : "";
       return path ? [{ label: `${item.label} (${path})`, value: path }] : [];
     });
+  const itemPathOptions = mergeSelectOptions([
+    ...showItemPathOptions,
+    ...sampleFieldOptions.map((option) => ({ label: option.label, value: option.value })),
+  ]);
   const inputItemPaths = getStringArrayProp(component.props.inputItemPaths);
   const inputFieldKeys = getStringArrayProp(component.props.inputFieldKeys);
   const outputFieldKey = typeof component.props.outputFieldKey === "string" ? component.props.outputFieldKey : "";
@@ -1291,6 +1365,8 @@ function LlmActionPropertyEditor({
         <Select
           id={`template-llm-${component.id}-item-inputs`}
           mode="multiple"
+          placement="bottomRight"
+          popupMatchSelectWidth={280}
           options={itemPathOptions}
           value={inputItemPaths}
           placeholder="选择题目原始数据作为模型输入"
@@ -1302,6 +1378,8 @@ function LlmActionPropertyEditor({
         <Select
           id={`template-llm-${component.id}-field-inputs`}
           mode="multiple"
+          placement="bottomRight"
+          popupMatchSelectWidth={280}
           options={fieldOptions}
           value={inputFieldKeys}
           placeholder="选择标注员已填写字段作为模型输入"
@@ -1312,6 +1390,8 @@ function LlmActionPropertyEditor({
         <Select
           id={`template-llm-${component.id}-output`}
           allowClear
+          placement="bottomRight"
+          popupMatchSelectWidth={280}
           options={fieldOptions}
           value={outputFieldKey || undefined}
           placeholder="可选：用于预填的字段"
@@ -1399,6 +1479,17 @@ function conditionValueToText(condition: TemplateRuleConditionDTO): string {
 
 function getStringArrayProp(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function mergeSelectOptions(options: Array<{ label: string; value: string }>): Array<{ label: string; value: string }> {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    if (!option.value || seen.has(option.value)) {
+      return false;
+    }
+    seen.add(option.value);
+    return true;
+  });
 }
 
 function getNumberProp(value: unknown, fallback: number): number {

@@ -128,6 +128,31 @@ describe("template designer helpers", () => {
     expect(schema.layout.root).toEqual(["show_prompt", "answer"]);
   });
 
+  it("moves existing components across layout containers", () => {
+    let schema = createEmptyTemplateSchema();
+    schema = appendComponentToSchema(schema, createDesignerComponent({ type: "GROUP", id: "source_group" }));
+    schema = appendComponentToSchema(schema, createDesignerComponent({ type: "GROUP", id: "target_group" }));
+    schema = appendComponentToSchema(schema, createDesignerComponent({ type: "TEXT_INPUT", id: "answer" }), null, {
+      containerId: "source_group",
+    });
+    schema = appendComponentToSchema(schema, createDesignerComponent({ type: "TEXTAREA", id: "reason" }), null, {
+      containerId: "target_group",
+    });
+
+    schema = moveComponentInSchema(schema, "answer", null, { containerId: "target_group" });
+    let layoutItems = getDesignerLayoutItems(schema);
+    expect(layoutItems[0].children?.map((item) => item.component.id)).toEqual([]);
+    expect(layoutItems[1].children?.map((item) => item.component.id)).toEqual(["reason", "answer"]);
+
+    schema = moveComponentInSchema(schema, "answer", "reason");
+    layoutItems = getDesignerLayoutItems(schema);
+    expect(layoutItems[1].children?.map((item) => item.component.id)).toEqual(["answer", "reason"]);
+
+    const beforeInvalidMove = schema.layout.root;
+    schema = moveComponentInSchema(schema, "target_group", null, { containerId: "answer" });
+    expect(schema.layout.root).toEqual(beforeInvalidMove);
+  });
+
   it("updates component properties and normalizes option rows", () => {
     let schema = createEmptyTemplateSchema();
     schema = appendComponentToSchema(schema, createDesignerComponent({ type: "RADIO", id: "quality" }));

@@ -9,12 +9,16 @@ from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.schemas.reviews import (
+    BatchReviewDecisionRequest,
+    BatchReviewDecisionVO,
     ClaimReviewJobRequest,
     ClaimReviewJobResponse,
     CompleteReviewJobRequest,
+    CreateReviewDecisionRequest,
     ReviewDetailVO,
     ReviewJobSummaryVO,
     ReviewJobVO,
+    ReviewTaskSummaryVO,
     ReviewVO,
 )
 from labelhub_api.services.review_service import ReviewService
@@ -108,6 +112,37 @@ def list_reviews(
     )
 
 
+@review_router.get("/tasks", response_model=PageVO[ReviewTaskSummaryVO], response_model_by_alias=True)
+def list_review_tasks(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    status: ReviewStatus | None = Query(default=None),
+    keyword: str | None = Query(default=None, max_length=120),
+    ai_conclusion: AiReviewConclusion | None = Query(default=None, alias="aiConclusion"),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> PageVO[ReviewTaskSummaryVO]:
+    return ReviewService(db).list_review_tasks(
+        user=user,
+        page=page,
+        page_size=page_size,
+        status=status,
+        keyword=keyword,
+        ai_conclusion=ai_conclusion,
+    )
+
+
+@review_router.post(":batch-decide", response_model=BatchReviewDecisionVO, response_model_by_alias=True)
+def batch_decide_reviews(
+    body: BatchReviewDecisionRequest,
+    request: Request,
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> BatchReviewDecisionVO:
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return ReviewService(db).batch_decide_reviews(user=user, body=body, request_id=request_id)
+
+
 @review_router.get("/{reviewId}", response_model=ReviewDetailVO, response_model_by_alias=True)
 def get_review_detail(
     reviewId: str,
@@ -117,3 +152,20 @@ def get_review_detail(
 ) -> ReviewDetailVO:
     request_id = str(getattr(request.state, "request_id", "req_unknown"))
     return ReviewService(db).get_review_detail(review_id=reviewId, user=user, request_id=request_id)
+
+
+@review_router.post("/{reviewId}/decisions", response_model=ReviewVO, response_model_by_alias=True)
+def create_review_decision(
+    reviewId: str,
+    body: CreateReviewDecisionRequest,
+    request: Request,
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> ReviewVO:
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return ReviewService(db).create_review_decision(
+        review_id=reviewId,
+        user=user,
+        body=body,
+        request_id=request_id,
+    )

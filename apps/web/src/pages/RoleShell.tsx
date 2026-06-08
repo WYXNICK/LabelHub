@@ -18,11 +18,12 @@ import type { UserRole, UserVO } from "../features/auth/types";
 import { matchLabelerAssignmentPath, matchLabelerAssignmentRevisePath } from "../features/assignments/view";
 import { matchOwnerTaskDatasetsPath } from "../features/datasets/view";
 import { matchOwnerTaskReviewConfigPath } from "../features/review-config/view";
-import { matchReviewerReviewDetailPath } from "../features/reviews/view";
-import { matchOwnerTaskSettingsPath } from "../features/tasks/view";
+import { matchReviewerReviewDetailPath, matchReviewerReviewTaskPath } from "../features/reviews/view";
+import { matchOwnerTaskAcceptancePath, matchOwnerTaskSettingsPath } from "../features/tasks/view";
 import { matchOwnerTaskDesignerPath } from "../features/templates/view";
 import { OwnerTaskDatasetsPage } from "./OwnerTaskDatasetsPage";
 import { OwnerTaskListPage } from "./OwnerTaskListPage";
+import { OwnerTaskAcceptancePage } from "./OwnerTaskAcceptancePage";
 import { OwnerTaskReviewConfigPage } from "./OwnerTaskReviewConfigPage";
 import { OwnerTaskSettingsPage } from "./OwnerTaskSettingsPage";
 import { OwnerTemplateDesignerPage } from "./OwnerTemplateDesignerPage";
@@ -31,6 +32,7 @@ import { ReviewerAiReviewQueuePage } from "./ReviewerAiReviewQueuePage";
 import { ReviewerReviewDetailPage } from "./ReviewerReviewDetailPage";
 import { ReviewerReviewQueuePage } from "./ReviewerReviewQueuePage";
 import { ReviewerReviewResultsPage } from "./ReviewerReviewResultsPage";
+import { ReviewerReviewTaskListPage } from "./ReviewerReviewTaskListPage";
 import { LabelerAssignmentWorkspacePage } from "./LabelerAssignmentWorkspacePage";
 import { LabelerContributionsPage } from "./LabelerContributionsPage";
 import { LabelerMarketplacePage } from "./LabelerMarketplacePage";
@@ -73,11 +75,15 @@ export function RoleShell({ user, path }: RoleShellProps) {
   const role = user.role === "SYSTEM" ? "OWNER" : user.role;
   const labelerAssignmentId = matchLabelerAssignmentPath(path);
   const labelerReviseAssignmentId = matchLabelerAssignmentRevisePath(path);
+  const reviewerReviewTaskId = matchReviewerReviewTaskPath(path);
   const isLabelerWorkspaceFocus = user.role === "LABELER" && Boolean(labelerAssignmentId || labelerReviseAssignmentId);
   const isOwnerDesignerFocus = user.role === "OWNER" && Boolean(matchOwnerTaskDesignerPath(path));
   const isReviewerAuditFocus =
     user.role === "REVIEWER" &&
-    (path === "/reviewer/ai-review-queue" || path === "/reviewer/reviews" || Boolean(matchReviewerReviewDetailPath(path)));
+    (path === "/reviewer/ai-review-queue" ||
+      path === "/reviewer/reviews" ||
+      Boolean(reviewerReviewTaskId) ||
+      Boolean(matchReviewerReviewDetailPath(path)));
   const isWorkspaceFocus = isLabelerWorkspaceFocus || isOwnerDesignerFocus || isReviewerAuditFocus;
   const selectedMenuKey = matchOwnerTaskDesignerPath(path)
     ? "/owner/templates"
@@ -85,7 +91,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
       ? "/labeler/contributions"
     : labelerAssignmentId
       ? "/labeler/marketplace"
-    : matchReviewerReviewDetailPath(path)
+    : matchReviewerReviewDetailPath(path) || reviewerReviewTaskId
       ? "/reviewer/reviews"
     : path.startsWith("/owner/tasks")
       ? "/owner/tasks"
@@ -157,6 +163,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
 function getRouteChipLabel(role: UserRole, path: string): string {
   if (role === "OWNER") {
     if (matchOwnerTaskDesignerPath(path)) return "模板搭建器";
+    if (matchOwnerTaskAcceptancePath(path)) return "数据验收";
     if (matchOwnerTaskDatasetsPath(path)) return "任务数据集";
     if (matchOwnerTaskReviewConfigPath(path)) return "审核配置";
     if (matchOwnerTaskSettingsPath(path)) return "任务设置";
@@ -170,6 +177,7 @@ function getRouteChipLabel(role: UserRole, path: string): string {
     if (path === "/labeler/contributions") return "我的贡献";
   }
   if (role === "REVIEWER") {
+    if (matchReviewerReviewTaskPath(path)) return "人工审核任务";
     if (matchReviewerReviewDetailPath(path)) return "AI 预审详情";
     if (path === "/reviewer/ai-review-queue") return "AI 预审队列";
     if (path === "/reviewer/reviews") return "人工审核";
@@ -201,6 +209,10 @@ function renderRoleContent(user: UserVO, path: string) {
     if (taskDesignerId) {
       return <OwnerTemplateDesignerPage taskId={taskDesignerId} />;
     }
+    const taskAcceptanceId = matchOwnerTaskAcceptancePath(path);
+    if (taskAcceptanceId) {
+      return <OwnerTaskAcceptancePage taskId={taskAcceptanceId} />;
+    }
     const taskId = matchOwnerTaskSettingsPath(path);
     if (taskId) {
       return <OwnerTaskSettingsPage taskId={taskId} />;
@@ -226,12 +238,16 @@ function renderRoleContent(user: UserVO, path: string) {
     return <ReviewerAiReviewQueuePage />;
   }
   if (user.role === "REVIEWER" && path === "/reviewer/reviews") {
-    return <ReviewerReviewQueuePage />;
+    return <ReviewerReviewTaskListPage />;
   }
   if (user.role === "REVIEWER" && path === "/reviewer/results") {
     return <ReviewerReviewResultsPage />;
   }
   if (user.role === "REVIEWER") {
+    const reviewTaskId = matchReviewerReviewTaskPath(path);
+    if (reviewTaskId) {
+      return <ReviewerReviewQueuePage taskId={reviewTaskId} />;
+    }
     const reviewId = matchReviewerReviewDetailPath(path);
     if (reviewId) {
       return <ReviewerReviewDetailPage reviewId={reviewId} />;

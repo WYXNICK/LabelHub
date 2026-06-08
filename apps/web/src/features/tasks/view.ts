@@ -71,6 +71,11 @@ export function matchOwnerTaskSettingsPath(path: string): string | null {
   return match?.[1] ?? null;
 }
 
+export function matchOwnerTaskAcceptancePath(path: string): string | null {
+  const match = /^\/owner\/tasks\/([^/]+)\/acceptance$/.exec(path);
+  return match?.[1] ?? null;
+}
+
 export function parseApiDateTime(value: string): Date {
   const normalizedSeparator = value.trim().replace(
     /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?)/,

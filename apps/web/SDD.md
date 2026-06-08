@@ -193,10 +193,11 @@ export interface LogoutResponseVO {
 | 3 | 题目级 LLM 辅助 | `LlmActionRunVO` | `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` | 阶段 3.6 已实现 |
 | 4 | AI 预审队列 | `ReviewJobVO` | `GET /api/review-jobs` | 阶段 4.0/4.1 已实现 |
 | 4 | AI 预审队列摘要 | `ReviewJobSummaryVO` | `GET /api/review-jobs/summary` | 阶段 4.4 已实现 |
-| 4 | Reviewer 待审列表 | `ReviewVO` | `GET /api/reviews` | 阶段 4.4 已深化为待审记录主视角，支持关键字、审核状态和 AI 结论筛选 |
+| 4 | Reviewer 人工审核任务 | `ReviewTaskSummaryVO` | `GET /api/reviews/tasks` | 阶段 4.6 已改为任务级入口，先选任务再进入流转工作台 |
+| 4 | Reviewer 任务内审核记录 | `ReviewVO` | `GET /api/reviews` | 阶段 4.4 已实现；阶段 4.6 仅在任务内工作台使用，支持 `taskId/status/aiConclusion` 筛选 |
 | 4 | Reviewer 审核详情 | `ReviewDetailVO` | `GET /api/reviews/{reviewId}` | 阶段 4.4 已补充状态链路、多轮历史和提交 diff |
-| 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 待实现 |
-| 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.0 待对齐 |
+| 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 已实现 |
+| 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.6 已实现 |
 | 5 | 导出任务 | `ExportJobVO` | `POST /api/tasks/{taskId}/export-jobs` | 待细化 |
 
 ### 9.1 阶段 1.0 已对齐前端契约
@@ -927,6 +928,7 @@ export interface ContributionItemVO {
 阶段 3.3 草稿自动保存产品规则：
 
 - `TemplateRenderer` 的每次值变更先经过其隐藏字段清理逻辑，再由作答页以约 1 秒防抖调用 `saveAssignmentDraft`。
+- 作答页加载时先用当前模板对初始值做一次隐藏字段清理，并使用稳定 JSON 序列化作为草稿基线；Renderer 初始化规范化、对象字段顺序变化或无实际内容变化不得触发自动保存。
 - 请求体为 `SaveAssignmentDraftRequest { values, clientVersion }`，其中 `clientVersion` 使用当前 `AssignmentVO.version`；保存成功后用返回的 `AssignmentVO` 更新本地上下文版本。
 - 页面顶部、底部和右侧历史区必须展示可理解的草稿状态：待保存、保存中、已保存时间、保存失败可重试、版本冲突需重新加载。
 - 刷新页面时继续遵循初始化优先级 `assignment.draftValues > latestSubmission.values > getTemplateInitialValue(templateSchema)`，确保草稿能从 MySQL 恢复。
@@ -1001,8 +1003,9 @@ export interface ContributionItemVO {
 | 页面 | 路由 | 产品结构 |
 | --- | --- | --- |
 | AI 预审队列 | `/reviewer/ai-review-queue` | 按 phase4 原型独立展示 AI job 队列、Agent 健康度、今日处理、失败兜底、结构化评分、AI 评语和 Prompt 快照摘要 |
-| 人工审核 | `/reviewer/reviews` | 展示待人工复核统计、任务关键字/状态/AI 结论筛选和待审记录列表；批量人工操作在阶段 4.5 启用 |
-| 审核详情 | `/reviewer/reviews/:reviewId` | 左侧题目/提交值，中间 AI 评分与提交 diff，右侧状态链路、历史意见、人工决策占位和审计时间线 |
+| 人工审核任务列表 | `/reviewer/reviews` | 按任务聚合待审量、AI 建议分布和最近更新；Reviewer 必须先选择任务，避免跨任务误批量 |
+| 任务内审核工作台 | `/reviewer/reviews/tasks/:taskId` | 参考 `ui-prototypes/phase4/reviewer-workbench`：左侧当前任务审核队列与批量操作，中间第 1/2 轮 diff、AI 评语和人工决策，右侧关键流转时间线与任务上下文 |
+| 审核详情 | `/reviewer/reviews/:reviewId` | 深度追溯页：只读题目/提交值、完整 AI 评分、提交 diff、多轮历史、状态链路、人工决策和关键流转时间线 |
 | 审核结果列表 | `/reviewer/results` | 已处理审核记录、按任务/结论/处理人筛选、可回看详情 |
 | Owner 数据验收 | `/owner/tasks/:taskId/acceptance` | 任务级提交、通过、打回、待审统计，AI 结论分布和抽样审核记录 |
 
@@ -1086,6 +1089,22 @@ export interface ReviewVO {
   updatedAt: string;
 }
 
+export interface ReviewTaskSummaryVO {
+  taskId: string;
+  taskTitle: string | null;
+  totalReviewCount: number;
+  pendingReviewCount: number;
+  approvedCount: number;
+  returnedCount: number;
+  aiPassCount: number;
+  aiReturnCount: number;
+  aiManualCount: number;
+  latestReviewId: string | null;
+  latestReviewUpdatedAt: string | null;
+  latestReviewRound: number | null;
+  reviewConfigVersionNo: number | null;
+}
+
 export interface ReviewPromptSnapshotSummaryVO {
   snapshotAvailable: boolean;
   taskTitle: string | null;
@@ -1146,29 +1165,86 @@ export interface ReviewDetailVO {
 }
 
 export interface CreateReviewDecisionRequest {
-  decision: "APPROVE" | "RETURN";
+  decision: "APPROVE" | "RETURN" | "DIRECT_REVISE";
   reason?: string;
   dimensionComments?: Record<string, string>;
+  revisedValues?: JsonObject;
   expectedVersion: number;
+}
+
+export interface BatchReviewDecisionRequest {
+  reviewIds: string[];
+  decision: "APPROVE" | "RETURN";
+  reason?: string;
+  expectedVersions?: Record<string, number>;
+}
+
+export interface BatchReviewDecisionVO {
+  succeededIds: string[];
+  failed: Record<string, string>;
+}
+
+export interface ReviewTimelineItemVO {
+  actorId: string;
+  actorName: string | null;
+  actorRole: string;
+  action: "ASSIGNMENT_CLAIM" | "SUBMISSION_CREATE" | "REVIEW_AI_SUGGESTION" | "REVIEW_DECISION";
+  fromState: string | null;
+  toState: string | null;
+  reason: string | null;
+  metadata: JsonObject;
+  createdAt: string;
+}
+
+export interface AcceptanceReviewSampleVO {
+  reviewId: string;
+  taskTitle: string | null;
+  submissionVersion: number | null;
+  reviewRound: number;
+  status: ReviewStatus;
+  aiConclusion: AiReviewConclusion | null;
+  aiScoreTotal: number | null;
+  aiIssueCount: number;
+  humanConclusion: HumanReviewDecision | null;
+  humanComment: string | null;
+  updatedAt: string;
+}
+
+export interface AcceptanceStatsVO {
+  taskId: string;
+  submittedCount: number;
+  pendingReviewCount: number;
+  approvedCount: number;
+  returnedCount: number;
+  aiConclusionDistribution: Record<string, number>;
+  latestReviewedAt: string | null;
+  recentReviews: AcceptanceReviewSampleVO[];
 }
 ```
 
 交互规则：
 
 - Reviewer 登录后的默认首页为 `/reviewer/ai-review-queue`，用于先观察 AI 预审运行态、失败兜底和写回结果；人工处理入口为 `/reviewer/reviews`。
-- 阶段 4.4 信息架构必须拆分为三页：`/reviewer/ai-review-queue` 只展示 AI job 与 Agent 运行健康，`/reviewer/reviews` 只展示需要人工复核的 review 记录，`/reviewer/results` 只做审核结果追溯。避免把 Agent 内部流水和人工审核任务揉在同一主列表中。
-- `/reviewer/ai-review-queue`、`/reviewer/reviews` 与 `/reviewer/reviews/:reviewId` 属于审核工作台专注场景，进入页面时左侧全局角色导航必须自动收起为窄图标栏，为队列、评分、提交快照和人工审核主内容释放宽度。
-- 人工审核页支持任务关键字、审核状态、AI 结论筛选；AI 预审队列页支持 job 状态和关键字筛选，并通过 `ReviewJobSummaryVO` 展示运行摘要。
-- 阶段 4.4 详情页必须展示状态链路、多轮历史意见和当前提交相对上一版的 diff；人工通过/打回和批量审核分别在 4.5 继续启用。
+- 阶段 4.4/4.6 信息架构必须拆分为四类入口：`/reviewer/ai-review-queue` 只展示 AI job 与 Agent 运行健康；`/reviewer/reviews` 是人工审核任务列表；`/reviewer/reviews/tasks/:taskId` 是某个任务内的流转工作台；`/reviewer/results` 只做审核结果追溯。避免把 Agent 内部流水、跨任务审核记录和任务内复审动作揉在同一主列表中。
+- `/reviewer/ai-review-queue`、`/reviewer/reviews`、`/reviewer/reviews/tasks/:taskId` 与 `/reviewer/reviews/:reviewId` 属于审核工作台专注场景，进入页面时左侧全局角色导航必须自动收起为窄图标栏，为队列、评分、提交快照和人工审核主内容释放宽度。
+- 人工审核任务列表支持任务关键字、审核状态、AI 结论筛选；任务内工作台必须固定 `taskId` 再查询 `ReviewVO`，批量通过/打回只允许作用于当前任务内记录。AI 预审队列页支持 job 状态和关键字筛选，并通过 `ReviewJobSummaryVO` 展示运行摘要。
+- 阶段 4.5/4.6 起 `/reviewer/reviews` 不再直接承载三栏记录工作台，而是人工审核任务入口；`/reviewer/reviews/tasks/:taskId` 负责复审/终审视角、第 1/2 轮 diff、AI 评语、批量操作和关键流转时间线；`/reviewer/reviews/:reviewId` 作为深度详情页，避免工作台承载过多追溯信息。
+- 从任务内工作台、AI 预审队列或审核结果页进入 `/reviewer/reviews/:reviewId` 时，详情页必须保留来源上下文；默认“返回审核工作台”应回到该 review 所属任务的 `/reviewer/reviews/tasks/:taskId`，不能退回人工审核任务列表。
+- 阶段 4.4 详情页必须展示状态链路、多轮历史意见和当前提交相对上一版的 diff；阶段 4.6 的任务内工作台也必须在主流程中展示第 1/2 轮差异和可滚动关键流转时间线。
+- 审核时间线只展示 `领取题目`、`提交标注结果`、`AI 预审建议`、`人工审核决策` 等关键节点，过滤 `草稿保存` 这类高频过程日志；展示结构为“人员名称 + 右侧时间 + 下方动作”，与官方原型保持一致。
 - Reviewer 队列列表与最近待审记录应优先展示任务标题、提交版本和审核配置版本；`reviewJobId`、`submissionId`、`idempotencyKey` 等内部追踪字段不得作为主标题，必要时只作为可复制的短流水号或详情追踪信息。
 - AI 预审队列左侧 job 标题必须在卡片宽度内单行省略，不得因长任务名撑出列表容器；选中 job 头部的更新时间、人工审核入口和问题数应作为同一操作区展示，避免按钮与状态文字堆叠。
 - AI 预审队列左侧列表必须在视口高度内形成内部滚动，筛选区和摘要区保持稳定，不得随着 job 数量增加把整页无限拉长。
 - Agent 健康态必须区分“真实活跃 worker”和“数据库中超时 RUNNING job”：`activeWorkerCount` 只代表未超过锁超时的 worker；当 `staleRunningJobCount > 0` 时前端显示“有超时待回收”，并提示 Agent 再次领取时会回收重试。
 - Reviewer 侧维度评分统一按 100 分制展示。前端根据 `score / dimension.maxScore * 100` 归一化渲染；后端仍保存配置版本定义下的原始分，兼容早期 5 分制历史记录。
 - `RETURN` 决策必须填写理由；前端即时校验，但以后端状态机为最终结果。
+- `DIRECT_REVISE` 表示 Reviewer 直接修订当前提交值并入库；前端需提供修订确认入口，后端必须按当前模板版本校验 `revisedValues` 后才能写入 submission 并置为通过。
 - 批量打回也必须提供统一理由，并在每条 review 上写独立审计。
+- 阶段 4.5 起，任务内工作台人工决策启用“打回 / 直接修订 / 通过入库”三张动作卡；详情页保留“通过/打回”深度追溯入口。成功后刷新状态并提示变化，已处理记录禁用重复决策。
+- 人工审核工作台支持选择待审记录批量通过/打回；批量响应可能部分成功，前端必须展示成功数量和失败原因，并刷新列表。
 - AI 结论只作为建议展示，不在前端直接决定终审状态。
 - Reviewer 审核通过或打回后，Labeler 贡献页和返修页必须能通过现有 `ReviewFeedbackVO` 看到最新打回意见。
+- Owner 数据验收页从 `/owner/tasks/:taskId/acceptance` 进入，展示任务通过率、打回率、待审量、AI 结论分布和最近验收样本；页面为只读分析视图，不承担人工审核决策。
 - 阶段 4 所有 Reviewer 页面仍需使用 Chrome DevTools MCP 在 `1280×800` 与 `1920×1080` 下验收，重点检查列表操作区、详情页右侧决策面板、批量操作条和时间线不遮挡。
 
 ## 10. 前后端字段映射检查清单

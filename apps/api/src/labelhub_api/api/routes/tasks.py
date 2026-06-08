@@ -8,6 +8,7 @@ from labelhub_api.core.enums import TaskStatus
 from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
+from labelhub_api.schemas.reviews import AcceptanceStatsVO
 from labelhub_api.schemas.tasks import (
     CreateTaskRequest,
     PublishCheckVO,
@@ -18,6 +19,7 @@ from labelhub_api.schemas.tasks import (
     UpdateTaskRequest,
 )
 from labelhub_api.services.task_service import TaskService
+from labelhub_api.services.review_service import ReviewService
 
 router = APIRouter(prefix="/api/tasks", tags=["stage1-tasks"])
 
@@ -66,6 +68,17 @@ def get_task(
     db: Session = Depends(get_db_session),
 ) -> TaskDetailVO:
     return TaskService(db).get_task(task_id=taskId, user=user)
+
+
+@router.get("/{taskId}/acceptance-stats", response_model=AcceptanceStatsVO, response_model_by_alias=True)
+def get_task_acceptance_stats(
+    taskId: str,
+    request: Request,
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> AcceptanceStatsVO:
+    request_id = str(getattr(request.state, "request_id", "req_unknown"))
+    return ReviewService(db).get_acceptance_stats(task_id=taskId, user=user, request_id=request_id)
 
 
 @router.patch("/{taskId}", response_model=TaskDetailVO, response_model_by_alias=True)

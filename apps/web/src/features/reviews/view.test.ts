@@ -8,6 +8,7 @@ import {
   formatReviewScorePercent,
   formatReviewTraceCode,
   formatSubmissionVersion,
+  getReviewerReviewDetailReturnTarget,
   matchReviewerReviewDetailPath,
   normalizeReviewScoreToPercent,
 } from "./view";
@@ -15,8 +16,34 @@ import {
 describe("review view helpers", () => {
   it("builds and matches reviewer detail paths", () => {
     expect(buildReviewerReviewDetailPath("review_1")).toBe("/reviewer/reviews/review_1");
+    expect(buildReviewerReviewDetailPath("review_1", { from: "task", taskId: "task_1" })).toBe(
+      "/reviewer/reviews/review_1?from=task&taskId=task_1",
+    );
     expect(matchReviewerReviewDetailPath("/reviewer/reviews/review_1")).toBe("review_1");
+    expect(matchReviewerReviewDetailPath("/reviewer/reviews/review_1?from=task&taskId=task_1")).toBe("review_1");
     expect(matchReviewerReviewDetailPath("/reviewer/reviews")).toBeNull();
+  });
+
+  it("keeps reviewer detail back navigation aligned with the entry page", () => {
+    expect(getReviewerReviewDetailReturnTarget("?from=task&taskId=task_1", "fallback_task")).toEqual({
+      label: "返回审核工作台",
+      path: "/reviewer/reviews/tasks/task_1",
+    });
+    expect(getReviewerReviewDetailReturnTarget("?from=task&taskId=bad/id", "fallback_task").path).toBe(
+      "/reviewer/reviews/tasks/fallback_task",
+    );
+    expect(getReviewerReviewDetailReturnTarget("?from=ai-review-queue", "task_1")).toEqual({
+      label: "返回 AI 预审队列",
+      path: "/reviewer/ai-review-queue",
+    });
+    expect(getReviewerReviewDetailReturnTarget("?from=results", "task_1")).toEqual({
+      label: "返回审核结果",
+      path: "/reviewer/results",
+    });
+    expect(getReviewerReviewDetailReturnTarget("", "task_1")).toEqual({
+      label: "返回审核工作台",
+      path: "/reviewer/reviews/tasks/task_1",
+    });
   });
 
   it("formats user-facing review metadata", () => {

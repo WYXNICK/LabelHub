@@ -1,24 +1,43 @@
 import {
   ArrowLeftOutlined,
-  CheckCircleOutlined,
   ClockCircleOutlined,
-  FileTextOutlined,
   HistoryOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Descriptions, Empty, Flex, Progress, Skeleton, Space, Tag, Timeline, Typography } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  App as AntdApp,
+  Button,
+  Card,
+  Descriptions,
+  Empty,
+  Flex,
+  Form,
+  Input,
+  Progress,
+  Radio,
+  Skeleton,
+  Space,
+  Tag,
+  Timeline,
+  Typography,
+} from "antd";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { navigate } from "../app/routes";
-import { getReviewDetail } from "../features/reviews/api";
-import type { ReviewDetailVO } from "../features/reviews/types";
+import { decideReview, getReviewDetail } from "../features/reviews/api";
+import type { HumanReviewDecision, ReviewDetailVO } from "../features/reviews/types";
 import {
   aiConclusionMeta,
   formatAiScoreTotal,
   formatReviewConfigVersion,
   formatReviewScorePercent,
+  formatReviewTimelineAction,
+  formatReviewTimelineActor,
   formatReviewValue,
   formatSubmissionVersion,
+  getReviewerReviewDetailReturnTarget,
+  getReviewTimelineDotColor,
   normalizeReviewScoreToPercent,
   reviewJobStatusMeta,
   reviewerAssignmentStatusMeta,
@@ -40,30 +59,22 @@ export function ReviewerReviewDetailPage({ reviewId }: ReviewerReviewDetailPageP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
     setLoading(true);
-    getReviewDetail(reviewId)
-      .then((nextDetail) => {
-        if (!cancelled) {
-          setDetail(nextDetail);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "审核详情暂时不可用。");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const nextDetail = await getReviewDetail(reviewId);
+      setDetail(nextDetail);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "审核详情暂时不可用。");
+    } finally {
+      setLoading(false);
+    }
   }, [reviewId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (loading) {
     return <Skeleton active paragraph={{ rows: 12 }} />;
@@ -77,10 +88,13 @@ export function ReviewerReviewDetailPage({ reviewId }: ReviewerReviewDetailPageP
     return <Empty description="未找到审核记录" />;
   }
 
-  return <ReviewerReviewDetailContent detail={detail} />;
+  return <ReviewerReviewDetailContent detail={detail} onReload={load} />;
 }
 
-function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
+function ReviewerReviewDetailContent({ detail, onReload }: { detail: ReviewDetailVO; onReload: () => Promise<void> }) {
+  const { message } = AntdApp.useApp();
+  const [form] = Form.useForm<{ decision: HumanReviewDecision; reason?: string }>();
+  const [submitting, setSubmitting] = useState(false);
   const {
     review,
     task,
@@ -96,6 +110,25 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
   const readonlyValue = useMemo(() => submission.values as TemplateSubmissionValue, [submission.values]);
   const reviewSchema = useMemo(() => removeLlmActionComponents(templateSchema), [templateSchema]);
   const conclusion = review.aiConclusion ? aiConclusionMeta[review.aiConclusion] : null;
+  const selectedDecision = Form.useWatch("decision", form) ?? "APPROVE";
+  const returnTarget = getReviewerReviewDetailReturnTarget(window.location.search, task.id);
+
+  async function handleDecisionSubmit(values: { decision: HumanReviewDecision; reason?: string }) {
+    setSubmitting(true);
+    try {
+      await decideReview(review.id, {
+        decision: values.decision,
+        reason: values.reason?.trim() || undefined,
+        expectedVersion: review.version,
+      });
+      message.success(values.decision === "APPROVE" ? "已通过该提交" : "已打回并同步给标注员");
+      await onReload();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "人工审核决策提交失败。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Space direction="vertical" size={18} style={{ width: "100%" }}>
@@ -103,8 +136,8 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
         <Flex align="flex-start" justify="space-between" gap={16} wrap="wrap">
           <Space direction="vertical" size={8}>
             <Space wrap>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/reviewer/reviews")}>
-                返回审核工作台
+              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(returnTarget.path)}>
+                {returnTarget.label}
               </Button>
               <Tag color={reviewStatusMeta[review.status].color}>{reviewStatusMeta[review.status].label}</Tag>
               <Tag color="blue">{formatSubmissionVersion(review.submissionVersion)}</Tag>
@@ -115,7 +148,7 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
                 {task.title}
               </Typography.Title>
               <Typography.Text type="secondary">
-                {stateLink.nextActionLabel}；阶段 4.5 会开放通过与打回决策。
+                {stateLink.nextActionLabel}；请结合 AI 建议、提交快照和多轮历史给出最终人工结论。
               </Typography.Text>
             </div>
           </Space>
@@ -331,16 +364,22 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
             </Space>
           </Card>
 
-          <Card title="审计时间线">
+          <Card title="关键流转时间线" extra={<Tag>过滤草稿</Tag>}>
             <Timeline
-              items={detail.timeline.map((item) => ({
-                dot: timelineIcon(item.action),
+              items={detail.timeline.slice(-12).map((item) => ({
+                dot: <ClockCircleOutlined style={{ color: getReviewTimelineDotColor(item) }} />,
                 children: (
-                  <div>
-                    <Typography.Text strong>{formatAuditAction(item.action)}</Typography.Text>
-                    <br />
-                    <Typography.Text type="secondary">
-                      {item.actorRole} · {formatTaskTime(item.createdAt)}
+                  <div className="labelhub-reviewer-timeline-item">
+                    <Flex justify="space-between" align="baseline" gap={8} wrap="nowrap">
+                      <Typography.Text strong className="labelhub-reviewer-timeline-actor">
+                        {formatReviewTimelineActor(item)}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" className="labelhub-reviewer-timeline-time">
+                        {formatTaskTime(item.createdAt)}
+                      </Typography.Text>
+                    </Flex>
+                    <Typography.Text className="labelhub-reviewer-timeline-action">
+                      {formatReviewTimelineAction(item)}
                     </Typography.Text>
                     {item.reason && (
                       <Typography.Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ margin: "4px 0 0" }}>
@@ -354,20 +393,58 @@ function ReviewerReviewDetailContent({ detail }: { detail: ReviewDetailVO }) {
           </Card>
 
           <Card title="人工决策">
-            <Alert
-              type="info"
-              showIcon
-              message="阶段 4.5 启用"
-              description="当前阶段只展示 AI 建议与审核上下文，不提前写入人工通过或打回状态。"
-            />
-            <Flex gap={10} style={{ marginTop: 12 }}>
-              <Button block disabled>
-                打回
-              </Button>
-              <Button block type="primary" disabled>
-                通过
-              </Button>
-            </Flex>
+            {review.status === "PENDING_HUMAN_REVIEW" ? (
+              <Form
+                form={form}
+                layout="vertical"
+                initialValues={{ decision: "APPROVE" }}
+                onFinish={(values) => void handleDecisionSubmit(values)}
+              >
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 12 }}
+                  message="人工结论是最终状态入口"
+                  description="AI 结论只作为建议；通过会进入可验收数据，打回会同步给标注员返修。"
+                />
+                <Form.Item name="decision" label="审核结论" rules={[{ required: true, message: "请选择审核结论" }]}>
+                  <Radio.Group optionType="button" buttonStyle="solid">
+                    <Radio.Button value="APPROVE">通过</Radio.Button>
+                    <Radio.Button value="RETURN">打回</Radio.Button>
+                  </Radio.Group>
+                </Form.Item>
+                <Form.Item
+                  name="reason"
+                  label={selectedDecision === "RETURN" ? "打回理由" : "审核说明"}
+                  rules={
+                    selectedDecision === "RETURN"
+                      ? [{ required: true, whitespace: true, message: "打回必须填写明确理由" }]
+                      : []
+                  }
+                >
+                  <Input.TextArea
+                    rows={4}
+                    maxLength={800}
+                    showCount
+                    placeholder={
+                      selectedDecision === "RETURN"
+                        ? "说明需要标注员返修的具体问题，例如缺少依据、字段选择错误或格式不符合要求。"
+                        : "可选：记录通过原因或抽样备注。"
+                    }
+                  />
+                </Form.Item>
+                <Button block type="primary" htmlType="submit" loading={submitting}>
+                  提交人工结论
+                </Button>
+              </Form>
+            ) : (
+              <Alert
+                type={review.status === "APPROVED" ? "success" : "warning"}
+                showIcon
+                message={review.status === "APPROVED" ? "该记录已通过" : "该记录已打回"}
+                description={review.humanComment || "人工审核已完成，不能重复提交决策。"}
+              />
+            )}
           </Card>
         </Space>
       </div>
@@ -428,30 +505,4 @@ function pruneLayoutNodes(nodes: TemplateLayoutNodeDTO[], hiddenIds: Set<string>
       },
     ];
   });
-}
-
-function timelineIcon(action: string) {
-  if (action === "REVIEW_AI_SUGGESTION") {
-    return <ThunderboltOutlined style={{ color: "#7c3aed" }} />;
-  }
-  if (action === "SUBMISSION_CREATE") {
-    return <FileTextOutlined style={{ color: "#3370ff" }} />;
-  }
-  if (action === "REVIEW_JOB_RESULT") {
-    return <CheckCircleOutlined style={{ color: "#13a867" }} />;
-  }
-  return <ClockCircleOutlined style={{ color: "#646a73" }} />;
-}
-
-function formatAuditAction(action: string): string {
-  const labels: Record<string, string> = {
-    ASSIGNMENT_CLAIM: "领取题目",
-    ASSIGNMENT_DRAFT_SAVE: "草稿保存",
-    SUBMISSION_CREATE: "标注员提交",
-    REVIEW_JOB_CREATE: "进入 AI 预审队列",
-    REVIEW_JOB_CLAIM: "Agent 领取任务",
-    REVIEW_JOB_RESULT: "Agent 写回结果",
-    REVIEW_AI_SUGGESTION: "AI 建议生成",
-  };
-  return labels[action] ?? action;
 }

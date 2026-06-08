@@ -206,7 +206,7 @@ function ReviewResultRow({ review }: { review: ReviewVO }) {
       </div>
       <Space direction="vertical" size={8} align="end">
         <Typography.Text type="secondary">更新 {formatTaskTime(review.updatedAt)}</Typography.Text>
-        <Button size="small" onClick={() => navigate(buildReviewerReviewDetailPath(review.id))}>
+        <Button size="small" onClick={() => navigate(buildReviewerReviewDetailPath(review.id, { from: "results" }))}>
           查看详情
         </Button>
       </Space>

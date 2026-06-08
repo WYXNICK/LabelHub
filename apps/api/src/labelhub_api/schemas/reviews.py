@@ -132,7 +132,25 @@ class ReviewVO(CamelModel):
     updated_at: datetime
 
 
+class ReviewTaskSummaryVO(CamelModel):
+    task_id: str
+    task_title: str | None = None
+    total_review_count: int
+    pending_review_count: int
+    approved_count: int
+    returned_count: int
+    ai_pass_count: int
+    ai_return_count: int
+    ai_manual_count: int
+    latest_review_id: str | None = None
+    latest_review_updated_at: datetime | None = None
+    latest_review_round: int | None = None
+    review_config_version_no: int | None = None
+
+
 class ReviewTimelineItemVO(CamelModel):
+    actor_id: str
+    actor_name: str | None = None
     actor_role: str
     action: str
     from_state: str | None = None
@@ -205,6 +223,7 @@ class CreateReviewDecisionRequest(CamelModel):
     decision: HumanReviewDecision
     reason: str | None = Field(default=None, max_length=2000)
     dimension_comments: dict[str, str] = Field(default_factory=dict)
+    revised_values: dict[str, Any] | None = None
     expected_version: int = Field(ge=0)
 
 
@@ -220,6 +239,20 @@ class BatchReviewDecisionVO(CamelModel):
     failed: dict[str, str]
 
 
+class AcceptanceReviewSampleVO(CamelModel):
+    review_id: str
+    task_title: str | None = None
+    submission_version: int | None = None
+    review_round: int
+    status: ReviewStatus
+    ai_conclusion: AiReviewConclusion | None = None
+    ai_score_total: float | None = None
+    ai_issue_count: int = 0
+    human_conclusion: HumanReviewDecision | None = None
+    human_comment: str | None = None
+    updated_at: datetime
+
+
 class AcceptanceStatsVO(CamelModel):
     task_id: str
     submitted_count: int
@@ -228,3 +261,4 @@ class AcceptanceStatsVO(CamelModel):
     returned_count: int
     ai_conclusion_distribution: dict[str, int]
     latest_reviewed_at: datetime | None = None
+    recent_reviews: list[AcceptanceReviewSampleVO] = Field(default_factory=list)

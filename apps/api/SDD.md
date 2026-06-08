@@ -307,10 +307,12 @@ class LogoutResponseVO:
 | 4 | `GET /api/review-jobs/summary` | `GetReviewJobSummaryRequest` | `ReviewJobSummaryVO` | 阶段 4.4 已实现 |
 | 4 | `POST /api/internal/review-jobs:claim` | `ClaimReviewJobRequest` | `ClaimReviewJobResponse` | 阶段 4.0 已实现 |
 | 4 | `POST /api/internal/review-jobs/{jobId}/results` | `CompleteReviewJobRequest` | `ReviewJobVO` | 阶段 4.0 基线已实现；阶段 4.3 深化 AI 结果写回 |
+| 4 | `GET /api/reviews/tasks` | `ListReviewTasksRequest` | `PageVO[ReviewTaskSummaryVO]` | 阶段 4.6 已实现，供人工审核先按任务进入 |
 | 4 | `GET /api/reviews` | `ListReviewsRequest` | `PageVO[ReviewVO]` | 阶段 4.4 已深化为待审记录主视角，支持 `keyword/status/aiConclusion` 筛选 |
 | 4 | `GET /api/reviews/{reviewId}` | `GetReviewRequest` | `ReviewDetailVO` | 阶段 4.4 已补充状态链路、多轮历史和提交 diff |
-| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.5 待实现 |
-| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.5 待实现 |
+| 4 | `POST /api/reviews/{reviewId}/decisions` | `CreateReviewDecisionRequest` | `ReviewVO` | 阶段 4.5 已实现 |
+| 4 | `POST /api/reviews:batch-decide` | `BatchReviewDecisionRequest` | `BatchReviewDecisionVO` | 阶段 4.5 已实现 |
+| 4 | `GET /api/tasks/{taskId}/acceptance-stats` | `GetAcceptanceStatsRequest` | `AcceptanceStatsVO` | 阶段 4.6 已实现 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 待细化 |
 
 ### 9.1 阶段 1.0 已对齐契约
@@ -1157,6 +1159,7 @@ class AiReviewConclusion(str, Enum):
 class HumanReviewDecision(str, Enum):
     APPROVE = "APPROVE"
     RETURN = "RETURN"
+    DIRECT_REVISE = "DIRECT_REVISE"
 ```
 
 核心 Entity：
@@ -1174,10 +1177,12 @@ class HumanReviewDecision(str, Enum):
 | `GET /api/review-jobs/summary` | `REVIEWER` | 汇总 AI 预审队列状态、AI 结论分布、今日处理、失败率、平均耗时、RUNNING/超时 job 与活跃 worker，用于独立 AI 预审队列页 |
 | `POST /api/internal/review-jobs:claim` | `SYSTEM` | 通过 `X-LabelHub-System-Token` 领取最早可执行的 `QUEUED/FAILED 可重试` job，并原子迁移为 `RUNNING` |
 | `POST /api/internal/review-jobs/{jobId}/results` | `SYSTEM` | 写回结构化 AI 预审结果或失败原因，生成 AI review 建议并写审计 |
+| `GET /api/reviews/tasks` | `REVIEWER` | 人工审核任务聚合列表，支持 `status`、`keyword`、`aiConclusion` 筛选，返回每个任务的待审数、AI 建议分布、最近 review 和审核配置版本 |
 | `GET /api/reviews` | `REVIEWER` | 待审/已审列表，支持 `status`、`taskId`、`keyword`、`aiConclusion` 分页筛选 |
 | `GET /api/reviews/{reviewId}` | `REVIEWER` | 审核详情，包含原题 payload、submission values、模板版本、AI 结果、Prompt 摘要、状态链路、多轮历史、提交 diff 与时间线 |
-| `POST /api/reviews/{reviewId}/decisions` | `REVIEWER` | 单条人工通过或打回 |
+| `POST /api/reviews/{reviewId}/decisions` | `REVIEWER` | 单条人工打回、直接修订或通过入库；`DIRECT_REVISE` 可携带 `revisedValues`，后端按当前模板版本校验后写入提交值 |
 | `POST /api/reviews:batch-decide` | `REVIEWER` | 批量通过或打回，逐条校验并写审计 |
+| `GET /api/tasks/{taskId}/acceptance-stats` | `OWNER` | Owner 查看任务级验收统计、AI 结论分布和最近审核样本 |
 
 状态规则：
 
@@ -1186,9 +1191,15 @@ class HumanReviewDecision(str, Enum):
 - Agent 写回 `PASS/RETURN/NEEDS_HUMAN_REVIEW` 只代表 AI 建议，不直接终审；submission 进入人工审核可见状态。
 - 人工 `APPROVE` 后，`submissions.status=APPROVED`、`assignments.status=APPROVED`，并递增任务 `approved_count`。
 - 人工 `RETURN` 后，`submissions.status=RETURNED`、`assignments.status=RETURNED`，打回理由必须写入 `audit_logs.reason` 或 `metadata.reason`，供阶段 3 `ReviewFeedbackVO` 复用。
+- 单条与批量人工决策均必须校验 `review.version`：版本不一致返回冲突，避免多审核员覆盖彼此结论。
+- 批量决策逐条执行，单条失败不能回滚已成功记录；响应返回 `succeededIds` 和 `failed`，前端据此提示用户重试失败项。
+- Owner 验收统计只读展示，不改变任务、提交或审核状态；最近样本必须优先展示业务标题、提交版本、AI/人工结论和更新时间，不把内部长 ID 作为主信息。
 - Agent 超过最大重试、结构化输出不合法或 Provider 异常时，必须生成需要人工兜底的待审记录，不能让 job 永久卡在 `RUNNING`。
 - 所有状态迁移必须写 `audit_logs`；Actor 为 Agent 时使用 `SYSTEM` 账号，人工审核使用 Reviewer 用户。
 - Agent 成功或兜底生成 `ReviewEntity` 时必须同步写入 `AuditAction.REVIEW_AI_SUGGESTION`，metadata 记录 `reviewJobId`、`submissionId`、`reviewConfigVersionId`、`aiConclusion`、`scoreTotal`、`issueCount` 和 Prompt 摘要。
+- `ReviewDetailVO.timeline` 只返回审核链路关键节点：`ASSIGNMENT_CLAIM`、`SUBMISSION_CREATE`、`REVIEW_AI_SUGGESTION`、`REVIEW_DECISION`；草稿保存等高频过程日志不进入 Reviewer 工作台时间线。
+- 时间线按 assignment 聚合同一题目的 submission/review 审计事件，避免只查当前 review/job 导致 AI 预审节点丢失；历史数据缺少 `REVIEW_AI_SUGGESTION` 审计时，可从已落库 `ReviewEntity` 兜底补出 AI 预审节点。
+- `ReviewTimelineItemVO` 必须返回 `actorId`、`actorName`、`actorRole`、`action`、`fromState`、`toState`、`reason`、`metadata`、`createdAt`，前端优先展示人员名称与右侧时间，下方展示流转动作。
 
 阶段 4.0/4.1/4.2/4.3/4.4 当前完成状态：
 
@@ -1205,7 +1216,7 @@ class HumanReviewDecision(str, Enum):
 - `ReviewVO` 已补充 `aiScoreTotal` 与 `aiIssueCount`；`ReviewDetailVO` 已补充 `promptSnapshotSummary`，用于 Reviewer 查看 AI 建议时快速理解 Agent 使用的任务、题目字段、提交字段和评分维度。
 - 阶段 4.4 起，`ReviewDetailVO` 进一步补充 `stateLink`、`reviewHistory` 与 `submissionDiff`：`stateLink` 展示 assignment/submission/job/review 当前状态与下一步动作；`reviewHistory` 展示同一 assignment 的多轮提交与 AI/人工意见；`submissionDiff` 只比较当前提交与上一版提交的可提交字段，辅助 Reviewer 快速判断返修改动。
 - Agent 与后端都保留少量运行日志：后端记录预审 job 入队、领取和写回；Agent 记录 loop 启动、空闲等待、领取、完成和失败。日志只输出短 ID、任务标题摘要、尝试次数、结论、耗时和错误摘要，不输出密钥、完整 prompt、完整提交值或完整题目 payload。
-- `GET /api/review-jobs`、`GET /api/review-jobs/summary`、`GET /api/reviews`、`GET /api/reviews/{reviewId}` 已进入 OpenAPI；人工审核决策接口保留到阶段 4.5 实现。
+- `GET /api/review-jobs`、`GET /api/review-jobs/summary`、`GET /api/reviews/tasks`、`GET /api/reviews`、`GET /api/reviews/{reviewId}` 已进入 OpenAPI；阶段 4.6 起人工审核入口先按任务聚合，再进入任务内工作台。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

@@ -428,7 +428,7 @@ function SelectedJobHeader({
           </Typography.Text>
           <Flex gap={8} justify="flex-end" align="center" wrap="wrap">
             {job.reviewId ? (
-              <Button type="primary" ghost onClick={() => navigate(buildReviewerReviewDetailPath(job.reviewId as string))}>
+              <Button type="primary" ghost onClick={() => navigate(buildReviewerReviewDetailPath(job.reviewId as string, { from: "ai-review-queue" }))}>
                 查看人工审核详情
               </Button>
             ) : (

@@ -2311,37 +2311,171 @@ body {
   }
 }
 
-.labelhub-reviewer-summary-grid {
+.labelhub-reviewer-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr) minmax(280px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-reviewer-workbench-head .ant-card-body {
+  padding: 18px 22px;
+}
+
+.labelhub-review-task-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
   gap: 16px;
 }
 
-.labelhub-reviewer-filter-card .ant-card-body,
-.labelhub-reviewer-queue-card .ant-card-body {
-  padding: 16px;
-}
-
-.labelhub-reviewer-workbench-grid {
+.labelhub-review-task-stat-card .ant-card-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-  gap: 16px;
-  align-items: start;
+  min-height: 126px;
+  gap: 8px;
 }
 
-.labelhub-reviewer-queue-card,
-.labelhub-reviewer-side {
+.labelhub-review-task-filter-card .ant-card-body {
+  padding: 14px 18px;
+}
+
+.labelhub-review-task-table-card {
+  overflow: hidden;
+}
+
+.labelhub-review-task-table-card .ant-card-body {
+  padding: 0;
+}
+
+.labelhub-review-task-table {
   min-width: 0;
 }
 
-.labelhub-reviewer-side {
+.labelhub-review-task-table-head,
+.labelhub-review-task-row {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.25fr) minmax(180px, 0.72fr) minmax(220px, 0.78fr) 150px 132px;
+  gap: 18px;
+  align-items: center;
+  border-bottom: 1px solid #eff0f1;
+}
+
+.labelhub-review-task-table-head {
+  min-height: 52px;
+  padding: 0 18px;
+  color: #646a73;
+  background: #fbfcff;
+  font-weight: 700;
+}
+
+.labelhub-review-task-row {
+  min-height: 112px;
+  padding: 16px 18px;
+  background: #fff;
+}
+
+.labelhub-review-task-row:hover {
+  background: #fbfcff;
+}
+
+.labelhub-review-task-main,
+.labelhub-review-task-progress {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.labelhub-review-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-reviewer-queue-card,
+.labelhub-reviewer-workbench-main,
+.labelhub-reviewer-workbench-side {
+  min-width: 0;
+}
+
+.labelhub-reviewer-queue-card,
+.labelhub-reviewer-workbench-side {
   position: sticky;
   top: 76px;
 }
 
+.labelhub-reviewer-queue-card .ant-card-body {
+  padding: 14px;
+}
+
+.labelhub-reviewer-queue-stats,
+.labelhub-reviewer-side-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.labelhub-reviewer-filter-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.labelhub-reviewer-filter-tabs button {
+  min-width: 0;
+  padding: 10px 12px;
+  color: #1f2329;
+  text-align: left;
+  background: #f7f8fa;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.labelhub-reviewer-filter-tabs button[data-active="true"] {
+  color: #245bdb;
+  background: #edf4ff;
+  border-color: #bacefd;
+}
+
+.labelhub-reviewer-filter-tabs strong {
+  float: right;
+}
+
+.labelhub-reviewer-metric-pill {
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  background: #f7f8fa;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-reviewer-metric-pill[data-active="true"] {
+  background: #edf4ff;
+  border-color: #bacefd;
+}
+
+.labelhub-reviewer-metric-pill span {
+  display: block;
+  color: #646a73;
+  font-size: 13px;
+}
+
+.labelhub-reviewer-metric-pill strong {
+  display: block;
+  margin-top: 4px;
+  color: #1f2329;
+  font-size: 22px;
+  line-height: 1;
+}
+
 .labelhub-reviewer-job-list {
   display: grid;
-  gap: 12px;
+  max-height: calc(100vh - 390px);
+  min-height: 260px;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .labelhub-reviewer-pagination {
@@ -2350,14 +2484,24 @@ body {
 
 .labelhub-reviewer-job-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.52fr);
-  gap: 16px;
-  align-items: center;
-  padding: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 14px 14px 16px;
+  color: inherit;
+  text-align: left;
   background: #fff;
   border: 1px solid #eff0f1;
   border-left: 3px solid #3370ff;
   border-radius: 8px;
+  cursor: pointer;
+}
+
+.labelhub-reviewer-job-row:hover,
+.labelhub-reviewer-job-row[data-active="true"] {
+  background: #f7fbff;
+  border-color: #bacefd;
+  box-shadow: inset 0 0 0 1px #d6e4ff;
 }
 
 .labelhub-reviewer-job-row[data-tone="green"] {
@@ -2372,64 +2516,308 @@ body {
   border-left-color: #ff4d4f;
 }
 
-.labelhub-reviewer-job-main,
-.labelhub-reviewer-job-meta {
+.labelhub-reviewer-job-main {
   min-width: 0;
 }
 
-.labelhub-reviewer-job-meta {
-  display: grid;
-  gap: 6px;
-  color: #646a73;
-  font-size: 13px;
-  justify-items: start;
+.labelhub-reviewer-job-title,
+.labelhub-reviewer-job-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .labelhub-reviewer-job-title {
-  max-width: min(520px, 100%);
+  flex: 1 1 auto;
+}
+
+.labelhub-reviewer-job-time {
+  max-width: 82px;
+  color: #8f959e;
+  font-size: 12px;
+}
+
+.labelhub-reviewer-selected-head .ant-card-body {
+  padding: 16px 18px;
+}
+
+.labelhub-reviewer-selected-title-wrap {
+  min-width: 0;
+}
+
+.labelhub-reviewer-selected-title {
+  max-width: 780px;
+  margin: 8px 0 4px !important;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.labelhub-reviewer-job-meta span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.labelhub-reviewer-step {
+.labelhub-reviewer-snapshot-grid {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.labelhub-reviewer-step > span {
-  display: inline-grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  color: #3370ff;
-  background: #edf4ff;
+.labelhub-reviewer-json {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  color: #1f2329;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fbfcff;
+  border: 1px dashed #d8dee8;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.labelhub-reviewer-ai-card {
+  border-color: #ead7ff;
+  background: linear-gradient(180deg, #fff, #fbf7ff);
+}
+
+.labelhub-reviewer-ai-score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+}
+
+.labelhub-reviewer-ai-score-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 120px) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.labelhub-reviewer-ai-score-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-reviewer-diff-list {
+  display: grid;
+  gap: 10px;
+}
+
+.labelhub-reviewer-round-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.labelhub-reviewer-field-list {
+  display: grid;
+  gap: 8px;
+}
+
+.labelhub-reviewer-field-row {
+  display: grid;
+  grid-template-columns: minmax(128px, 0.32fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: #fbfcff;
   border-radius: 8px;
 }
 
-.labelhub-reviewer-review-mini {
-  padding: 10px 0;
-  border-bottom: 1px solid #eff0f1;
+.labelhub-reviewer-field-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #646a73;
 }
 
-.labelhub-reviewer-review-title {
-  max-width: min(230px, 100%);
+.labelhub-reviewer-field-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.labelhub-reviewer-diff-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.5fr) auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #fbfcff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
+.labelhub-reviewer-kv {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px 12px;
+}
+
+.labelhub-reviewer-kv span {
+  color: #8f959e;
+}
+
+.labelhub-reviewer-kv strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.labelhub-reviewer-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.labelhub-reviewer-decision-card {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 8px;
+  color: #1f2329;
+  line-height: 1.4;
+  min-height: 134px;
+  padding: 16px;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.labelhub-reviewer-decision-card .anticon {
+  font-size: 22px;
+}
+
+.labelhub-reviewer-decision-card > span {
+  color: #646a73;
+  font-size: 13px;
+}
+
+.labelhub-reviewer-decision-card .ant-btn {
+  width: 100%;
+}
+
+.labelhub-reviewer-decision-card .ant-btn span {
+  color: inherit;
+}
+
+.labelhub-reviewer-decision-return {
+  border-color: #ffccc7;
+  background: #fff2f0;
+}
+
+.labelhub-reviewer-decision-return .anticon,
+.labelhub-reviewer-decision-return strong {
+  color: #d4380d;
+}
+
+.labelhub-reviewer-decision-direct {
+  border-color: #ffd591;
+  background: #fff8e8;
+}
+
+.labelhub-reviewer-decision-direct .anticon,
+.labelhub-reviewer-decision-direct strong {
+  color: #d46b08;
+}
+
+.labelhub-reviewer-decision-pass {
+  border-color: #b7ebc6;
+  background: #f0fff4;
+}
+
+.labelhub-reviewer-decision-pass .anticon,
+.labelhub-reviewer-decision-pass strong {
+  color: #0f8f50;
+}
+
+.labelhub-reviewer-decision-pass .ant-btn-primary {
+  color: #fff;
+  background: #13a867;
+  border-color: #13a867;
+  box-shadow: none;
+}
+
+.labelhub-reviewer-decision-pass .ant-btn-primary:not(:disabled):hover,
+.labelhub-reviewer-decision-pass .ant-btn-primary:not(:disabled):focus-visible {
+  color: #fff;
+  background: #0f8f50;
+  border-color: #0f8f50;
+}
+
+.labelhub-reviewer-reason-field {
+  display: grid;
+  gap: 8px;
+}
+
+.labelhub-reviewer-reason-tags {
+  margin-top: -2px;
+}
+
+.labelhub-reviewer-reason-tags .ant-btn {
+  color: #646a73;
+  border-color: #e5e6eb;
+}
+
+.labelhub-reviewer-decision-hint {
+  display: block;
+  margin-top: 10px;
+}
+
+.labelhub-reviewer-direct-json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.labelhub-reviewer-timeline-scroll {
+  max-height: min(430px, calc(100vh - 330px));
+  min-height: 220px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 12px 4px 4px;
+  scrollbar-gutter: stable;
+}
+
+.labelhub-reviewer-timeline-scroll .ant-timeline {
+  padding: 4px 0 0 6px;
+}
+
+.labelhub-reviewer-timeline-scroll .ant-timeline-item {
+  padding-bottom: 16px;
+}
+
+.labelhub-reviewer-timeline-scroll .ant-timeline-item-content {
+  min-width: 0;
+  padding-inline-end: 6px;
+  overflow-wrap: anywhere;
+}
+
+.labelhub-reviewer-timeline-item {
+  min-width: 0;
+}
+
+.labelhub-reviewer-timeline-actor {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.labelhub-reviewer-review-mini:last-child {
-  border-bottom: 0;
+.labelhub-reviewer-timeline-time {
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.labelhub-reviewer-timeline-action {
+  display: block;
+  margin-top: 3px;
+  color: #646a73;
+  line-height: 1.5;
+}
+
+@media (max-width: 1280px) {
+  .labelhub-reviewer-decision-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .labelhub-review-detail-head .ant-card-body {
@@ -2544,6 +2932,45 @@ body {
   border-radius: 8px;
 }
 
+.labelhub-acceptance-summary-grid,
+.labelhub-acceptance-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.labelhub-acceptance-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.labelhub-acceptance-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+}
+
+.labelhub-acceptance-card .ant-card-body {
+  min-height: 196px;
+}
+
+.labelhub-acceptance-distribution-row {
+  display: grid;
+  gap: 6px;
+}
+
+.labelhub-acceptance-review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.labelhub-acceptance-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+}
+
 @media (max-width: 1500px) {
   .labelhub-market-workbench {
     grid-template-columns: 1fr;
@@ -2577,9 +3004,16 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .labelhub-reviewer-side {
+  .labelhub-reviewer-queue-card,
+  .labelhub-reviewer-workbench-side {
     position: static;
-    display: grid;
+  }
+
+  .labelhub-reviewer-job-list {
+    max-height: 520px;
+  }
+
+  .labelhub-acceptance-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2837,12 +3271,15 @@ body {
   .labelhub-reviewer-summary-grid,
   .labelhub-reviewer-side,
   .labelhub-review-ai-summary,
+  .labelhub-acceptance-summary-grid,
+  .labelhub-acceptance-grid,
   .labelhub-ai-review-layout,
   .labelhub-ai-review-insight-grid {
     grid-template-columns: 1fr;
   }
 
-  .labelhub-reviewer-job-row {
+  .labelhub-reviewer-job-row,
+  .labelhub-acceptance-review-row {
     grid-template-columns: 1fr;
   }
 

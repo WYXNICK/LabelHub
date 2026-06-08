@@ -1,4 +1,4 @@
-import type { AiReviewConclusion, ReviewJobStatus, ReviewStatus } from "./types";
+import type { AiReviewConclusion, ReviewJobStatus, ReviewStatus, ReviewTimelineItemVO } from "./types";
 
 export const reviewJobStatusMeta: Record<ReviewJobStatus, { label: string; color: string; tone: string }> = {
   QUEUED: { label: "等待 AI 预审", color: "blue", tone: "blue" },
@@ -50,17 +50,66 @@ export const submissionDiffChangeMeta: Record<string, { label: string; color: st
   CHANGED: { label: "已修改", color: "orange" },
 };
 
-const reviewerReviewDetailPattern = /^\/reviewer\/reviews\/([^/?#]+)$/;
+const reviewerReviewDetailPattern = /^\/reviewer\/reviews\/([^/?#]+)(?:[?#].*)?$/;
+const reviewerReviewTaskPattern = /^\/reviewer\/reviews\/tasks\/([^/?#]+)(?:[?#].*)?$/;
 export const reviewerAiReviewQueuePath = "/reviewer/ai-review-queue";
 export const reviewerManualReviewPath = "/reviewer/reviews";
 export const reviewerReviewResultsPath = "/reviewer/results";
+export type ReviewerReviewDetailEntry = "task" | "ai-review-queue" | "results";
 
-export function buildReviewerReviewDetailPath(reviewId: string): string {
-  return `/reviewer/reviews/${reviewId}`;
+export interface ReviewerReviewDetailReturnTarget {
+  label: string;
+  path: string;
+}
+
+export function buildReviewerReviewTaskPath(taskId: string): string {
+  return `/reviewer/reviews/tasks/${taskId}`;
+}
+
+export function buildReviewerReviewDetailPath(
+  reviewId: string,
+  entry?: { from?: ReviewerReviewDetailEntry; taskId?: string },
+): string {
+  const params = new URLSearchParams();
+  if (entry?.from) {
+    params.set("from", entry.from);
+  }
+  if (entry?.from === "task" && entry.taskId) {
+    params.set("taskId", entry.taskId);
+  }
+  const search = params.toString();
+  return `/reviewer/reviews/${reviewId}${search ? `?${search}` : ""}`;
+}
+
+export function matchReviewerReviewTaskPath(path: string): string | null {
+  return reviewerReviewTaskPattern.exec(path)?.[1] ?? null;
 }
 
 export function matchReviewerReviewDetailPath(path: string): string | null {
   return reviewerReviewDetailPattern.exec(path)?.[1] ?? null;
+}
+
+export function getReviewerReviewDetailReturnTarget(search: string, taskId: string): ReviewerReviewDetailReturnTarget {
+  const params = new URLSearchParams(search);
+  const from = params.get("from");
+  if (from === "task") {
+    const sourceTaskId = normalizeRouteId(params.get("taskId")) ?? taskId;
+    return { label: "返回审核工作台", path: buildReviewerReviewTaskPath(sourceTaskId) };
+  }
+  if (from === "ai-review-queue") {
+    return { label: "返回 AI 预审队列", path: reviewerAiReviewQueuePath };
+  }
+  if (from === "results") {
+    return { label: "返回审核结果", path: reviewerReviewResultsPath };
+  }
+  return { label: "返回审核工作台", path: buildReviewerReviewTaskPath(taskId) };
+}
+
+function normalizeRouteId(value: string | null): string | null {
+  if (!value || /[/?#]/.test(value)) {
+    return null;
+  }
+  return value;
 }
 
 export function formatSubmissionVersion(version: number | null): string {
@@ -102,6 +151,68 @@ export function formatLatency(seconds: number | null): string {
 export function formatReviewTraceCode(id: string): string {
   const tail = id.split("_").pop() ?? id;
   return `#${tail.slice(-8).toUpperCase()}`;
+}
+
+export function formatReviewTimelineActor(item: ReviewTimelineItemVO): string {
+  if (item.actorName) return item.actorName;
+  const roleLabels: Record<string, string> = {
+    OWNER: "任务负责人",
+    LABELER: "标注员",
+    REVIEWER: "审核员",
+    SYSTEM: "AI 预审 Agent",
+  };
+  return roleLabels[item.actorRole] ?? item.actorRole;
+}
+
+export function formatReviewTimelineAction(item: ReviewTimelineItemVO): string {
+  if (item.action === "ASSIGNMENT_CLAIM") return "领取题目";
+  if (item.action === "SUBMISSION_CREATE") {
+    const version = metadataNumber(item, "submissionVersion");
+    return version ? `提交第 ${version} 轮` : "提交标注结果";
+  }
+  if (item.action === "REVIEW_AI_SUGGESTION") {
+    const score = metadataNumber(item, "scoreTotal");
+    const conclusion = metadataString(item, "aiConclusion");
+    const conclusionLabel = conclusion ? (aiConclusionMeta[conclusion as AiReviewConclusion]?.label ?? conclusion) : "完成预审";
+    return typeof score === "number" ? `预审 ${score} 分 → ${conclusionLabel}` : conclusionLabel;
+  }
+  if (item.action === "REVIEW_DECISION") {
+    const decision = metadataString(item, "decision");
+    const labels: Record<string, string> = {
+      APPROVE: "通过入库",
+      RETURN: "打回到标注员",
+      DIRECT_REVISE: "直接修订并入库",
+    };
+    return decision ? (labels[decision] ?? decision) : "人工审核决策";
+  }
+  return item.action;
+}
+
+export function getReviewTimelineDotColor(item: ReviewTimelineItemVO): string {
+  if (item.action === "REVIEW_AI_SUGGESTION") {
+    const conclusion = metadataString(item, "aiConclusion");
+    if (conclusion === "RETURN") return "#ff4d4f";
+    if (conclusion === "NEEDS_HUMAN_REVIEW") return "#7c3aed";
+    return "#13a867";
+  }
+  if (item.action === "REVIEW_DECISION") {
+    const decision = metadataString(item, "decision");
+    if (decision === "RETURN") return "#ff4d4f";
+    if (decision === "DIRECT_REVISE") return "#d46b08";
+    return "#13a867";
+  }
+  if (item.action === "SUBMISSION_CREATE") return "#3370ff";
+  return "#8f959e";
+}
+
+function metadataString(item: ReviewTimelineItemVO, key: string): string | null {
+  const value = item.metadata[key];
+  return typeof value === "string" ? value : null;
+}
+
+function metadataNumber(item: ReviewTimelineItemVO, key: string): number | null {
+  const value = item.metadata[key];
+  return typeof value === "number" ? value : null;
 }
 
 export function formatReviewValue(value: unknown): string {

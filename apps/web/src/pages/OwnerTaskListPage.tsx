@@ -5,6 +5,7 @@ import {
   DatabaseOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
+  FileDoneOutlined,
   FileProtectOutlined,
   FormOutlined,
   MoreOutlined,
@@ -94,6 +95,7 @@ type TaskActionMenuKey =
   | "review-config"
   | "template-preview"
   | "publish-check"
+  | "acceptance"
   | `transition:${TaskStatus}`;
 
 export function OwnerTaskListPage() {
@@ -227,6 +229,11 @@ export function OwnerTaskListPage() {
         icon: <FileProtectOutlined />,
         label: "发布检查",
       },
+      {
+        key: "acceptance",
+        icon: <FileDoneOutlined />,
+        label: "数据验收",
+      },
     ];
 
     if (secondaryTransitions.length > 0) {
@@ -253,6 +260,10 @@ export function OwnerTaskListPage() {
       }
       if (actionKey === "publish-check") {
         setPublishCheckTaskId(task.id);
+        return;
+      }
+      if (actionKey === "acceptance") {
+        navigate(`/owner/tasks/${task.id}/acceptance`);
         return;
       }
       if (actionKey.startsWith("transition:")) {

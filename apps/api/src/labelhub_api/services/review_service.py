@@ -7,7 +7,7 @@ from math import ceil
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from labelhub_api.core.enums import (
@@ -15,6 +15,7 @@ from labelhub_api.core.enums import (
     AssignmentStatus,
     AuditAction,
     AuditEntityType,
+    HumanReviewDecision,
     ReviewConfigVersionStatus,
     ReviewJobStatus,
     ReviewStatus,
@@ -35,23 +36,45 @@ from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO, PaginationVO
 from labelhub_api.schemas.review_configs import ReviewConfigVersionVO, ReviewDimensionDTO, ReviewThresholdDTO
 from labelhub_api.schemas.reviews import (
+    AcceptanceReviewSampleVO,
+    AcceptanceStatsVO,
     AiReviewIssueDTO,
+    BatchReviewDecisionRequest,
+    BatchReviewDecisionVO,
     ClaimReviewJobResponse,
     CompleteReviewJobRequest,
+    CreateReviewDecisionRequest,
     ReviewDetailVO,
     ReviewHistoryItemVO,
     ReviewJobVO,
     ReviewJobSummaryVO,
     ReviewPromptSnapshotSummaryVO,
     ReviewStateLinkVO,
+    ReviewTaskSummaryVO,
     SubmissionDiffItemVO,
     ReviewTimelineItemVO,
     ReviewVO,
 )
 from labelhub_api.schemas.tasks import TaskVO
 from labelhub_api.schemas.templates import TemplateSchemaVO
+from labelhub_api.services.auth_service import get_auth_service
+from labelhub_api.services.submission_validation import validate_submission_value
 
 logger = logging.getLogger(__name__)
+
+_REVIEW_TIMELINE_ACTIONS = {
+    AuditAction.ASSIGNMENT_CLAIM.value,
+    AuditAction.SUBMISSION_CREATE.value,
+    AuditAction.REVIEW_AI_SUGGESTION.value,
+    AuditAction.REVIEW_DECISION.value,
+}
+
+_REVIEW_TIMELINE_ACTION_ORDER = {
+    AuditAction.ASSIGNMENT_CLAIM.value: 10,
+    AuditAction.SUBMISSION_CREATE.value: 20,
+    AuditAction.REVIEW_AI_SUGGESTION.value: 30,
+    AuditAction.REVIEW_DECISION.value: 40,
+}
 
 
 class ReviewService:
@@ -482,6 +505,48 @@ class ReviewService:
             ),
         )
 
+    def list_review_tasks(
+        self,
+        *,
+        user: UserVO,
+        page: int,
+        page_size: int,
+        status: ReviewStatus | None = None,
+        keyword: str | None = None,
+        ai_conclusion: AiReviewConclusion | None = None,
+    ) -> PageVO[ReviewTaskSummaryVO]:
+        self._require_reviewer_or_system(user)
+        query = select(ReviewEntity)
+        if status is not None:
+            query = query.where(ReviewEntity.status == status.value)
+        if keyword and keyword.strip():
+            query = query.join(TaskEntity, ReviewEntity.task_id == TaskEntity.id).where(
+                self._task_keyword_clause(keyword.strip())
+            )
+        if ai_conclusion is not None:
+            query = query.where(ReviewEntity.ai_conclusion == ai_conclusion.value)
+
+        reviews = list(
+            self._db.scalars(query.order_by(ReviewEntity.updated_at.desc(), ReviewEntity.created_at.desc()))
+        )
+        grouped: dict[str, list[ReviewEntity]] = {}
+        for review in reviews:
+            grouped.setdefault(review.task_id, []).append(review)
+
+        task_groups = list(grouped.items())
+        total_items = len(task_groups)
+        start = (page - 1) * page_size
+        page_groups = task_groups[start : start + page_size]
+        return PageVO(
+            data=[self._to_review_task_summary_vo(task_id, task_reviews) for task_id, task_reviews in page_groups],
+            pagination=PaginationVO(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=ceil(total_items / page_size) if total_items else 0,
+            ),
+        )
+
     def get_review_detail(self, *, review_id: str, user: UserVO, request_id: str) -> ReviewDetailVO:
         self._require_reviewer_or_system(user)
         review = self._db.get(ReviewEntity, review_id)
@@ -496,23 +561,6 @@ class ReviewService:
         review_config = self._require_entity(
             self._db.get(ReviewConfigVersionEntity, assignment.review_config_version_id),
             request_id,
-        )
-        timeline = list(
-            self._db.scalars(
-                select(AuditLogEntity)
-                .where(
-                    AuditLogEntity.entity_type.in_(
-                        [
-                            AuditEntityType.REVIEW_JOB.value,
-                            AuditEntityType.REVIEW.value,
-                            AuditEntityType.SUBMISSION.value,
-                            AuditEntityType.ASSIGNMENT.value,
-                        ]
-                    ),
-                    AuditLogEntity.entity_id.in_([review.review_job_id, review.id, submission.id, assignment.id]),
-                )
-                .order_by(AuditLogEntity.created_at.asc())
-            )
         )
         return ReviewDetailVO(
             review=self._to_review_vo(review),
@@ -529,8 +577,237 @@ class ReviewService:
                 current_submission=submission,
                 template_schema=TemplateSchemaVO.model_validate(template.schema_json),
             ),
-            timeline=[self._to_timeline_item_vo(item) for item in timeline],
+            timeline=self._build_review_timeline(assignment_id=assignment.id),
         )
+
+    def create_review_decision(
+        self,
+        *,
+        review_id: str,
+        user: UserVO,
+        body: CreateReviewDecisionRequest,
+        request_id: str,
+    ) -> ReviewVO:
+        self._require_reviewer(user)
+        review = self._apply_review_decision(
+            review_id=review_id,
+            user=user,
+            decision=body.decision,
+            reason=body.reason,
+            dimension_comments=body.dimension_comments,
+            revised_values=body.revised_values,
+            expected_version=body.expected_version,
+            request_id=request_id,
+        )
+        self._db.commit()
+        self._db.refresh(review)
+        logger.info(
+            "review decision applied review=%s decision=%s reviewer=%s",
+            self._short_id(review.id),
+            body.decision.value,
+            self._short_id(user.id),
+        )
+        return self._to_review_vo(review)
+
+    def batch_decide_reviews(
+        self,
+        *,
+        user: UserVO,
+        body: BatchReviewDecisionRequest,
+        request_id: str,
+    ) -> BatchReviewDecisionVO:
+        self._require_reviewer(user)
+        succeeded: list[str] = []
+        failed: dict[str, str] = {}
+        for review_id in body.review_ids:
+            try:
+                self._apply_review_decision(
+                    review_id=review_id,
+                    user=user,
+                    decision=body.decision,
+                    reason=body.reason,
+                    dimension_comments={},
+                    revised_values=None,
+                    expected_version=body.expected_versions.get(review_id),
+                    request_id=request_id,
+                )
+                succeeded.append(review_id)
+            except ApiException as exc:
+                failed[review_id] = exc.message
+
+        self._db.commit()
+        logger.info(
+            "review batch decision completed decision=%s succeeded=%d failed=%d reviewer=%s",
+            body.decision.value,
+            len(succeeded),
+            len(failed),
+            self._short_id(user.id),
+        )
+        return BatchReviewDecisionVO(succeeded_ids=succeeded, failed=failed)
+
+    def get_acceptance_stats(self, *, task_id: str, user: UserVO, request_id: str) -> AcceptanceStatsVO:
+        self._require_owner(user)
+        task = self._db.get(TaskEntity, task_id)
+        if task is None or task.created_by != user.id:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="任务不存在。", request_id=request_id)
+
+        reviews = list(
+            self._db.scalars(
+                select(ReviewEntity)
+                .where(ReviewEntity.task_id == task_id)
+                .order_by(ReviewEntity.updated_at.desc(), ReviewEntity.created_at.desc())
+            )
+        )
+        recent_reviews = reviews[:8]
+        latest_reviewed_at = next(
+            (review.updated_at for review in reviews if review.status in {ReviewStatus.APPROVED.value, ReviewStatus.RETURNED.value}),
+            None,
+        )
+        distribution = {conclusion.value: 0 for conclusion in AiReviewConclusion}
+        distribution.update(self._count_by([review for review in reviews if review.ai_conclusion], lambda review: review.ai_conclusion))
+
+        return AcceptanceStatsVO(
+            task_id=task_id,
+            submitted_count=task.submitted_count,
+            pending_review_count=sum(1 for review in reviews if review.status == ReviewStatus.PENDING_HUMAN_REVIEW.value),
+            approved_count=sum(1 for review in reviews if review.status == ReviewStatus.APPROVED.value),
+            returned_count=sum(1 for review in reviews if review.status == ReviewStatus.RETURNED.value),
+            ai_conclusion_distribution=distribution,
+            latest_reviewed_at=latest_reviewed_at,
+            recent_reviews=[self._to_acceptance_sample_vo(review) for review in recent_reviews],
+        )
+
+    def _apply_review_decision(
+        self,
+        *,
+        review_id: str,
+        user: UserVO,
+        decision: HumanReviewDecision,
+        reason: str | None,
+        dimension_comments: dict[str, str],
+        revised_values: dict[str, Any] | None,
+        expected_version: int | None,
+        request_id: str,
+    ) -> ReviewEntity:
+        review = self._db.get(ReviewEntity, review_id)
+        if review is None:
+            raise ApiException(status_code=404, code="NOT_FOUND", message="审核记录不存在。", request_id=request_id)
+        if review.status != ReviewStatus.PENDING_HUMAN_REVIEW.value:
+            raise ApiException(
+                status_code=409,
+                code="REVIEW_ALREADY_DECIDED",
+                message="该审核记录已处理，请刷新列表。",
+                request_id=request_id,
+            )
+        if expected_version is None or review.version != expected_version:
+            raise ApiException(
+                status_code=409,
+                code="REVIEW_VERSION_CONFLICT",
+                message="审核记录已被更新，请刷新后重试。",
+                request_id=request_id,
+            )
+        clean_reason = (reason or "").strip()
+        if decision == HumanReviewDecision.RETURN and not clean_reason:
+            raise ApiException(
+                status_code=422,
+                code="REVIEW_RETURN_REASON_REQUIRED",
+                message="打回必须填写明确理由。",
+                request_id=request_id,
+            )
+
+        assignment = self._require_entity(self._db.get(AssignmentEntity, review.assignment_id), request_id)
+        submission = self._require_entity(self._db.get(SubmissionEntity, review.submission_id), request_id)
+        task = self._require_entity(self._db.get(TaskEntity, review.task_id), request_id)
+        now = datetime.now(UTC)
+        previous_review_status = review.status
+        previous_assignment_status = assignment.status
+        previous_submission_status = submission.status
+        revised_field_keys: list[str] = []
+
+        if decision == HumanReviewDecision.DIRECT_REVISE:
+            next_values = revised_values if revised_values is not None else submission.values
+            template = self._require_entity(self._db.get(TemplateVersionEntity, submission.template_version_id), request_id)
+            validation = validate_submission_value(TemplateSchemaVO.model_validate(template.schema_json), next_values)
+            if validation.errors:
+                raise ApiException(
+                    status_code=422,
+                    code="REVIEW_REVISION_VALIDATION_FAILED",
+                    message="直接修订内容不符合模板要求。",
+                    details={"errors": validation.error_details()},
+                    request_id=request_id,
+                )
+            old_values = submission.values or {}
+            submission.values = validation.values
+            revised_field_keys = sorted(
+                key for key in validation.values.keys() if validation.values.get(key) != old_values.get(key)
+            )
+
+        is_positive_decision = decision in {HumanReviewDecision.APPROVE, HumanReviewDecision.DIRECT_REVISE}
+        next_review_status = ReviewStatus.APPROVED.value if is_positive_decision else ReviewStatus.RETURNED.value
+        next_assignment_status = AssignmentStatus.APPROVED.value if is_positive_decision else AssignmentStatus.RETURNED.value
+        next_submission_status = SubmissionStatus.APPROVED.value if is_positive_decision else SubmissionStatus.RETURNED.value
+
+        review.status = next_review_status
+        review.human_conclusion = decision.value
+        review.reviewer_id = user.id
+        review.human_comment = clean_reason or None
+        review.dimension_comments = self._clean_dimension_comments(dimension_comments)
+        review.version += 1
+        review.updated_at = now
+        assignment.status = next_assignment_status
+        assignment.version += 1
+        assignment.updated_at = now
+        submission.status = next_submission_status
+        submission.updated_at = now
+        if is_positive_decision and previous_assignment_status != AssignmentStatus.APPROVED.value:
+            task.approved_count += 1
+        task.updated_at = now
+
+        metadata = {
+            "source": "human-review",
+            "reviewId": review.id,
+            "assignmentId": assignment.id,
+            "submissionId": submission.id,
+            "submissionVersion": submission.submission_version,
+            "decision": decision.value,
+            "directRevised": decision == HumanReviewDecision.DIRECT_REVISE,
+            "revisedFieldKeys": revised_field_keys,
+            "dimensionComments": review.dimension_comments,
+        }
+        self._append_audit(
+            entity_type=AuditEntityType.REVIEW,
+            entity_id=review.id,
+            actor=user,
+            action=AuditAction.REVIEW_DECISION,
+            request_id=request_id,
+            from_state=previous_review_status,
+            to_state=next_review_status,
+            reason=clean_reason or None,
+            metadata=metadata,
+        )
+        self._append_audit(
+            entity_type=AuditEntityType.ASSIGNMENT,
+            entity_id=assignment.id,
+            actor=user,
+            action=AuditAction.REVIEW_DECISION,
+            request_id=request_id,
+            from_state=previous_assignment_status,
+            to_state=next_assignment_status,
+            reason=clean_reason or None,
+            metadata=metadata,
+        )
+        self._append_audit(
+            entity_type=AuditEntityType.SUBMISSION,
+            entity_id=submission.id,
+            actor=user,
+            action=AuditAction.REVIEW_DECISION,
+            request_id=request_id,
+            from_state=previous_submission_status,
+            to_state=next_submission_status,
+            reason=clean_reason or None,
+            metadata=metadata,
+        )
+        return review
 
     def _build_claim_response(self, job: ReviewJobEntity) -> ClaimReviewJobResponse:
         assignment = self._db.get(AssignmentEntity, job.assignment_id)
@@ -710,6 +987,54 @@ class ReviewService:
             updated_at=review.updated_at,
         )
 
+    def _to_review_task_summary_vo(self, task_id: str, reviews: list[ReviewEntity]) -> ReviewTaskSummaryVO:
+        latest = reviews[0] if reviews else None
+        task = self._db.get(TaskEntity, task_id)
+        latest_job = self._db.get(ReviewJobEntity, latest.review_job_id) if latest is not None else None
+        latest_review_config = (
+            self._db.get(ReviewConfigVersionEntity, latest_job.review_config_version_id)
+            if latest_job is not None
+            else None
+        )
+        return ReviewTaskSummaryVO(
+            task_id=task_id,
+            task_title=task.title if task is not None else None,
+            total_review_count=len(reviews),
+            pending_review_count=sum(1 for review in reviews if review.status == ReviewStatus.PENDING_HUMAN_REVIEW.value),
+            approved_count=sum(1 for review in reviews if review.status == ReviewStatus.APPROVED.value),
+            returned_count=sum(1 for review in reviews if review.status == ReviewStatus.RETURNED.value),
+            ai_pass_count=sum(1 for review in reviews if review.ai_conclusion == AiReviewConclusion.PASS.value),
+            ai_return_count=sum(1 for review in reviews if review.ai_conclusion == AiReviewConclusion.RETURN.value),
+            ai_manual_count=sum(
+                1 for review in reviews if review.ai_conclusion == AiReviewConclusion.NEEDS_HUMAN_REVIEW.value
+            ),
+            latest_review_id=latest.id if latest is not None else None,
+            latest_review_updated_at=latest.updated_at if latest is not None else None,
+            latest_review_round=latest.review_round if latest is not None else None,
+            review_config_version_no=latest_review_config.version_no if latest_review_config is not None else None,
+        )
+
+    def _to_acceptance_sample_vo(self, review: ReviewEntity) -> AcceptanceReviewSampleVO:
+        task = self._db.get(TaskEntity, review.task_id)
+        submission = self._db.get(SubmissionEntity, review.submission_id)
+        job = self._db.get(ReviewJobEntity, review.review_job_id)
+        review_config = (
+            self._db.get(ReviewConfigVersionEntity, job.review_config_version_id) if job is not None else None
+        )
+        return AcceptanceReviewSampleVO(
+            review_id=review.id,
+            task_title=task.title if task is not None else None,
+            submission_version=submission.submission_version if submission is not None else None,
+            review_round=review.review_round,
+            status=ReviewStatus(review.status),
+            ai_conclusion=AiReviewConclusion(review.ai_conclusion) if review.ai_conclusion else None,
+            ai_score_total=self._calculate_score_total(review.ai_scores, review_config),
+            ai_issue_count=len(review.ai_issues or []),
+            human_conclusion=review.human_conclusion,
+            human_comment=review.human_comment,
+            updated_at=review.updated_at,
+        )
+
     def _to_assignment_vo(self, assignment: AssignmentEntity) -> AssignmentVO:
         return AssignmentVO(
             id=assignment.id,
@@ -782,8 +1107,89 @@ class ReviewService:
             updated_at=version.updated_at,
         )
 
+    def _build_review_timeline(self, *, assignment_id: str) -> list[ReviewTimelineItemVO]:
+        submissions = list(
+            self._db.scalars(select(SubmissionEntity).where(SubmissionEntity.assignment_id == assignment_id))
+        )
+        submission_ids = [submission.id for submission in submissions]
+        reviews = list(self._db.scalars(select(ReviewEntity).where(ReviewEntity.assignment_id == assignment_id)))
+        review_ids = [review.id for review in reviews]
+
+        conditions = [
+            and_(
+                AuditLogEntity.entity_type == AuditEntityType.ASSIGNMENT.value,
+                AuditLogEntity.entity_id == assignment_id,
+                AuditLogEntity.action == AuditAction.ASSIGNMENT_CLAIM.value,
+            )
+        ]
+        if submission_ids:
+            conditions.append(
+                and_(
+                    AuditLogEntity.entity_type == AuditEntityType.SUBMISSION.value,
+                    AuditLogEntity.entity_id.in_(submission_ids),
+                    AuditLogEntity.action == AuditAction.SUBMISSION_CREATE.value,
+                )
+            )
+        if review_ids:
+            conditions.append(
+                and_(
+                    AuditLogEntity.entity_type == AuditEntityType.REVIEW.value,
+                    AuditLogEntity.entity_id.in_(review_ids),
+                    AuditLogEntity.action.in_(
+                        [AuditAction.REVIEW_AI_SUGGESTION.value, AuditAction.REVIEW_DECISION.value]
+                    ),
+                )
+            )
+
+        audits = list(
+            self._db.scalars(
+                select(AuditLogEntity)
+                .where(or_(*conditions))
+                .order_by(AuditLogEntity.created_at.asc(), AuditLogEntity.id.asc())
+            )
+        )
+        items = [self._to_timeline_item_vo(audit) for audit in audits if audit.action in _REVIEW_TIMELINE_ACTIONS]
+
+        # 旧数据可能已经有 Review 记录但没有 AI 建议审计，详情页仍要能展示完整关键流转。
+        review_ids_with_ai_audit = {
+            audit.entity_id for audit in audits if audit.action == AuditAction.REVIEW_AI_SUGGESTION.value
+        }
+        for review in reviews:
+            if review.id not in review_ids_with_ai_audit:
+                review_config = None
+                job = self._db.get(ReviewJobEntity, review.review_job_id)
+                if job is not None:
+                    review_config = self._db.get(ReviewConfigVersionEntity, job.review_config_version_id)
+                items.append(
+                    ReviewTimelineItemVO(
+                        actor_id="user_system_agent",
+                        actor_name=self._resolve_actor_name("user_system_agent", UserRole.SYSTEM.value),
+                        actor_role=UserRole.SYSTEM.value,
+                        action=AuditAction.REVIEW_AI_SUGGESTION.value,
+                        from_state=None,
+                        to_state=ReviewStatus.PENDING_HUMAN_REVIEW.value,
+                        reason=review.ai_comment,
+                        metadata={
+                            "reviewJobId": review.review_job_id,
+                            "submissionId": review.submission_id,
+                            "aiConclusion": review.ai_conclusion,
+                            "scoreTotal": self._calculate_score_total(review.ai_scores, review_config),
+                            "issueCount": len(review.ai_issues or []),
+                            "fallback": True,
+                        },
+                        created_at=review.created_at,
+                    )
+                )
+
+        return sorted(
+            items,
+            key=lambda item: (item.created_at, _REVIEW_TIMELINE_ACTION_ORDER.get(item.action, 99)),
+        )
+
     def _to_timeline_item_vo(self, audit: AuditLogEntity) -> ReviewTimelineItemVO:
         return ReviewTimelineItemVO(
+            actor_id=audit.actor_id,
+            actor_name=self._resolve_actor_name(audit.actor_id, audit.actor_role),
             actor_role=audit.actor_role,
             action=audit.action,
             from_state=audit.from_state,
@@ -792,6 +1198,18 @@ class ReviewService:
             metadata=audit.metadata_json or {},
             created_at=audit.created_at,
         )
+
+    def _resolve_actor_name(self, actor_id: str, actor_role: str) -> str:
+        user = get_auth_service().get_user(actor_id)
+        if user is not None:
+            return user.name
+        role_labels = {
+            UserRole.OWNER.value: "任务负责人",
+            UserRole.LABELER.value: "标注员",
+            UserRole.REVIEWER.value: "审核员",
+            UserRole.SYSTEM.value: "AI 预审 Agent",
+        }
+        return role_labels.get(actor_role, actor_id)
 
     def _task_keyword_clause(self, keyword: str):
         pattern = f"%{keyword}%"
@@ -980,6 +1398,13 @@ class ReviewService:
             counts[key] = counts.get(key, 0) + 1
         return counts
 
+    def _clean_dimension_comments(self, comments: dict[str, str]) -> dict[str, str]:
+        return {
+            str(key): str(value).strip()
+            for key, value in comments.items()
+            if str(key).strip() and str(value).strip()
+        }
+
     def _as_naive_utc(self, value: datetime) -> datetime:
         if value.tzinfo is None:
             return value
@@ -1079,6 +1504,14 @@ class ReviewService:
     def _require_reviewer_or_system(self, user: UserVO) -> None:
         if user.role not in {UserRole.REVIEWER, UserRole.SYSTEM}:
             raise ApiException(status_code=403, code="FORBIDDEN", message="仅审核员或系统 Agent 可以访问审核队列。")
+
+    def _require_reviewer(self, user: UserVO) -> None:
+        if user.role != UserRole.REVIEWER:
+            raise ApiException(status_code=403, code="FORBIDDEN", message="仅审核员可以执行人工审核决策。")
+
+    def _require_owner(self, user: UserVO) -> None:
+        if user.role != UserRole.OWNER:
+            raise ApiException(status_code=403, code="FORBIDDEN", message="仅任务负责人可以查看验收统计。")
 
     def _require_system(self, user: UserVO) -> None:
         if user.role != UserRole.SYSTEM:

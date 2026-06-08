@@ -7,7 +7,7 @@ import type { JsonObject } from "../../shared/types/api";
 export type ReviewJobStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "NEEDS_HUMAN_REVIEW";
 export type AiReviewConclusion = "PASS" | "RETURN" | "NEEDS_HUMAN_REVIEW";
 export type ReviewStatus = "PENDING_HUMAN_REVIEW" | "APPROVED" | "RETURNED";
-export type HumanReviewDecision = "APPROVE" | "RETURN";
+export type HumanReviewDecision = "APPROVE" | "RETURN" | "DIRECT_REVISE";
 
 export interface ReviewJobVO {
   id: string;
@@ -92,7 +92,25 @@ export interface ReviewVO {
   updatedAt: string;
 }
 
+export interface ReviewTaskSummaryVO {
+  taskId: string;
+  taskTitle: string | null;
+  totalReviewCount: number;
+  pendingReviewCount: number;
+  approvedCount: number;
+  returnedCount: number;
+  aiPassCount: number;
+  aiReturnCount: number;
+  aiManualCount: number;
+  latestReviewId: string | null;
+  latestReviewUpdatedAt: string | null;
+  latestReviewRound: number | null;
+  reviewConfigVersionNo: number | null;
+}
+
 export interface ReviewTimelineItemVO {
+  actorId: string;
+  actorName: string | null;
   actorRole: string;
   action: string;
   fromState: string | null;
@@ -161,6 +179,51 @@ export interface ReviewDetailVO {
   timeline: ReviewTimelineItemVO[];
 }
 
+export interface CreateReviewDecisionRequest {
+  decision: HumanReviewDecision;
+  reason?: string;
+  dimensionComments?: Record<string, string>;
+  revisedValues?: JsonObject;
+  expectedVersion: number;
+}
+
+export interface BatchReviewDecisionRequest {
+  reviewIds: string[];
+  decision: HumanReviewDecision;
+  reason?: string;
+  expectedVersions?: Record<string, number>;
+}
+
+export interface BatchReviewDecisionVO {
+  succeededIds: string[];
+  failed: Record<string, string>;
+}
+
+export interface AcceptanceReviewSampleVO {
+  reviewId: string;
+  taskTitle: string | null;
+  submissionVersion: number | null;
+  reviewRound: number;
+  status: ReviewStatus;
+  aiConclusion: AiReviewConclusion | null;
+  aiScoreTotal: number | null;
+  aiIssueCount: number;
+  humanConclusion: HumanReviewDecision | null;
+  humanComment: string | null;
+  updatedAt: string;
+}
+
+export interface AcceptanceStatsVO {
+  taskId: string;
+  submittedCount: number;
+  pendingReviewCount: number;
+  approvedCount: number;
+  returnedCount: number;
+  aiConclusionDistribution: Record<string, number>;
+  latestReviewedAt: string | null;
+  recentReviews: AcceptanceReviewSampleVO[];
+}
+
 export interface ListReviewJobsRequest {
   page?: number;
   pageSize?: number;
@@ -179,6 +242,14 @@ export interface ListReviewsRequest {
   pageSize?: number;
   status?: ReviewStatus;
   taskId?: string;
+  keyword?: string;
+  aiConclusion?: AiReviewConclusion;
+}
+
+export interface ListReviewTasksRequest {
+  page?: number;
+  pageSize?: number;
+  status?: ReviewStatus;
   keyword?: string;
   aiConclusion?: AiReviewConclusion;
 }

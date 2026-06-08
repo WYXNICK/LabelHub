@@ -18,6 +18,7 @@ import {
   isAssignmentEditable,
   matchLabelerAssignmentPath,
   matchLabelerAssignmentRevisePath,
+  serializeAssignmentDraftValue,
   summarizeAssignmentQueue,
   summarizeMarketplace,
 } from "./view";
@@ -144,6 +145,20 @@ describe("assignment marketplace view helpers", () => {
     expect(draftSaveStatusMeta.dirty.label).toBe("待保存");
     expect(draftSaveStatusMeta.saving.message).toContain("正在保存");
     expect(draftSaveStatusMeta.conflict.message).toContain("重新加载");
+  });
+
+  it("serializes draft values without depending on object key order", () => {
+    expect(
+      serializeAssignmentDraftValue({
+        answer: { text: "A", meta: { source: "manual", score: 1 } },
+        tags: ["safe", "clear"],
+      }),
+    ).toBe(
+      serializeAssignmentDraftValue({
+        tags: ["safe", "clear"],
+        answer: { meta: { score: 1, source: "manual" }, text: "A" },
+      }),
+    );
   });
 
   it("builds submission idempotency key and editable status guard", () => {

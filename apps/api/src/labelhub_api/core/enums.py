@@ -93,6 +93,7 @@ class ReviewStatus(StrEnum):
 class HumanReviewDecision(StrEnum):
     APPROVE = "APPROVE"
     RETURN = "RETURN"
+    DIRECT_REVISE = "DIRECT_REVISE"
 
 
 class ContributionBucket(StrEnum):

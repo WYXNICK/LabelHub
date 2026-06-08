@@ -21,7 +21,7 @@ interface RoleHomePageProps {
 const upcomingModules = {
   OWNER: ["任务 CRUD", "数据导入", "模板搭建", "审核配置", "导出中心"],
   LABELER: ["任务广场", "领取题目", "标注工作台", "草稿保存", "返修入口"],
-  REVIEWER: ["待审列表", "审核详情", "AI 评语", "批量操作", "审计时间线"],
+  REVIEWER: ["待审列表", "审核详情", "AI 评语", "批量操作", "关键流转"],
   SYSTEM: ["AI Job", "OpenAI API 格式调用", "结构化输出校验"],
 };
 

@@ -17,8 +17,8 @@ from labelhub_api.schemas.templates import (
 )
 from labelhub_api.services.template_service import TemplateService
 
-task_router = APIRouter(prefix="/api/tasks/{taskId}", tags=["stage2-templates"])
-schema_router = APIRouter(prefix="/api", tags=["stage2-templates"])
+task_router = APIRouter(prefix="/api/tasks/{taskId}", tags=["templates"])
+schema_router = APIRouter(prefix="/api", tags=["templates"])
 
 
 @task_router.get(

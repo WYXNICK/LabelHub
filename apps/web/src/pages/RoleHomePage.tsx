@@ -5,7 +5,7 @@ import {
   DatabaseOutlined,
   SafetyCertificateOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Descriptions, Flex, Space, Tag, Typography } from "antd";
+import { Alert, Card, Descriptions, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import { getHealth } from "../features/auth/api";
@@ -18,11 +18,11 @@ interface RoleHomePageProps {
   path: string;
 }
 
-const upcomingModules = {
-  OWNER: ["任务 CRUD", "数据导入", "模板搭建", "审核配置", "导出中心"],
-  LABELER: ["任务广场", "领取题目", "标注工作台", "草稿保存", "返修入口"],
-  REVIEWER: ["待审列表", "审核详情", "AI 评语", "批量操作", "关键流转"],
-  SYSTEM: ["AI Job", "OpenAI API 格式调用", "结构化输出校验"],
+const roleCapabilities = {
+  OWNER: ["任务管理", "数据集管理", "模板工作台", "审核配置", "导出中心"],
+  LABELER: ["任务广场", "题目领取", "在线作答", "草稿保存", "返修处理"],
+  REVIEWER: ["AI 预审队列", "人工审核", "多轮流转", "审核结果", "审计追踪"],
+  SYSTEM: ["AI 任务处理", "OpenAI 兼容调用", "结构化输出校验"],
 };
 
 export function RoleHomePage({ user, path }: RoleHomePageProps) {
@@ -43,17 +43,14 @@ export function RoleHomePage({ user, path }: RoleHomePageProps) {
 
   return (
     <Space direction="vertical" size={24} style={{ width: "100%" }}>
-      <Flex align="flex-start" justify="space-between" gap={16} wrap="wrap">
-        <div>
-          <Typography.Title level={2} style={{ marginBottom: 8 }}>
-            阶段 0 契约与工程底座
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            当前角色：{user.name}。此页面用于验证登录状态、角色入口、API Client、OpenAPI 和通用契约。
-          </Typography.Text>
-        </div>
-        <Tag color="processing">SDD Contract Aligned</Tag>
-      </Flex>
+      <div>
+        <Typography.Title level={2} style={{ marginBottom: 8 }}>
+          工作台概览
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          当前角色：{user.name}。这里汇总当前角色的核心能力、服务状态和主要业务入口。
+        </Typography.Text>
+      </div>
 
       {healthError && (
         <Alert
@@ -68,49 +65,49 @@ export function RoleHomePage({ user, path }: RoleHomePageProps) {
         <Card>
           <Space direction="vertical" size={12}>
             <SafetyCertificateOutlined style={{ color: "#3370ff", fontSize: 24 }} />
-            <Typography.Text strong>鉴权与角色</Typography.Text>
+            <Typography.Text strong>安全登录</Typography.Text>
             <Typography.Text type="secondary">
-              HttpOnly Cookie Session 已接入，前端不保存 Token。
+              HttpOnly Cookie Session 已启用，角色权限按工作台隔离。
             </Typography.Text>
-            <Tag color="green">已完成</Tag>
+            <Tag color="green">运行正常</Tag>
           </Space>
         </Card>
 
         <Card>
           <Space direction="vertical" size={12}>
             <ApiOutlined style={{ color: "#3370ff", fontSize: 24 }} />
-            <Typography.Text strong>API 契约</Typography.Text>
+            <Typography.Text strong>接口状态</Typography.Text>
             <Typography.Text type="secondary">
-              `HealthVO`、`UserVO`、`LoginRequest`、错误结构已与后端 SDD 对齐。
+              前后端通过统一 API 返回结构协作，异常会以清晰错误提示呈现。
             </Typography.Text>
-            <Tag color="green">已完成</Tag>
+            <Tag color="green">已连接</Tag>
           </Space>
         </Card>
 
         <Card>
           <Space direction="vertical" size={12}>
             <DatabaseOutlined style={{ color: "#3370ff", fontSize: 24 }} />
-            <Typography.Text strong>数据库迁移</Typography.Text>
+            <Typography.Text strong>数据存储</Typography.Text>
             <Typography.Text type="secondary">
-              后端已建立 Alembic 迁移骨架，首个迁移覆盖 users 表。
+              MySQL 与 Alembic 迁移负责保存任务、数据集、模板、审核与导出记录。
             </Typography.Text>
-            <Tag color="blue">后端底座</Tag>
+            <Tag color="blue">已接入</Tag>
           </Space>
         </Card>
 
         <Card>
           <Space direction="vertical" size={12}>
             <ClockCircleOutlined style={{ color: "#ff8800", fontSize: 24 }} />
-            <Typography.Text strong>后续阶段入口</Typography.Text>
+            <Typography.Text strong>业务入口</Typography.Text>
             <Typography.Text type="secondary">
-              当前页面只放置业务入口，占位模块会在阶段 1 起逐步启用。
+              请选择左侧导航进入任务、模板、标注或审核工作台。
             </Typography.Text>
-            <Tag>阶段 1+</Tag>
+            <Tag>可用</Tag>
           </Space>
         </Card>
       </div>
 
-      <Card title="后端健康检查">
+      <Card title="服务健康检查">
         {health ? (
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
             <Descriptions.Item label="服务">{health.service}</Descriptions.Item>
@@ -122,19 +119,19 @@ export function RoleHomePage({ user, path }: RoleHomePageProps) {
             <Descriptions.Item label="版本">{health.version}</Descriptions.Item>
             <Descriptions.Item label="环境">{health.environment}</Descriptions.Item>
             <Descriptions.Item label="服务时间">{formatTaskTime(health.serverTime)}</Descriptions.Item>
-            <Descriptions.Item label="当前路径">{path}</Descriptions.Item>
+            <Descriptions.Item label="当前页面">{path}</Descriptions.Item>
           </Descriptions>
         ) : (
           <Typography.Text type="secondary">等待后端响应...</Typography.Text>
         )}
       </Card>
 
-      <Card title="本角色后续开发模块">
+      <Card title="当前角色能力">
         <Space wrap>
-          {upcomingModules[user.role].map((module) => (
-            <Button key={module} disabled>
+          {roleCapabilities[user.role].map((module) => (
+            <Tag key={module} color="blue">
               {module}
-            </Button>
+            </Tag>
           ))}
         </Space>
       </Card>

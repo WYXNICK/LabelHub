@@ -154,7 +154,7 @@ class ExportService:
                 "includeAuditTimeline": body.include_audit_timeline,
             },
         )
-        # 当前 Demo 数据规模小，API 内同步生成；后续可平滑替换为独立导出 worker。
+        # 当前导出数据规模较小，API 内同步生成；数据量扩大后可平滑替换为独立导出 worker。
         self._run_export_job(
             job=job,
             task=task,

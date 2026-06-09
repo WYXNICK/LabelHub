@@ -385,7 +385,7 @@ class ReviewConfigService:
             raise ApiException(
                 status_code=409,
                 code="TASK_NOT_EDITABLE",
-                message="阶段 1.4 仅允许在草稿任务上编辑和发布审核配置。",
+                message="仅允许在草稿任务上编辑和发布审核配置。",
             )
 
     def _append_audit(

@@ -457,7 +457,7 @@ class DatasetService:
         return rows, errors
 
     def _parse_xlsx(self, file_bytes: bytes) -> tuple[list[ParsedRow], list[RowImportError]]:
-        # 阶段 1.2 只解析第一张工作表，避免为 demo 导入额外引入 Excel 依赖。
+        # 只解析第一张工作表，避免为轻量导入额外引入复杂的 Excel 运行依赖。
         try:
             with zipfile.ZipFile(BytesIO(file_bytes)) as workbook:
                 shared_strings = self._read_shared_strings(workbook)

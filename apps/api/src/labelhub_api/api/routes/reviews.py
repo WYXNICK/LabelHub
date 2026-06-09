@@ -23,9 +23,9 @@ from labelhub_api.schemas.reviews import (
 )
 from labelhub_api.services.review_service import ReviewService
 
-review_job_router = APIRouter(prefix="/api/review-jobs", tags=["stage4-review-jobs"])
-internal_review_job_router = APIRouter(prefix="/api/internal", tags=["stage4-internal-review-jobs"])
-review_router = APIRouter(prefix="/api/reviews", tags=["stage4-reviews"])
+review_job_router = APIRouter(prefix="/api/review-jobs", tags=["review-jobs"])
+internal_review_job_router = APIRouter(prefix="/api/internal", tags=["internal-review-jobs"])
+review_router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 
 @review_job_router.get("/summary", response_model=ReviewJobSummaryVO, response_model_by_alias=True)

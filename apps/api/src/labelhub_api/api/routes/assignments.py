@@ -23,10 +23,10 @@ from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.services.assignment_service import AssignmentService
 
-marketplace_router = APIRouter(prefix="/api/marketplace", tags=["stage3-marketplace"])
-task_assignment_router = APIRouter(prefix="/api/tasks", tags=["stage3-assignments"])
-assignment_router = APIRouter(prefix="/api/assignments", tags=["stage3-assignments"])
-me_router = APIRouter(prefix="/api/me", tags=["stage3-contributions"])
+marketplace_router = APIRouter(prefix="/api/marketplace", tags=["marketplace"])
+task_assignment_router = APIRouter(prefix="/api/tasks", tags=["assignments"])
+assignment_router = APIRouter(prefix="/api/assignments", tags=["assignments"])
+me_router = APIRouter(prefix="/api/me", tags=["contributions"])
 
 
 @marketplace_router.get("/tasks", response_model=PageVO[MarketplaceTaskVO], response_model_by_alias=True)

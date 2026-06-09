@@ -147,7 +147,7 @@ body {
   line-height: 1.78;
 }
 
-.labelhub-board-stage {
+.labelhub-showcase-board {
   position: relative;
   min-height: 430px;
   display: flex;
@@ -156,7 +156,7 @@ body {
   padding: 34px 22px 34px 72px;
 }
 
-.labelhub-board-stage::before {
+.labelhub-showcase-board::before {
   position: absolute;
   inset: 20px 0 18px 38px;
   content: "";
@@ -169,7 +169,7 @@ body {
   transform: skewX(-3deg);
 }
 
-.labelhub-board-stage::after {
+.labelhub-showcase-board::after {
   position: absolute;
   top: 66px;
   right: 20px;
@@ -467,7 +467,7 @@ body {
   margin: 0 !important;
 }
 
-.labelhub-demo-strip {
+.labelhub-login-account-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -550,13 +550,13 @@ body {
   border-radius: 8px;
 }
 
-.labelhub-stage-alert {
+.labelhub-workspace-alert {
   margin-top: 18px;
   border-color: #d8e7ff;
   border-radius: 10px;
 }
 
-.labelhub-stage-alert .ant-alert-description {
+.labelhub-workspace-alert .ant-alert-description {
   line-height: 1.58;
 }
 
@@ -721,7 +721,7 @@ body {
   font-size: 12px;
 }
 
-.labelhub-stage-note {
+.labelhub-system-note {
   color: #245bdb;
   background: #f2f7ff;
   border-color: #d8e7ff;
@@ -3156,7 +3156,7 @@ body {
     width: 100%;
   }
 
-  .labelhub-board-stage {
+  .labelhub-showcase-board {
     padding-left: 64px;
   }
 
@@ -3262,16 +3262,16 @@ body {
     line-height: 1.7;
   }
 
-  .labelhub-board-stage {
+  .labelhub-showcase-board {
     min-height: 390px;
     padding: 24px 8px 24px 44px;
   }
 
-  .labelhub-board-stage::before {
+  .labelhub-showcase-board::before {
     inset: 18px 0 16px 26px;
   }
 
-  .labelhub-board-stage::after {
+  .labelhub-showcase-board::after {
     left: 60px;
   }
 
@@ -3330,7 +3330,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .labelhub-demo-strip {
+  .labelhub-login-account-strip {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -3491,7 +3491,7 @@ body {
     padding-bottom: 24px;
   }
 
-  .labelhub-board-stage {
+  .labelhub-showcase-board {
     min-height: 400px;
     padding-top: 24px;
     padding-bottom: 24px;
@@ -3521,7 +3521,7 @@ body {
     font-size: 28px !important;
   }
 
-  .labelhub-demo-strip {
+  .labelhub-login-account-strip {
     margin-bottom: 12px;
   }
 
@@ -3547,12 +3547,12 @@ body {
     height: 28px;
   }
 
-  .labelhub-stage-alert {
+  .labelhub-workspace-alert {
     margin-top: 12px;
     padding: 10px 12px;
   }
 
-  .labelhub-stage-alert .ant-alert-description {
+  .labelhub-workspace-alert .ant-alert-description {
     line-height: 1.45;
   }
 }
@@ -3570,7 +3570,7 @@ body {
 }
 
 @media (min-width: 992px) and (max-height: 820px) {
-  .labelhub-stage-alert {
+  .labelhub-workspace-alert {
     display: none;
   }
 }

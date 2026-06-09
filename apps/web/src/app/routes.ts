@@ -1,7 +1,7 @@
 import type { UserRole } from "../features/auth/types";
 
 export const roleHomePath: Record<UserRole, string> = {
-  OWNER: "/owner/foundation",
+  OWNER: "/owner/tasks",
   LABELER: "/labeler/marketplace",
   REVIEWER: "/reviewer/ai-review-queue",
   SYSTEM: "/login",

@@ -1,11 +1,9 @@
 import {
   AuditOutlined,
-  BuildOutlined,
   DatabaseOutlined,
   FileDoneOutlined,
   FormOutlined,
   LogoutOutlined,
-  SafetyCertificateOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -49,18 +47,14 @@ const roleName: Record<UserRole, string> = {
 
 const menuItems: Record<Exclude<UserRole, "SYSTEM">, MenuProps["items"]> = {
   OWNER: [
-    { key: "/owner/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
     { key: "/owner/tasks", icon: <DatabaseOutlined />, label: "任务管理" },
     { key: "/owner/templates", icon: <FormOutlined />, label: "模板工作台" },
-    { key: "/owner/contracts", icon: <BuildOutlined />, label: "契约中心" },
   ],
   LABELER: [
-    { key: "/labeler/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
     { key: "/labeler/marketplace", icon: <DatabaseOutlined />, label: "任务广场" },
     { key: "/labeler/contributions", icon: <FileDoneOutlined />, label: "我的贡献" },
   ],
   REVIEWER: [
-    { key: "/reviewer/foundation", icon: <SafetyCertificateOutlined />, label: "阶段 0 底座" },
     { key: "/reviewer/ai-review-queue", icon: <ThunderboltOutlined />, label: "AI 预审队列" },
     { key: "/reviewer/reviews", icon: <AuditOutlined />, label: "人工审核" },
     { key: "/reviewer/results", icon: <FileDoneOutlined />, label: "审核结果" },

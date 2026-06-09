@@ -9,7 +9,7 @@ from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.files import CreateFileObjectRequest, FileObjectVO
 from labelhub_api.services.file_service import FileService
 
-router = APIRouter(prefix="/api/files", tags=["stage1-files"])
+router = APIRouter(prefix="/api/files", tags=["files"])
 
 
 @router.post("", response_model=FileObjectVO, response_model_by_alias=True, status_code=201)

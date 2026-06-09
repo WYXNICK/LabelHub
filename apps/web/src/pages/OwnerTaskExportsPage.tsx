@@ -427,7 +427,7 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
                 返回任务管理
               </Button>
               <Button onClick={() => navigate(`/owner/tasks/${task.id}/acceptance`)}>数据验收</Button>
-              <Tag color="blue">阶段 5 导出</Tag>
+              <Tag color="blue">数据交付</Tag>
             </Space>
             <Typography.Title level={2} style={{ margin: 0 }}>
               导出中心
@@ -520,7 +520,7 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
             <Alert
               showIcon
               type="info"
-              message="当前阶段会立即生成真实导出文件，完成后可在历史中下载。"
+              message="创建后会立即生成真实导出文件，完成后可在历史中下载。"
               description="CSV/Excel 中的数组和对象会以紧凑 JSON 字符串输出，字段顺序和字段名来自导出映射快照。"
             />
             <div>

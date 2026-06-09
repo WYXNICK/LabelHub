@@ -452,7 +452,7 @@ function renderInput(
       />
     );
   }
-  return <Alert type="info" showIcon message={`${component.type} 将在后续粒度接入运行时渲染。`} />;
+  return <Alert type="info" showIcon message={`暂不支持渲染组件类型：${component.type}。请检查模板版本或联系管理员。`} />;
 }
 
 function RichTextInput({

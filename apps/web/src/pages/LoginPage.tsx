@@ -1,7 +1,6 @@
 import {
   AuditOutlined,
   CheckCircleOutlined,
-  ClusterOutlined,
   DatabaseOutlined,
   DeploymentUnitOutlined,
   FieldTimeOutlined,
@@ -34,11 +33,11 @@ import { useMemo, useState } from "react";
 
 import { navigate, roleHomePath } from "../app/routes";
 import { useAuthStore } from "../features/auth/store";
-import type { DemoLoginProfile, LoginRequest } from "../features/auth/types";
+import type { LoginRequest, QuickLoginProfile } from "../features/auth/types";
 
 const DEMO_PASSWORD = "labelhub123";
 
-const demoProfiles: DemoLoginProfile[] = [
+const quickLoginProfiles: QuickLoginProfile[] = [
   {
     role: "OWNER",
     title: "任务负责人",
@@ -96,7 +95,7 @@ export function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const error = useAuthStore((state) => state.error);
   const status = useAuthStore((state) => state.status);
-  const [selectedEmail, setSelectedEmail] = useState(demoProfiles[0].email);
+  const [selectedEmail, setSelectedEmail] = useState(quickLoginProfiles[0].email);
   const screens = Grid.useBreakpoint();
 
   const brandWidth = useMemo(() => (screens.lg ? 14 : 0), [screens.lg]);
@@ -107,7 +106,7 @@ export function LoginPage() {
     navigate(roleHomePath[user.role]);
   }
 
-  async function quickLogin(profile: DemoLoginProfile) {
+  async function quickLogin(profile: QuickLoginProfile) {
     const values = { email: profile.email, password: DEMO_PASSWORD };
     setSelectedEmail(profile.email);
     form.setFieldsValue(values);
@@ -141,14 +140,14 @@ export function LoginPage() {
                 </Typography.Title>
               </Space>
               <Typography.Text type="secondary">
-                进入 LabelHub 阶段 0 工作区，验证角色入口、接口契约与运行底座。
+                进入 LabelHub 工作区，按角色体验任务配置、在线标注与审核流转。
               </Typography.Text>
             </Space>
 
-            <div className="labelhub-demo-strip">
+            <div className="labelhub-login-account-strip">
               <Space size={8}>
                 <CheckCircleOutlined />
-                <Typography.Text strong>Demo 环境</Typography.Text>
+                <Typography.Text strong>演示账号</Typography.Text>
               </Space>
               <Typography.Text type="secondary">
                 统一密码 <Typography.Text code>{DEMO_PASSWORD}</Typography.Text>
@@ -201,7 +200,7 @@ export function LoginPage() {
 
             <Divider className="labelhub-login-divider">角色快速入口</Divider>
             <div className="labelhub-role-grid">
-              {demoProfiles.map((profile) => (
+              {quickLoginProfiles.map((profile) => (
                 <Card
                   key={profile.role}
                   hoverable
@@ -216,21 +215,12 @@ export function LoginPage() {
                       <Typography.Text type="secondary">{profile.description}</Typography.Text>
                     </Space>
                     <Tooltip title={profile.email}>
-                      <Tag color="blue">Demo</Tag>
+                      <Tag color="blue">试用入口</Tag>
                     </Tooltip>
                   </Flex>
                 </Card>
               ))}
             </div>
-
-            <Alert
-              type="info"
-              showIcon
-              icon={<ClusterOutlined />}
-              message="阶段 0 范围"
-              description="当前只交付认证、角色壳、通用契约、OpenAPI 和基础运行环境；业务页面将在阶段 1 起逐步接入。"
-              className="labelhub-stage-alert"
-            />
           </div>
         </Flex>
       </Col>
@@ -250,7 +240,7 @@ function BrandHeader() {
           <Typography.Text className="labelhub-brand-subtitle">AI Data Operation Platform</Typography.Text>
         </div>
       </Space>
-      <Tag className="labelhub-brand-tag">Stage 0</Tag>
+      <Tag className="labelhub-brand-tag">Operations</Tag>
     </Flex>
   );
 }
@@ -260,19 +250,18 @@ function BrandDashboard() {
     <div className="labelhub-showcase">
       <div className="labelhub-showcase-copy">
         <Tag className="labelhub-showcase-kicker" icon={<NodeIndexOutlined />}>
-          阶段 0 生产底座
+          数据生产工作台
         </Tag>
         <Typography.Title className="labelhub-showcase-title">
           <span>数据流转清晰</span>
           <span>复核协作可追踪</span>
         </Typography.Title>
         <Typography.Paragraph className="labelhub-showcase-description">
-          从导入、分配、AI 初筛到人工复核，每一步都有状态、责任人和记录。阶段 0
-          先把登录、角色入口和接口返回规范打稳，后续业务页可以直接接入。
+          从导入、分配、AI 初筛到人工复核，每一步都有状态、责任人和审计记录，便于团队稳定交付高质量标注数据。
         </Typography.Paragraph>
       </div>
 
-      <div className="labelhub-board-stage">
+      <div className="labelhub-showcase-board">
         <div className="labelhub-board-rail" aria-hidden="true">
           <span>Import</span>
           <span>Review</span>
@@ -340,11 +329,11 @@ function BrandFooter() {
   return (
     <Flex justify="space-between" align="center" className="labelhub-brand-footer">
       <Space split={<span className="labelhub-footer-dot" />}>
-        <Typography.Text>OpenAPI</Typography.Text>
-        <Typography.Text>Cookie Session</Typography.Text>
-        <Typography.Text>Alembic Ready</Typography.Text>
+        <Typography.Text>安全登录</Typography.Text>
+        <Typography.Text>AI 预审</Typography.Text>
+        <Typography.Text>审计追踪</Typography.Text>
       </Space>
-      <Typography.Text>Phase 0 foundation ready</Typography.Text>
+      <Typography.Text>Ready for annotation workflow</Typography.Text>
     </Flex>
   );
 }

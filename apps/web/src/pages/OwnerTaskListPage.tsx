@@ -392,7 +392,7 @@ export function OwnerTaskListPage() {
             任务管理
           </Typography.Title>
           <Typography.Text type="secondary">
-            管理 Owner 创建的标注任务，阶段 1.1 已接入任务 CRUD、状态机与审计写入。
+            集中管理标注任务的创建、状态流转、数据集、模板、审核配置与导出入口。
           </Typography.Text>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/owner/tasks/new")}>
@@ -490,11 +490,11 @@ export function OwnerTaskListPage() {
         />
       </Card>
 
-      <Card className="labelhub-stage-note">
+      <Card className="labelhub-system-note">
         <Space>
           <CheckCircleOutlined />
           <Typography.Text>
-            发布动作已经接入后端保护：缺少数据集、模板版本或审核配置时会返回清晰阻塞项。
+            发布前检查会校验数据集、模板版本和审核配置，并返回可处理的阻塞项。
           </Typography.Text>
         </Space>
       </Card>

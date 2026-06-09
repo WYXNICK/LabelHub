@@ -28,7 +28,7 @@ export interface LogoutResponseVO {
   success: boolean;
 }
 
-export interface DemoLoginProfile {
+export interface QuickLoginProfile {
   role: Exclude<UserRole, "SYSTEM">;
   title: string;
   description: string;

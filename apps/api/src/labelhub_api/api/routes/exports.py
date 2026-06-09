@@ -12,8 +12,8 @@ from labelhub_api.schemas.common import PageVO
 from labelhub_api.schemas.exports import CreateExportJobRequest, ExportFieldOptionsVO, ExportJobVO
 from labelhub_api.services.export_service import ExportService
 
-task_export_router = APIRouter(prefix="/api/tasks", tags=["stage5-exports"])
-export_job_router = APIRouter(prefix="/api/export-jobs", tags=["stage5-export-jobs"])
+task_export_router = APIRouter(prefix="/api/tasks", tags=["exports"])
+export_job_router = APIRouter(prefix="/api/export-jobs", tags=["export-jobs"])
 
 
 @task_export_router.get(

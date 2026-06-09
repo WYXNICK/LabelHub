@@ -67,17 +67,17 @@ export function getClaimButtonText(
 
 export function buildClaimIdempotencyKey(taskId: string): string {
   const randomPart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
-  return `stage3-claim:${taskId}:${randomPart}`;
+  return `assignment-claim:${taskId}:${randomPart}`;
 }
 
 export function buildSubmissionIdempotencyKey(assignmentId: string): string {
   const randomPart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
-  return `stage3-submit:${assignmentId}:${randomPart}`;
+  return `assignment-submit:${assignmentId}:${randomPart}`;
 }
 
 export function buildLlmActionIdempotencyKey(assignmentId: string, componentId: string): string {
   const randomPart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
-  return `stage3-llm:${assignmentId}:${componentId}:${randomPart}`;
+  return `llm-action:${assignmentId}:${componentId}:${randomPart}`;
 }
 
 export function isAssignmentEditable(status: AssignmentStatus): boolean {

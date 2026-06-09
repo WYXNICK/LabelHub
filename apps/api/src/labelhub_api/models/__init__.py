@@ -10,6 +10,7 @@ from labelhub_api.models.dataset import (
     ImportErrorRowEntity,
     ImportJobEntity,
 )
+from labelhub_api.models.export import ExportJobEntity
 from labelhub_api.models.file import FileObjectEntity
 from labelhub_api.models.review_config import (
     ReviewConfigDraftEntity,
@@ -25,6 +26,7 @@ __all__ = [
     "AuditLogEntity",
     "DatasetEntity",
     "DatasetItemEntity",
+    "ExportJobEntity",
     "FileObjectEntity",
     "ImportErrorRowEntity",
     "ImportJobEntity",

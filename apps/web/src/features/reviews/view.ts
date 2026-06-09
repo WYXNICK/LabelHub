@@ -121,7 +121,17 @@ export function formatReviewConfigVersion(version: number | null): string {
 }
 
 export function formatAiScoreTotal(score: number | null): string {
-  return typeof score === "number" ? `${score}` : "待评分";
+  if (typeof score !== "number") {
+    return "待评分";
+  }
+  return Number.isInteger(score) ? `${score}` : `${Number(score.toFixed(2))}`;
+}
+
+export function calculateDistributionPercent(count: number, total: number): number {
+  if (total <= 0 || count <= 0) {
+    return 0;
+  }
+  return Math.round((count / total) * 1000) / 10;
 }
 
 export function normalizeReviewScoreToPercent(score: number | null | undefined, maxScore: number | null | undefined): number {

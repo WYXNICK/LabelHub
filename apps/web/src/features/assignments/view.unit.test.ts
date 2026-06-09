@@ -162,8 +162,8 @@ describe("assignment marketplace view helpers", () => {
   });
 
   it("builds submission idempotency key and editable status guard", () => {
-    expect(buildSubmissionIdempotencyKey("assignment_1")).toContain("stage3-submit:assignment_1:");
-    expect(buildLlmActionIdempotencyKey("assignment_1", "llm")).toContain("stage3-llm:assignment_1:llm:");
+    expect(buildSubmissionIdempotencyKey("assignment_1")).toContain("assignment-submit:assignment_1:");
+    expect(buildLlmActionIdempotencyKey("assignment_1", "llm")).toContain("llm-action:assignment_1:llm:");
     expect(isAssignmentEditable("CLAIMED")).toBe(true);
     expect(isAssignmentEditable("DRAFT_SAVED")).toBe(true);
     expect(isAssignmentEditable("RETURNED")).toBe(true);

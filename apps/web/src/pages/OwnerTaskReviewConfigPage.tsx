@@ -337,7 +337,7 @@ export function OwnerTaskReviewConfigPage({ taskId }: OwnerTaskReviewConfigPageP
               审核配置
             </Typography.Title>
             <Typography.Text type="secondary">
-              配置 AI 预审的 Prompt、评分维度、阈值和结构化输出。阶段 1.4 只发布配置版本，不触发 Agent。
+              配置 AI 预审的 Prompt、评分维度、阈值和结构化输出版本，发布后供预审任务使用。
             </Typography.Text>
           </Space>
           <Space wrap>
@@ -371,7 +371,7 @@ export function OwnerTaskReviewConfigPage({ taskId }: OwnerTaskReviewConfigPageP
           type="info"
           showIcon
           message="当前任务审核配置只读"
-          description="阶段 1.4 为发布前配置底座，仅允许草稿任务保存和发布审核配置版本。"
+          description="只有草稿任务可编辑和发布审核配置版本。已发布任务会继续使用绑定版本。"
         />
       )}
 
@@ -533,9 +533,9 @@ export function OwnerTaskReviewConfigPage({ taskId }: OwnerTaskReviewConfigPageP
                 </Typography.Text>
               </Space>
             </Card>
-            <Card className="labelhub-stage-note">
+            <Card className="labelhub-system-note">
               <Typography.Text>
-                审核配置会在阶段 4 被 Agent 读取。当前阶段只保证配置可保存、可版本化、可审计。
+                发布后的审核配置会作为 AI 预审和人工复核的稳定依据，历史版本不会被草稿修改影响。
               </Typography.Text>
             </Card>
           </Space>

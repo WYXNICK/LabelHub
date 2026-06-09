@@ -21,7 +21,7 @@ from labelhub_api.schemas.tasks import (
 from labelhub_api.services.task_service import TaskService
 from labelhub_api.services.review_service import ReviewService
 
-router = APIRouter(prefix="/api/tasks", tags=["stage1-tasks"])
+router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
 @router.get("", response_model=PageVO[TaskVO], response_model_by_alias=True)

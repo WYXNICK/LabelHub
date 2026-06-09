@@ -18,7 +18,7 @@ from labelhub_api.schemas.datasets import (
 )
 from labelhub_api.services.dataset_service import DatasetService
 
-router = APIRouter(prefix="/api", tags=["stage1-datasets"])
+router = APIRouter(prefix="/api", tags=["datasets"])
 
 
 @router.post(

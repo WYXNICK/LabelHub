@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Empty, Flex, Progress, Skeleton, Space, Statistic, Tag, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -7,6 +7,7 @@ import { getTaskAcceptanceStats } from "../features/reviews/api";
 import type { AcceptanceStatsVO } from "../features/reviews/types";
 import {
   aiConclusionMeta,
+  calculateDistributionPercent,
   formatAiScoreTotal,
   formatSubmissionVersion,
   reviewStatusMeta,
@@ -78,7 +79,7 @@ function OwnerTaskAcceptanceContent({
       })),
     [stats.aiConclusionDistribution],
   );
-  const maxConclusionCount = Math.max(1, ...conclusionRows.map((item) => item.count));
+  const conclusionTotal = conclusionRows.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <Space direction="vertical" size={18} style={{ width: "100%" }}>
@@ -99,6 +100,9 @@ function OwnerTaskAcceptanceContent({
           </Typography.Text>
         </div>
         <Space wrap>
+          <Button icon={<DownloadOutlined />} type="primary" onClick={() => navigate(`/owner/tasks/${task.id}/exports`)}>
+            导出中心
+          </Button>
           <Button onClick={() => navigate(`/owner/tasks/${task.id}/datasets`)}>查看数据集</Button>
           <Button onClick={() => navigate(`/owner/tasks/${task.id}/review-config`)}>审核配置</Button>
           <Button icon={<ReloadOutlined />} onClick={() => void onReload()}>
@@ -131,6 +135,7 @@ function OwnerTaskAcceptanceContent({
           <Space direction="vertical" size={14} style={{ width: "100%" }}>
             {conclusionRows.map((item) => {
               const meta = aiConclusionMeta[item.key];
+              const percent = calculateDistributionPercent(item.count, conclusionTotal);
               return (
                 <div key={item.key} className="labelhub-acceptance-distribution-row">
                   <Flex justify="space-between" align="center" gap={12}>
@@ -138,9 +143,9 @@ function OwnerTaskAcceptanceContent({
                       <Tag color={meta.color}>{meta.label}</Tag>
                       <Typography.Text type="secondary">{item.count} 条</Typography.Text>
                     </Space>
-                    <Typography.Text strong>{Math.round((item.count / maxConclusionCount) * 100)}%</Typography.Text>
+                    <Typography.Text strong>{percent}%</Typography.Text>
                   </Flex>
-                  <Progress percent={(item.count / maxConclusionCount) * 100} showInfo={false} strokeColor="#3370ff" />
+                  <Progress percent={percent} showInfo={false} strokeColor="#3370ff" />
                 </div>
               );
             })}

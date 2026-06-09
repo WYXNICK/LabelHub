@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildReviewerReviewDetailPath,
+  calculateDistributionPercent,
   formatAiScoreTotal,
   formatLatency,
   formatReviewConfigVersion,
@@ -56,6 +57,13 @@ describe("review view helpers", () => {
     expect(formatLatency(1.48)).toBe("1.48s");
     expect(formatLatency(90)).toBe("1.5min");
     expect(formatReviewTraceCode("review_job_5ca3391ce2514b89934d1c43dd249c22")).toBe("#DD249C22");
+  });
+
+  it("calculates distribution percentages against the real total", () => {
+    expect(calculateDistributionPercent(2, 3)).toBe(66.7);
+    expect(calculateDistributionPercent(1, 3)).toBe(33.3);
+    expect(calculateDistributionPercent(0, 3)).toBe(0);
+    expect(calculateDistributionPercent(1, 0)).toBe(0);
   });
 
   it("formats dimension scores as normalized 100-point values", () => {

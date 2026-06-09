@@ -99,6 +99,35 @@ def create_task(client: TestClient, title: str = "Stage 3 marketplace task", quo
     return response.json()
 
 
+def test_task_deadline_with_timezone_is_normalized_to_utc(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = client_with_db
+    login(client, "owner@labelhub.dev")
+
+    response = client.post(
+        "/api/tasks",
+        json={
+            "title": "Timezone deadline task",
+            "description": "Verify deadline normalization",
+            "instructionRichText": {"format": "plain_text", "content": "Annotate carefully."},
+            "tags": ["timezone"],
+            "rewardRule": {"description": "0.30 元 / 条"},
+            "quota": 1,
+            "deadlineAt": "2027-01-01T23:59:00+08:00",
+            "distributionStrategy": "FIRST_COME_FIRST_SERVED",
+        },
+    )
+
+    assert response.status_code == 201
+    task = response.json()
+    assert task["deadlineAt"].startswith("2027-01-01T15:59:00")
+    with session_factory() as session:
+        stored = session.get(TaskEntity, task["id"])
+        assert stored is not None
+        assert stored.deadline_at == datetime(2027, 1, 1, 15, 59)
+
+
 def prepare_claimable_task(session_factory: sessionmaker[Session], task_id: str, *, item_count: int = 2) -> None:
     now = datetime.now(UTC)
     with session_factory() as session:
@@ -267,7 +296,7 @@ def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
 
 def test_stage3_alembic_migration_contains_labeler_foundation_tables() -> None:
     migration_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "migrations"
         / "versions"
         / "0004_create_labeler_foundation.py"

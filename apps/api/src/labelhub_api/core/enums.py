@@ -117,6 +117,27 @@ class ImportStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class ExportFormat(StrEnum):
+    JSON = "JSON"
+    JSONL = "JSONL"
+    CSV = "CSV"
+    EXCEL = "EXCEL"
+
+
+class ExportJobStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ExportFieldSource(StrEnum):
+    DATASET_PAYLOAD = "DATASET_PAYLOAD"
+    SUBMISSION_VALUE = "SUBMISSION_VALUE"
+    REVIEW_METADATA = "REVIEW_METADATA"
+    AUDIT_TIMELINE = "AUDIT_TIMELINE"
+
+
 class ReviewConfigVersionStatus(StrEnum):
     ACTIVE = "ACTIVE"
     DISABLED = "DISABLED"
@@ -172,6 +193,7 @@ class AuditEntityType(StrEnum):
     REVIEW = "REVIEW"
     LLM_ACTION_RUN = "LLM_ACTION_RUN"
     FILE_OBJECT = "FILE_OBJECT"
+    EXPORT_JOB = "EXPORT_JOB"
 
 
 class AuditAction(StrEnum):
@@ -195,3 +217,8 @@ class AuditAction(StrEnum):
     REVIEW_AI_SUGGESTION = "REVIEW_AI_SUGGESTION"
     REVIEW_DECISION = "REVIEW_DECISION"
     LLM_ACTION_RUN = "LLM_ACTION_RUN"
+    EXPORT_JOB_CREATE = "EXPORT_JOB_CREATE"
+    EXPORT_JOB_RETRY = "EXPORT_JOB_RETRY"
+    EXPORT_JOB_COMPLETE = "EXPORT_JOB_COMPLETE"
+    EXPORT_JOB_FAIL = "EXPORT_JOB_FAIL"
+    EXPORT_JOB_DOWNLOAD = "EXPORT_JOB_DOWNLOAD"

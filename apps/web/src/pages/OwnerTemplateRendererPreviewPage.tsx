@@ -112,7 +112,7 @@ export function OwnerTemplateRendererPreviewPage({ taskId }: OwnerTemplateRender
             模板运行时预览
           </Typography.Title>
           <Typography.Text type="secondary">
-            阶段 2.2 使用任务当前模板草稿渲染最小运行时，后续 Designer 和 Labeler 会复用同一份 schema。
+            使用当前模板草稿渲染运行时效果，Owner 预览与标注工作台会复用同一份 schema。
           </Typography.Text>
           {task && <Typography.Text strong>{task.title}</Typography.Text>}
         </Space>
@@ -169,7 +169,7 @@ export function OwnerTemplateRendererPreviewPage({ taskId }: OwnerTemplateRender
           <Card>
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="当前模板草稿还没有物料。阶段 2.3 Designer 接入后可在此搭建并预览。"
+              description="当前模板草稿还没有物料。请进入模板搭建器添加字段后再预览。"
             />
           </Card>
         )}

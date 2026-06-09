@@ -11,7 +11,7 @@ from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
 from labelhub_api.services.task_service import TaskService
 
-router = APIRouter(prefix="/api/audit-logs", tags=["stage1-audit"])
+router = APIRouter(prefix="/api/audit-logs", tags=["audit-logs"])
 
 
 @router.get("", response_model=PageVO[AuditLogVO], response_model_by_alias=True)

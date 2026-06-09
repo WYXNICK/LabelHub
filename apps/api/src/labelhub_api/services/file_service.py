@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from labelhub_api.core.enums import FilePurpose
 from labelhub_api.core.errors import ApiException
 from labelhub_api.models.file import FileObjectEntity
 from labelhub_api.schemas.auth import UserVO
@@ -62,6 +63,46 @@ class FileService:
             )
         return path.read_bytes()
 
+    def create_generated_file_object(
+        self,
+        *,
+        bucket: str,
+        object_key: str,
+        file_name: str,
+        mime_type: str,
+        content: bytes,
+        checksum: str,
+        purpose: FilePurpose,
+        created_by: str,
+        request_id: str,
+    ) -> FileObjectEntity:
+        file_object = FileObjectEntity(
+            id=self._new_id("file"),
+            bucket=bucket,
+            object_key=object_key,
+            file_name=file_name,
+            mime_type=mime_type,
+            size_bytes=len(content),
+            checksum=checksum,
+            purpose=purpose.value,
+            created_by=created_by,
+            created_at=datetime.now(UTC),
+        )
+        self._db.add(file_object)
+        self.write_file_bytes(file_object, content, request_id=request_id)
+        # 先落库文件对象，后续任务表回填 file_object_id 时 MySQL 外键才能立即通过。
+        self._db.flush()
+        return file_object
+
+    def write_file_bytes(self, file_object: FileObjectEntity, content: bytes, *, request_id: str) -> Path:
+        path = self._resolve_upload_path(file_object.bucket, file_object.object_key, request_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        return path
+
+    def get_local_path(self, file_object: FileObjectEntity, *, request_id: str) -> Path:
+        return self._resolve_upload_path(file_object.bucket, file_object.object_key, request_id)
+
     def to_file_vo(self, file_object: FileObjectEntity) -> FileObjectVO:
         return FileObjectVO(
             id=file_object.id,
@@ -99,9 +140,7 @@ class FileService:
         if content is None:
             return
 
-        path = self._resolve_upload_path(file_object.bucket, file_object.object_key, request_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content)
+        self.write_file_bytes(file_object, content, request_id=request_id)
 
     def _resolve_upload_path(self, bucket: str, object_key: str, request_id: str) -> Path:
         candidate = (self._upload_root / bucket / object_key).resolve()

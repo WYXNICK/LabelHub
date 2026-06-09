@@ -1219,7 +1219,7 @@ class AssignmentService:
 
         metadata = audit.metadata_json if isinstance(audit.metadata_json, dict) else {}
         reason = audit.reason or metadata.get("reason")
-        # 阶段 3.5 只展示最近一次意见；完整多轮时间线在 Reviewer 阶段扩展。
+        # 这里仅展示最近一次返修意见，完整多轮时间线由审核工作台承载。
         return ReviewFeedbackVO(
             reason=reason if isinstance(reason, str) and reason.strip() else "审核未通过，请按意见修改后重新提交。",
             source=str(metadata.get("source") or audit.action),

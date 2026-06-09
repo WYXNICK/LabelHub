@@ -307,7 +307,7 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
     try {
       const filePayload = await readFilePayload(selectedFile, sourceFormat);
       const fileObject = await createFileObject({
-        bucket: "stage1-owner-imports",
+        bucket: "owner-imports",
         objectKey: `tasks/${taskId}/${Date.now()}-${sanitizeObjectKeyPart(selectedFile.name)}`,
         fileName: selectedFile.name,
         mimeType: getMimeType(selectedFile, sourceFormat),
@@ -506,7 +506,7 @@ export function OwnerTaskDatasetsPage({ taskId }: OwnerTaskDatasetsPageProps) {
                 导入数据
               </Typography.Title>
               <Typography.Text type="secondary">
-                阶段 1.2 会完成导入、统计和错误追踪；题目预览与批量编辑在下一粒度接入。
+                导入后会展示统计、错误行追踪，并支持题目预览与批量编辑。
               </Typography.Text>
             </Space>
 

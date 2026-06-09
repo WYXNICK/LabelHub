@@ -339,7 +339,7 @@ class TemplateService:
         props: dict[str, Any],
         validation: dict[str, Any],
     ) -> list[TemplateSchemaValidationErrorVO]:
-        # Designer 保存的是后续 Renderer 的唯一契约，这里把基础物料的语义错误提前拦住。
+        # Designer 与运行时共用同一份 schema，这里提前拦截基础物料的语义错误。
         errors: list[TemplateSchemaValidationErrorVO] = []
         if component_type == TemplateComponentType.SHOW_ITEM.value:
             path = props.get("path")
@@ -1010,7 +1010,7 @@ class TemplateService:
             raise ApiException(
                 status_code=409,
                 code="TASK_NOT_EDITABLE",
-                message="阶段 2.1 仅允许在草稿任务上保存模板草稿。",
+                message="仅允许在草稿任务上保存模板草稿。",
             )
 
     def _append_audit(

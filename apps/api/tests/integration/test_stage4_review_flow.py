@@ -14,7 +14,7 @@ from labelhub_api.models.review import ReviewEntity, ReviewJobEntity
 from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
 from labelhub_api.main import create_app
 
-from test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task  # noqa: F401
+from tests.integration.test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task  # noqa: F401
 
 
 STAGE4_PATHS = {
@@ -74,7 +74,7 @@ def test_stage4_openapi_and_metadata_contract_are_registered() -> None:
 
 def test_stage4_alembic_migration_contains_review_foundation_tables() -> None:
     migration_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "migrations"
         / "versions"
         / "0005_create_review_foundation.py"
@@ -330,7 +330,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     assert listed_review["submissionVersion"] == 1
     assert listed_review["reviewConfigVersionNo"] == 1
     assert listed_review["aiConclusion"] == "PASS"
-    assert listed_review["aiScoreTotal"] == 5
+    assert listed_review["aiScoreTotal"] == 100
     assert listed_review["aiIssueCount"] == 1
 
     jobs_response = client.get("/api/review-jobs?page=1&pageSize=10")
@@ -338,7 +338,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     listed_job = jobs_response.json()["data"][0]
     assert listed_job["reviewId"] == listed_review["id"]
     assert listed_job["aiConclusion"] == "PASS"
-    assert listed_job["aiScoreTotal"] == 5
+    assert listed_job["aiScoreTotal"] == 100
     assert listed_job["aiIssueCount"] == 1
 
     summary_response = client.get("/api/review-jobs/summary")
@@ -371,7 +371,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     ai_timeline = detail["timeline"][-1]
     assert ai_timeline["actorId"] == "user_system_agent"
     assert ai_timeline["actorName"] == "AI 预审 Agent"
-    assert ai_timeline["metadata"]["scoreTotal"] == 5
+    assert ai_timeline["metadata"]["scoreTotal"] == 100
     assert ai_timeline["metadata"]["aiConclusion"] == "PASS"
 
     with session_factory() as session:
@@ -383,7 +383,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
         )
         assert audit_log is not None
         assert audit_log.request_id == "req_stage4_suggestion"
-        assert audit_log.metadata_json["scoreTotal"] == 5
+        assert audit_log.metadata_json["scoreTotal"] == 100
         assert audit_log.metadata_json["issueCount"] == 1
 
 

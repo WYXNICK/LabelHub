@@ -127,7 +127,7 @@ class TaskService:
             claimed_count=0,
             submitted_count=0,
             approved_count=0,
-            deadline_at=request.deadline_at,
+            deadline_at=self._normalize_deadline_at(request.deadline_at),
             distribution_strategy=request.distribution_strategy.value,
             status=TaskStatus.DRAFT.value,
             current_template_version_id=None,
@@ -329,9 +329,17 @@ class TaskService:
         if "quota" in updates and updates["quota"] is not None:
             task.quota = updates["quota"]
         if "deadline_at" in updates:
-            task.deadline_at = updates["deadline_at"]
+            task.deadline_at = self._normalize_deadline_at(updates["deadline_at"])
         if "distribution_strategy" in updates and updates["distribution_strategy"] is not None:
             task.distribution_strategy = updates["distribution_strategy"].value
+
+    def _normalize_deadline_at(self, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value
+        # MySQL DATETIME 不保留时区；入库前统一转成 UTC naive，前端按 UTC 展示为北京时间。
+        return value.astimezone(UTC).replace(tzinfo=None)
 
     def _count_tasks_by_status(self, *, user: UserVO, status: TaskStatus) -> int:
         return int(

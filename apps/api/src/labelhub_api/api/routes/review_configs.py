@@ -15,7 +15,7 @@ from labelhub_api.schemas.review_configs import (
 )
 from labelhub_api.services.review_config_service import ReviewConfigService
 
-router = APIRouter(prefix="/api/tasks/{taskId}", tags=["stage1-review-configs"])
+router = APIRouter(prefix="/api/tasks/{taskId}", tags=["review-configs"])
 
 
 @router.get(

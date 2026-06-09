@@ -147,7 +147,7 @@ body {
   line-height: 1.78;
 }
 
-.labelhub-board-stage {
+.labelhub-showcase-board {
   position: relative;
   min-height: 430px;
   display: flex;
@@ -156,7 +156,7 @@ body {
   padding: 34px 22px 34px 72px;
 }
 
-.labelhub-board-stage::before {
+.labelhub-showcase-board::before {
   position: absolute;
   inset: 20px 0 18px 38px;
   content: "";
@@ -169,7 +169,7 @@ body {
   transform: skewX(-3deg);
 }
 
-.labelhub-board-stage::after {
+.labelhub-showcase-board::after {
   position: absolute;
   top: 66px;
   right: 20px;
@@ -467,7 +467,7 @@ body {
   margin: 0 !important;
 }
 
-.labelhub-demo-strip {
+.labelhub-login-account-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -550,13 +550,13 @@ body {
   border-radius: 8px;
 }
 
-.labelhub-stage-alert {
+.labelhub-workspace-alert {
   margin-top: 18px;
   border-color: #d8e7ff;
   border-radius: 10px;
 }
 
-.labelhub-stage-alert .ant-alert-description {
+.labelhub-workspace-alert .ant-alert-description {
   line-height: 1.58;
 }
 
@@ -602,6 +602,96 @@ body {
   padding-inline: 2px;
 }
 
+.labelhub-export-hero {
+  border: 0;
+  box-shadow: 0 8px 24px rgba(31, 35, 41, 0.04);
+}
+
+.labelhub-export-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.labelhub-export-summary-grid h3 {
+  margin: 6px 0 2px !important;
+  color: #245bdb;
+}
+
+.labelhub-export-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelhub-export-card {
+  height: 100%;
+}
+
+.labelhub-export-field-list {
+  display: grid;
+  gap: 10px;
+}
+
+.labelhub-export-field-item {
+  padding: 14px;
+  border: 1px solid #eff0f1;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.labelhub-export-field-path {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelhub-export-sample {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.labelhub-export-create-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.labelhub-export-create-stats .ant-statistic {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.labelhub-export-control {
+  display: flex;
+  min-width: 180px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.labelhub-export-job-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 8px 4px;
+}
+
+.labelhub-export-job-tags,
+.labelhub-export-job-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 0;
+  margin-top: 8px;
+}
+
 .labelhub-table-description {
   display: -webkit-box;
   max-width: 520px;
@@ -631,7 +721,7 @@ body {
   font-size: 12px;
 }
 
-.labelhub-stage-note {
+.labelhub-system-note {
   color: #245bdb;
   background: #f2f7ff;
   border-color: #d8e7ff;
@@ -2266,6 +2356,16 @@ body {
   gap: 12px;
 }
 
+.labelhub-reviewer-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.labelhub-reviewer-summary-grid .labelhub-stat-card .ant-card-body {
+  min-height: 108px;
+}
+
 .labelhub-review-result-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(160px, auto);
@@ -3017,6 +3117,14 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .labelhub-export-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .labelhub-export-grid {
+    grid-template-columns: 1fr;
+  }
+
   .labelhub-review-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -3058,7 +3166,7 @@ body {
     width: 100%;
   }
 
-  .labelhub-board-stage {
+  .labelhub-showcase-board {
     padding-left: 64px;
   }
 
@@ -3164,16 +3272,16 @@ body {
     line-height: 1.7;
   }
 
-  .labelhub-board-stage {
+  .labelhub-showcase-board {
     min-height: 390px;
     padding: 24px 8px 24px 44px;
   }
 
-  .labelhub-board-stage::before {
+  .labelhub-showcase-board::before {
     inset: 18px 0 16px 26px;
   }
 
-  .labelhub-board-stage::after {
+  .labelhub-showcase-board::after {
     left: 60px;
   }
 
@@ -3232,7 +3340,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .labelhub-demo-strip {
+  .labelhub-login-account-strip {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -3273,6 +3381,8 @@ body {
   .labelhub-review-ai-summary,
   .labelhub-acceptance-summary-grid,
   .labelhub-acceptance-grid,
+  .labelhub-export-summary-grid,
+  .labelhub-export-grid,
   .labelhub-ai-review-layout,
   .labelhub-ai-review-insight-grid {
     grid-template-columns: 1fr;
@@ -3391,7 +3501,7 @@ body {
     padding-bottom: 24px;
   }
 
-  .labelhub-board-stage {
+  .labelhub-showcase-board {
     min-height: 400px;
     padding-top: 24px;
     padding-bottom: 24px;
@@ -3421,7 +3531,7 @@ body {
     font-size: 28px !important;
   }
 
-  .labelhub-demo-strip {
+  .labelhub-login-account-strip {
     margin-bottom: 12px;
   }
 
@@ -3447,12 +3557,12 @@ body {
     height: 28px;
   }
 
-  .labelhub-stage-alert {
+  .labelhub-workspace-alert {
     margin-top: 12px;
     padding: 10px 12px;
   }
 
-  .labelhub-stage-alert .ant-alert-description {
+  .labelhub-workspace-alert .ant-alert-description {
     line-height: 1.45;
   }
 }
@@ -3470,7 +3580,7 @@ body {
 }
 
 @media (min-width: 992px) and (max-height: 820px) {
-  .labelhub-stage-alert {
+  .labelhub-workspace-alert {
     display: none;
   }
 }

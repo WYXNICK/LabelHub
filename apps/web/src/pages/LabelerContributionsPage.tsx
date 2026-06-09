@@ -143,7 +143,7 @@ export function LabelerContributionsPage() {
           </Typography.Text>
         </div>
         <Space wrap>
-          <Tag color="blue">阶段 3.5 · 我的数据</Tag>
+          <Tag color="blue">我的数据</Tag>
           <Button icon={<ReloadOutlined />} onClick={reloadCurrentPage}>
             刷新
           </Button>

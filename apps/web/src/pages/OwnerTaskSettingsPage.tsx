@@ -235,7 +235,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
           type="info"
           showIcon
           message="当前任务不可编辑"
-          description="阶段 1.1 仅允许编辑草稿任务。已发布、暂停或已结束任务需要通过状态流转控制。"
+          description="只有草稿任务可直接编辑。已发布、暂停或已结束任务请通过任务状态流转控制。"
         />
       )}
 
@@ -290,7 +290,7 @@ export function OwnerTaskSettingsPage({ taskId }: OwnerTaskSettingsPageProps) {
               <Input.TextArea rows={3} maxLength={2000} placeholder="说明任务目标、数据范围和交付标准" />
             </Form.Item>
 
-            <Form.Item label="富文本说明（阶段 1.1 暂以纯文本保存）" name="instructionText">
+            <Form.Item label="作业说明" name="instructionText">
               <Input.TextArea rows={5} placeholder="给标注员看的详细作业说明" />
             </Form.Item>
 

@@ -35,7 +35,7 @@ describe("dataset view helpers", () => {
       datasetType: "QA_QUALITY",
       sourceFormat: "JSON",
     });
-    expect(key).toMatch(/^stage1-import:[a-f0-9]{8}$/);
+    expect(key).toMatch(/^dataset-import:[a-f0-9]{8}$/);
     expect(key).toBe(
       buildImportIdempotencyKey({
         taskId: "task_1",

@@ -60,7 +60,7 @@ def test_stage2_template_entities_are_registered_in_sqlalchemy_metadata() -> Non
 
 def test_stage2_alembic_migration_contains_template_foundation_tables() -> None:
     migration_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "migrations"
         / "versions"
         / "0003_create_template_foundation.py"

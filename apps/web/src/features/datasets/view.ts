@@ -114,7 +114,7 @@ export function buildImportIdempotencyKey(input: {
     input.fileName,
     input.sizeBytes,
   ].join(":");
-  return `stage1-import:${stableHash(rawKey)}`;
+  return `dataset-import:${stableHash(rawKey)}`;
 }
 
 function stableHash(value: string): string {

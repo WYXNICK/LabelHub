@@ -76,10 +76,7 @@ export function RoleShell({ user, path }: RoleShellProps) {
   const isOwnerDesignerFocus = user.role === "OWNER" && Boolean(matchOwnerTaskDesignerPath(path));
   const isReviewerAuditFocus =
     user.role === "REVIEWER" &&
-    (path === "/reviewer/ai-review-queue" ||
-      path === "/reviewer/reviews" ||
-      Boolean(reviewerReviewTaskId) ||
-      Boolean(matchReviewerReviewDetailPath(path)));
+    (path === "/reviewer/ai-review-queue" || Boolean(reviewerReviewTaskId) || Boolean(matchReviewerReviewDetailPath(path)));
   const isWorkspaceFocus = isLabelerWorkspaceFocus || isOwnerDesignerFocus || isReviewerAuditFocus;
   const selectedMenuKey = matchOwnerTaskDesignerPath(path)
     ? "/owner/templates"

@@ -1,5 +1,4 @@
 import {
-  AuditOutlined,
   DatabaseOutlined,
   EditOutlined,
   FormOutlined,
@@ -7,7 +6,7 @@ import {
   SearchOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, Flex, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { Button, Card, Empty, Flex, Input, Select, Space, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -200,14 +199,6 @@ export function OwnerTemplateHubPage() {
           <Typography.Title level={3}>{publishedTemplateCount}</Typography.Title>
         </Card>
       </div>
-
-      <Alert
-        type="info"
-        showIcon
-        icon={<AuditOutlined />}
-        message="为什么模板工作台仍然先选择任务？"
-        description="当前不是全局模板库模型。官方链路要求任务发布前绑定可运行模板版本；模板 schema 还会影响数据集预览、Labeler 作答、AI 辅助和导出字段。因此这里负责集中发现和筛选，真正搭建仍在具体任务上下文中完成。"
-      />
 
       <Card>
         <Flex justify="space-between" align="center" gap={12} wrap="wrap">

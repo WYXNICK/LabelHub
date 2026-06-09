@@ -1,0 +1,89 @@
+name: labelhub
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: labelhub-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LABELHUB_MYSQL_ROOT_PASSWORD:-labelhub_root_change_me}
+      MYSQL_DATABASE: ${LABELHUB_MYSQL_DATABASE:-labelhub}
+      MYSQL_USER: ${LABELHUB_MYSQL_USER:-labelhub}
+      MYSQL_PASSWORD: ${LABELHUB_MYSQL_PASSWORD:-labelhub_change_me}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - labelhub_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/docker/api.Dockerfile
+    container_name: labelhub-api
+    restart: unless-stopped
+    env_file:
+      - ./env/app.env
+    environment:
+      LABELHUB_ENV: production
+      APP_URL: http://${PUBLIC_HOST:-127.0.0.1}:${LABELHUB_HTTP_PORT:-18080}
+      API_CORS_ORIGINS: http://${PUBLIC_HOST:-127.0.0.1}:${LABELHUB_HTTP_PORT:-18080}
+      DATABASE_URL: mysql+pymysql://${LABELHUB_MYSQL_USER:-labelhub}:${LABELHUB_MYSQL_PASSWORD:-labelhub_change_me}@mysql:3306/${LABELHUB_MYSQL_DATABASE:-labelhub}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - labelhub_api_uploads:/app/apps/api/tmp/uploads
+    command: >
+      sh -c "uv run alembic upgrade head &&
+             uv run uvicorn labelhub_api.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD-SHELL", "uv run python -c \"from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=3).read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+  agent:
+    build:
+      context: ..
+      dockerfile: deploy/docker/agent.Dockerfile
+    container_name: labelhub-agent
+    restart: unless-stopped
+    env_file:
+      - ./env/app.env
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/docker/web.Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    container_name: labelhub-web
+    restart: unless-stopped
+    ports:
+      - "${LABELHUB_HTTP_PORT:-18080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+volumes:
+  labelhub_mysql_data:
+    name: labelhub_mysql_data
+  labelhub_api_uploads:
+    name: labelhub_api_uploads

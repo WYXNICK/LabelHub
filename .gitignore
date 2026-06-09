@@ -30,6 +30,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+deploy/env/*.env
+deploy/data/*
+!deploy/data/.gitignore
 *.pem
 *.key
 

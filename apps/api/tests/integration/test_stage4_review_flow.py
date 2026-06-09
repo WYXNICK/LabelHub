@@ -330,7 +330,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     assert listed_review["submissionVersion"] == 1
     assert listed_review["reviewConfigVersionNo"] == 1
     assert listed_review["aiConclusion"] == "PASS"
-    assert listed_review["aiScoreTotal"] == 5
+    assert listed_review["aiScoreTotal"] == 100
     assert listed_review["aiIssueCount"] == 1
 
     jobs_response = client.get("/api/review-jobs?page=1&pageSize=10")
@@ -338,7 +338,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     listed_job = jobs_response.json()["data"][0]
     assert listed_job["reviewId"] == listed_review["id"]
     assert listed_job["aiConclusion"] == "PASS"
-    assert listed_job["aiScoreTotal"] == 5
+    assert listed_job["aiScoreTotal"] == 100
     assert listed_job["aiIssueCount"] == 1
 
     summary_response = client.get("/api/review-jobs/summary")
@@ -371,7 +371,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
     ai_timeline = detail["timeline"][-1]
     assert ai_timeline["actorId"] == "user_system_agent"
     assert ai_timeline["actorName"] == "AI 预审 Agent"
-    assert ai_timeline["metadata"]["scoreTotal"] == 5
+    assert ai_timeline["metadata"]["scoreTotal"] == 100
     assert ai_timeline["metadata"]["aiConclusion"] == "PASS"
 
     with session_factory() as session:
@@ -383,7 +383,7 @@ def test_system_agent_success_creates_traceable_ai_review_suggestion(
         )
         assert audit_log is not None
         assert audit_log.request_id == "req_stage4_suggestion"
-        assert audit_log.metadata_json["scoreTotal"] == 5
+        assert audit_log.metadata_json["scoreTotal"] == 100
         assert audit_log.metadata_json["issueCount"] == 1
 
 

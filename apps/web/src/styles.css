@@ -2356,6 +2356,16 @@ body {
   gap: 12px;
 }
 
+.labelhub-reviewer-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.labelhub-reviewer-summary-grid .labelhub-stat-card .ant-card-body {
+  min-height: 108px;
+}
+
 .labelhub-review-result-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(160px, auto);

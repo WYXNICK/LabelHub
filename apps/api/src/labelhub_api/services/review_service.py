@@ -1383,13 +1383,19 @@ class ReviewService:
         if not scores:
             return None
         if review_config is None:
-            return float(sum(scores.values()))
+            return round(sum(float(score) for score in scores.values()) / len(scores), 2)
         dimensions = {str(dimension.get("key")): dimension for dimension in review_config.dimensions}
         total = 0.0
+        weight_total = 0.0
         for key, score in scores.items():
-            weight = float(dimensions.get(key, {}).get("weight", 1.0))
-            total += float(score) * weight
-        return round(total, 2)
+            dimension = dimensions.get(key, {})
+            max_score = float(dimension.get("maxScore", 100) or 100)
+            if max_score <= 0:
+                continue
+            weight = float(dimension.get("weight", 1.0) or 1.0)
+            total += min(max(float(score), 0.0), max_score) / max_score * 100 * weight
+            weight_total += weight
+        return round(total / weight_total, 2) if weight_total else None
 
     def _count_by(self, items: list[Any], key_fn) -> dict[str, int]:
         counts: dict[str, int] = {}

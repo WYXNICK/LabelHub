@@ -634,6 +634,7 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
               />
             )}
             <TemplateRenderer
+              key={context.assignment.id}
               schema={context.templateSchema}
               itemPayload={context.datasetItemPayload}
               value={value}

@@ -267,7 +267,7 @@ def test_stage3_openapi_and_metadata_contract_are_registered() -> None:
 
 def test_stage3_alembic_migration_contains_labeler_foundation_tables() -> None:
     migration_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "migrations"
         / "versions"
         / "0004_create_labeler_foundation.py"

@@ -14,7 +14,7 @@ from labelhub_api.models.review import ReviewEntity, ReviewJobEntity
 from labelhub_api.models.assignment import AssignmentEntity, SubmissionEntity
 from labelhub_api.main import create_app
 
-from test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task  # noqa: F401
+from tests.integration.test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task  # noqa: F401
 
 
 STAGE4_PATHS = {
@@ -74,7 +74,7 @@ def test_stage4_openapi_and_metadata_contract_are_registered() -> None:
 
 def test_stage4_alembic_migration_contains_review_foundation_tables() -> None:
     migration_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "migrations"
         / "versions"
         / "0005_create_review_foundation.py"

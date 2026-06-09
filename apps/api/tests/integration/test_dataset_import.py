@@ -16,7 +16,7 @@ from labelhub_api.db.session import get_db_session
 from labelhub_api.main import create_app
 
 
-ROOT_DIR = Path(__file__).resolve().parents[3]
+ROOT_DIR = Path(__file__).resolve().parents[4]
 DEMO_DATA_DIR = ROOT_DIR / "demo_data" / "datasets"
 
 

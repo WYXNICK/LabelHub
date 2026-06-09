@@ -15,8 +15,8 @@ from labelhub_api.main import create_app
 from labelhub_api.services.file_service import FileService
 from sqlalchemy import select
 
-from test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task
-from test_stage4_review_flow import _create_review_for_task
+from tests.integration.test_stage3_assignments import client_with_db, create_task, login, prepare_claimable_task
+from tests.integration.test_stage4_review_flow import _create_review_for_task
 
 
 def test_stage5_openapi_and_metadata_contract_are_registered(client_with_db):

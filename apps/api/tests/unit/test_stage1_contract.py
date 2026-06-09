@@ -84,7 +84,7 @@ def test_stage1_entities_are_registered_in_sqlalchemy_metadata() -> None:
 
 def test_stage1_alembic_migration_contains_required_tables() -> None:
     migration_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "migrations"
         / "versions"
         / "0002_create_stage1_foundation.py"

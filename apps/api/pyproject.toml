@@ -26,6 +26,11 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+  "unit: isolated unit and contract tests without persisted workflow state",
+  "integration: API, database, state-flow, and file-generation tests"
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/labelhub_api"]

@@ -145,14 +145,20 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
     }
     setCreating(true);
     try {
-      await createExportJob(taskId, {
+      const createdJob = await createExportJob(taskId, {
         format,
         fieldMappings: mappings,
         includeReviewRecords,
         includeAuditTimeline,
         idempotencyKey: `export:${taskId}:${Date.now()}:${Math.random().toString(16).slice(2)}`,
       });
-      message.success("导出任务已创建，等待文件生成。");
+      if (createdJob.status === "SUCCEEDED") {
+        message.success("导出文件已生成，可在历史中下载。");
+      } else if (createdJob.status === "FAILED") {
+        message.warning(createdJob.errorMessage ?? "导出任务创建成功，但文件生成失败。");
+      } else {
+        message.info("导出任务已创建，文件正在生成。");
+      }
       setDrawerOpen(false);
       await loadJobs(1, pagination.pageSize);
     } catch (requestError) {
@@ -230,9 +236,10 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
       width: 220,
       render: (_, job) => {
         const percent = job.totalRows > 0 ? Math.round((job.exportedRows / job.totalRows) * 100) : 0;
+        const progressStatus = job.status === "FAILED" ? "exception" : job.status === "SUCCEEDED" ? "success" : "active";
         return (
           <Space direction="vertical" size={2} style={{ width: "100%" }}>
-            <Progress percent={percent} size="small" status={job.status === "FAILED" ? "exception" : "active"} />
+            <Progress percent={percent} size="small" status={progressStatus} />
             <Typography.Text type="secondary">
               {job.exportedRows} / {job.totalRows} 行
             </Typography.Text>
@@ -261,8 +268,10 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
             <Typography.Text>{job.fileName}</Typography.Text>
             <Typography.Text type="secondary">{formatFileSize(job.fileSizeBytes ?? 0)}</Typography.Text>
           </Space>
+        ) : job.status === "FAILED" ? (
+          <Typography.Text type="danger">{job.errorMessage ?? "文件生成失败"}</Typography.Text>
         ) : (
-          <Typography.Text type="secondary">等待生成</Typography.Text>
+          <Typography.Text type="secondary">正在生成</Typography.Text>
         ),
     },
     {
@@ -400,7 +409,8 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
             <Alert
               showIcon
               type="info"
-              message="阶段 5.1 创建导出任务，文件生成与下载在后续粒度接入。"
+              message="当前阶段会立即生成真实导出文件，完成后可在历史中下载。"
+              description="CSV/Excel 中的数组和对象会以紧凑 JSON 字符串输出，字段顺序和字段名来自导出映射快照。"
             />
             <div>
               <Typography.Text type="secondary">导出格式</Typography.Text>
@@ -458,7 +468,7 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
             showIcon
             type="info"
             message={`将基于 ${approvedCount} 行人工审核通过数据创建导出任务。`}
-            description="字段名用于生成导出文件表头或 JSON key，建议保持英文、下划线和稳定语义。"
+            description="字段名用于生成导出文件表头或 JSON key；CSV/Excel 会将数组和对象字段序列化为 JSON 字符串。"
           />
           <Card size="small">
             <Space direction="vertical" size={12} style={{ width: "100%" }}>

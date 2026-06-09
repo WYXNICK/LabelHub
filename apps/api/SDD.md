@@ -1285,18 +1285,19 @@ class ExportJobVO:
 | 接口 | 权限 | 说明 |
 | --- | --- | --- |
 | `GET /api/tasks/{taskId}/export-field-options` | `OWNER` | 根据当前任务数据集 payload、模板版本提交字段和审核记录推导可导出字段，返回示例值和默认选择 |
-| `POST /api/tasks/{taskId}/export-jobs` | `OWNER` | 创建异步导出任务，校验格式、字段映射、任务归属和可导出记录数 |
+| `POST /api/tasks/{taskId}/export-jobs` | `OWNER` | 创建导出任务，校验格式、字段映射、任务归属和可导出记录数；阶段 5.2/5.3 Demo 规模内同步生成文件并返回最终状态 |
 | `GET /api/tasks/{taskId}/export-jobs` | `OWNER` | 分页查询导出历史，展示进度、状态、失败原因和下载入口 |
 | `GET /api/export-jobs/{exportJobId}` | `OWNER` | 查询导出详情和最终参数快照 |
-| `GET /api/export-jobs/{exportJobId}/download` | `OWNER` | 下载成功导出的文件；未成功或无权限返回业务错误 |
+| `GET /api/export-jobs/{exportJobId}/download` | `OWNER` | 下载成功导出的真实文件响应；未成功、文件缺失或无权限返回业务错误 |
 
 状态与审计：
 
-- 阶段 5.1 创建任务后进入 `QUEUED` 并保存导出参数快照；阶段 5.2-5.4 再生成 JSON/JSONL/CSV/Excel 文件并推进 `RUNNING/SUCCEEDED/FAILED`。
+- 阶段 5.2/5.3 在 API 内同步推进 `QUEUED -> RUNNING -> SUCCEEDED/FAILED`。当前 Demo 数据量小，避免额外引入导出 worker；后续若数据量扩大，可在不改变前端契约的情况下把生成逻辑迁移到后台任务。
 - 导出只读取 `reviews.status=APPROVED`、`submissions.status=APPROVED` 的最终提交值；`DIRECT_REVISE` 通过后的导出值以修订后的 submission values 为准。
 - `field_mappings` 必须作为快照保存到 `export_jobs`，避免后续模板或字段名变化影响历史导出复现。
-- JSON/JSONL 保留结构化字段；CSV/Excel 必须按 `field_mappings.order` 生成稳定列顺序。
-- 阶段 5.1 创建导出任务写 `audit_logs`，`entityType=EXPORT_JOB`；完成、失败和下载审计在文件生成阶段补齐。
+- JSON 导出为对象数组，JSONL 导出为一行一条对象；对象 key 使用字段映射中的 `outputKey`，附加审核记录和审计时间线时分别写入 `reviewRecord`、`auditTimeline`。
+- CSV 使用 UTF-8 BOM，Excel 使用标准 `.xlsx` 单工作表 `data`；数组和对象字段在表格格式中以紧凑 JSON 字符串输出，空值输出为空字符串。为避免表格公式注入，导出文本若以 `= + - @` 开头，写入 CSV/Excel 时必须加前导单引号。
+- 创建、完成、失败和下载均写 `audit_logs`，`entityType=EXPORT_JOB`。
 - 导出文件通过 `file_objects.purpose=EXPORT` 关联，不把文件内容写入业务表。
 
 ## 10. 阶段 0 Entity 与迁移契约

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user, get_request_id
@@ -78,12 +79,20 @@ def get_export_job(
     return ExportService(db).get_export_job(export_job_id=exportJobId, user=user)
 
 
-@export_job_router.get("/{exportJobId}/download", response_model=ExportJobVO, response_model_by_alias=True)
+@export_job_router.get("/{exportJobId}/download")
 def download_export_job(
     exportJobId: str,
     request_id: str = Depends(get_request_id),
     user: UserVO = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> ExportJobVO:
-    job = ExportService(db).ensure_download_ready(export_job_id=exportJobId, user=user, request_id=request_id)
-    return ExportService(db).get_export_job(export_job_id=job.id, user=user)
+) -> FileResponse:
+    _job, file_object, path = ExportService(db).prepare_download(
+        export_job_id=exportJobId,
+        user=user,
+        request_id=request_id,
+    )
+    return FileResponse(
+        path,
+        media_type=file_object.mime_type or "application/octet-stream",
+        filename=file_object.file_name,
+    )

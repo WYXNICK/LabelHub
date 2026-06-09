@@ -677,6 +677,21 @@ body {
   gap: 8px;
 }
 
+.labelhub-export-job-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 8px 4px;
+}
+
+.labelhub-export-job-tags,
+.labelhub-export-job-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 0;
+  margin-top: 8px;
+}
+
 .labelhub-table-description {
   display: -webkit-box;
   max-width: 520px;

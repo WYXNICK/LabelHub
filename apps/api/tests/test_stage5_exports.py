@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import zipfile
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -36,6 +37,7 @@ def test_stage5_openapi_and_metadata_contract_are_registered(client_with_db):
     assert "/api/tasks/{taskId}/export-jobs" in schema["paths"]
     assert "/api/export-jobs/{exportJobId}" in schema["paths"]
     assert "/api/export-jobs/{exportJobId}/download" in schema["paths"]
+    assert "/api/export-jobs/{exportJobId}/retry" in schema["paths"]
 
     table = ExportJobEntity.__table__
     assert table.name == "export_jobs"
@@ -213,6 +215,166 @@ def test_stage5_owner_can_inspect_fields_and_create_export_job(client_with_db):
         )
         assert complete_audit is not None
         assert download_audit is not None
+
+
+def test_stage5_export_history_filters_and_retries_stale_job(client_with_db):
+    client, session_factory = client_with_db
+    login(client, "owner@labelhub.dev")
+    task = create_task(client, "Stage 5.4 retry task")
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    created = _create_review_for_task(
+        client,
+        session_factory,
+        task_id=task["id"],
+        submit_key="stage54-retry-submit",
+        conclusion="PASS",
+        summary="AI 预审通过，等待人工确认。",
+        values={"answer": "可恢复导出答案"},
+    )
+
+    login(client, "reviewer@labelhub.dev")
+    decision_resp = client.post(
+        f"/api/reviews/{created['review']['id']}/decisions",
+        json={
+            "decision": "APPROVE",
+            "reason": "人工审核通过，可以导出。",
+            "expectedVersion": created["review"]["version"],
+        },
+    )
+    assert decision_resp.status_code == 200
+
+    stale_time = datetime.now(UTC) - timedelta(minutes=30)
+    stale_job_id = "export_job_stage54_retry"
+    with session_factory() as session:
+        session.add(
+            ExportJobEntity(
+                id=stale_job_id,
+                task_id=task["id"],
+                format="JSONL",
+                status=ExportJobStatus.QUEUED.value,
+                field_mappings=[
+                    {
+                        "source": "DATASET_PAYLOAD",
+                        "path": "$.prompt",
+                        "outputKey": "prompt",
+                        "order": 0,
+                        "selected": True,
+                    },
+                    {
+                        "source": "SUBMISSION_VALUE",
+                        "path": "$.answer",
+                        "outputKey": "answer",
+                        "order": 1,
+                        "selected": True,
+                    },
+                ],
+                include_review_records=False,
+                include_audit_timeline=False,
+                total_rows=1,
+                exported_rows=0,
+                created_by="user_owner_demo",
+                created_at=stale_time,
+                updated_at=stale_time,
+            )
+        )
+        session.commit()
+
+    login(client, "owner@labelhub.dev")
+    queued_resp = client.get(f"/api/tasks/{task['id']}/export-jobs?status=QUEUED")
+    assert queued_resp.status_code == 200
+    queued_job = queued_resp.json()["data"][0]
+    assert queued_job["id"] == stale_job_id
+    assert queued_job["isStale"] is True
+    assert queued_job["canRetry"] is True
+
+    retry_resp = client.post(f"/api/export-jobs/{stale_job_id}/retry")
+    assert retry_resp.status_code == 200
+    retried = retry_resp.json()
+    assert retried["status"] == ExportJobStatus.SUCCEEDED.value
+    assert retried["canDownload"] is True
+    assert retried["canRetry"] is False
+    assert retried["durationSeconds"] is not None
+
+    succeeded_resp = client.get(f"/api/tasks/{task['id']}/export-jobs?status=SUCCEEDED")
+    assert succeeded_resp.status_code == 200
+    assert succeeded_resp.json()["pagination"]["totalItems"] == 1
+
+    with session_factory() as session:
+        retry_audit = session.scalar(
+            select(AuditLogEntity).where(
+                AuditLogEntity.entity_type == AuditEntityType.EXPORT_JOB.value,
+                AuditLogEntity.entity_id == stale_job_id,
+                AuditLogEntity.action == AuditAction.EXPORT_JOB_RETRY.value,
+            )
+        )
+        assert retry_audit is not None
+
+
+def test_stage5_download_missing_file_marks_job_failed(client_with_db):
+    client, session_factory = client_with_db
+    login(client, "owner@labelhub.dev")
+    task = create_task(client, "Stage 5.4 missing file task")
+    prepare_claimable_task(session_factory, task["id"], item_count=1)
+    created = _create_review_for_task(
+        client,
+        session_factory,
+        task_id=task["id"],
+        submit_key="stage54-missing-file-submit",
+        conclusion="PASS",
+        summary="AI 预审通过，等待人工确认。",
+        values={"answer": "文件缺失测试答案"},
+    )
+
+    login(client, "reviewer@labelhub.dev")
+    decision_resp = client.post(
+        f"/api/reviews/{created['review']['id']}/decisions",
+        json={
+            "decision": "APPROVE",
+            "reason": "人工审核通过，可以导出。",
+            "expectedVersion": created["review"]["version"],
+        },
+    )
+    assert decision_resp.status_code == 200
+
+    login(client, "owner@labelhub.dev")
+    create_resp = client.post(
+        f"/api/tasks/{task['id']}/export-jobs",
+        json={
+            "format": "JSONL",
+            "fieldMappings": [
+                {
+                    "source": "DATASET_PAYLOAD",
+                    "path": "$.prompt",
+                    "outputKey": "prompt",
+                    "order": 0,
+                    "selected": True,
+                }
+            ],
+            "idempotencyKey": "stage54-missing-file",
+        },
+    )
+    assert create_resp.status_code == 201
+    job = create_resp.json()
+    assert job["status"] == ExportJobStatus.SUCCEEDED.value
+
+    with session_factory() as session:
+        persisted = session.get(ExportJobEntity, job["id"])
+        assert persisted is not None and persisted.file_object_id is not None
+        file_object = session.get(FileObjectEntity, persisted.file_object_id)
+        assert file_object is not None
+        file_path = FileService(session).get_local_path(file_object, request_id="test_stage54_missing")
+        assert file_path.exists()
+        file_path.unlink()
+
+    download_resp = client.get(f"/api/export-jobs/{job['id']}/download")
+    assert download_resp.status_code == 422
+    assert download_resp.json()["error"]["code"] == "EXPORT_FILE_CONTENT_MISSING"
+
+    with session_factory() as session:
+        persisted = session.get(ExportJobEntity, job["id"])
+        assert persisted is not None
+        assert persisted.status == ExportJobStatus.FAILED.value
+        assert "导出文件内容不存在" in (persisted.error_message or "")
 
 
 @pytest.mark.parametrize(

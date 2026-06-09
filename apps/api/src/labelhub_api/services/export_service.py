@@ -5,7 +5,7 @@ import hashlib
 import io
 import json
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from math import ceil
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -49,6 +49,8 @@ from labelhub_api.services.file_service import FileService
 
 
 class ExportService:
+    STALE_JOB_AFTER = timedelta(minutes=10)
+
     def __init__(self, db: Session) -> None:
         self._db = db
 
@@ -171,6 +173,7 @@ class ExportService:
         user: UserVO,
         page: int,
         page_size: int,
+        status: ExportJobStatus | None = None,
     ) -> PageVO[ExportJobVO]:
         self._require_owner(user)
         task = self._get_owned_task(task_id, user)
@@ -178,6 +181,8 @@ class ExportService:
             ExportJobEntity.task_id == task.id,
             ExportJobEntity.created_by == user.id,
         )
+        if status is not None:
+            query = query.where(ExportJobEntity.status == status.value)
         total_items = self._db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
         jobs = list(
             self._db.scalars(
@@ -201,6 +206,60 @@ class ExportService:
         job, task = self._get_owned_export_job(export_job_id, user)
         return self._to_export_job_vo(job, task_title=task.title)
 
+    def retry_export_job(
+        self,
+        *,
+        export_job_id: str,
+        user: UserVO,
+        request_id: str,
+    ) -> ExportJobVO:
+        self._require_owner(user)
+        job, task = self._get_owned_export_job(export_job_id, user)
+        if not self._can_retry(job):
+            raise ApiException(
+                status_code=409,
+                code="EXPORT_JOB_NOT_RETRYABLE",
+                message="当前导出任务仍在正常生成或已经生成成功，无需重新生成。",
+                request_id=request_id,
+            )
+
+        approved_count = self._approved_count(task.id)
+        if approved_count == 0:
+            raise ApiException(
+                status_code=409,
+                code="NO_EXPORTABLE_ROWS",
+                message="当前任务暂无人工审核通过的数据，不能重新生成导出文件。",
+                request_id=request_id,
+            )
+
+        from_state = job.status
+        now = datetime.now(UTC)
+        job.status = ExportJobStatus.QUEUED.value
+        job.total_rows = approved_count
+        job.exported_rows = 0
+        job.file_object_id = None
+        job.file_name = None
+        job.file_size_bytes = None
+        job.error_message = None
+        job.started_at = None
+        job.finished_at = None
+        job.updated_at = now
+        self._append_audit(
+            entity_id=job.id,
+            actor=user,
+            action=AuditAction.EXPORT_JOB_RETRY,
+            request_id=request_id,
+            from_state=from_state,
+            to_state=ExportJobStatus.QUEUED.value,
+            metadata={"taskId": task.id, "reason": "owner_retry", "totalRows": approved_count},
+        )
+        mappings = [ExportFieldMappingDTO.model_validate(item) for item in job.field_mappings]
+        # 重试复用导出参数快照，只重新读取当前已通过的最终数据。
+        self._run_export_job(job=job, task=task, mappings=mappings, actor=user, request_id=request_id)
+        self._db.commit()
+        self._db.refresh(job)
+        return self._to_export_job_vo(job, task_title=task.title)
+
     def prepare_download(
         self,
         *,
@@ -219,18 +278,30 @@ class ExportService:
             )
         file_object = self._db.get(FileObjectEntity, job.file_object_id)
         if file_object is None or file_object.created_by != user.id:
+            self._mark_download_missing(
+                job=job,
+                actor=user,
+                request_id=request_id,
+                message="导出文件对象不存在，请重新生成导出任务。",
+            )
             raise ApiException(
                 status_code=422,
                 code="EXPORT_FILE_OBJECT_MISSING",
-                message="导出文件对象不存在，请重新创建导出任务。",
+                message="导出文件对象不存在，请重新生成导出任务。",
                 request_id=request_id,
             )
         path = FileService(self._db).get_local_path(file_object, request_id=request_id)
         if not path.exists():
+            self._mark_download_missing(
+                job=job,
+                actor=user,
+                request_id=request_id,
+                message="导出文件内容不存在，请重新生成导出任务。",
+            )
             raise ApiException(
                 status_code=422,
                 code="EXPORT_FILE_CONTENT_MISSING",
-                message="导出文件内容不存在，请重新创建导出任务。",
+                message="导出文件内容不存在，请重新生成导出任务。",
                 request_id=request_id,
             )
         self._append_audit(
@@ -258,6 +329,7 @@ class ExportService:
         job.status = ExportJobStatus.RUNNING.value
         job.started_at = now
         job.updated_at = now
+        job.error_message = None
         self._db.flush()
 
         try:
@@ -892,6 +964,7 @@ class ExportService:
         )
 
     def _to_export_job_vo(self, job: ExportJobEntity, *, task_title: str) -> ExportJobVO:
+        duration_seconds = self._duration_seconds(job)
         return ExportJobVO(
             id=job.id,
             task_id=job.task_id,
@@ -907,12 +980,65 @@ class ExportService:
             file_name=job.file_name,
             file_size_bytes=job.file_size_bytes,
             error_message=job.error_message,
+            can_download=job.status == ExportJobStatus.SUCCEEDED.value and bool(job.file_object_id),
+            can_retry=self._can_retry(job),
+            is_stale=self._is_stale(job),
+            duration_seconds=duration_seconds,
             created_by=job.created_by,
             created_at=job.created_at,
             updated_at=job.updated_at,
             started_at=job.started_at,
             finished_at=job.finished_at,
         )
+
+    def _can_retry(self, job: ExportJobEntity) -> bool:
+        return job.status == ExportJobStatus.FAILED.value or self._is_stale(job)
+
+    def _is_stale(self, job: ExportJobEntity) -> bool:
+        if job.status not in {ExportJobStatus.QUEUED.value, ExportJobStatus.RUNNING.value}:
+            return False
+        if job.file_object_id:
+            return False
+        last_seen = self._as_utc(job.updated_at or job.started_at or job.created_at)
+        return datetime.now(UTC) - last_seen >= self.STALE_JOB_AFTER
+
+    def _duration_seconds(self, job: ExportJobEntity) -> float | None:
+        if not job.started_at:
+            return None
+        end_time = job.finished_at or (job.updated_at if job.status in {ExportJobStatus.SUCCEEDED.value, ExportJobStatus.FAILED.value} else None)
+        if end_time is None:
+            return None
+        return round(max((self._as_utc(end_time) - self._as_utc(job.started_at)).total_seconds(), 0), 2)
+
+    def _as_utc(self, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    def _mark_download_missing(
+        self,
+        *,
+        job: ExportJobEntity,
+        actor: UserVO,
+        request_id: str,
+        message: str,
+    ) -> None:
+        from_state = job.status
+        now = datetime.now(UTC)
+        job.status = ExportJobStatus.FAILED.value
+        job.error_message = message
+        job.finished_at = now
+        job.updated_at = now
+        self._append_audit(
+            entity_id=job.id,
+            actor=actor,
+            action=AuditAction.EXPORT_JOB_FAIL,
+            request_id=request_id,
+            from_state=from_state,
+            to_state=ExportJobStatus.FAILED.value,
+            metadata={"reason": "download_file_missing", "errorMessage": message},
+        )
+        self._db.commit()
 
     def _flatten_json(self, payload: dict[str, Any]) -> list[tuple[str, Any]]:
         result: list[tuple[str, Any]] = []

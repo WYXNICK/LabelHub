@@ -2,6 +2,7 @@ import {
   ArrowLeftOutlined,
   DownloadOutlined,
   PlusOutlined,
+  RedoOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
 import {
@@ -31,11 +32,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { navigate } from "../app/routes";
 import { ApiClientError } from "../shared/api/client";
 import type { PaginationVO } from "../shared/types/api";
-import { buildExportDownloadPath, createExportJob, getExportFieldOptions, listExportJobs } from "../features/exports/api";
+import {
+  createExportJob,
+  downloadExportJobFile,
+  getExportFieldOptions,
+  listExportJobs,
+  retryExportJob,
+} from "../features/exports/api";
 import type {
   ExportFieldMappingDTO,
   ExportFieldOptionVO,
   ExportFormat,
+  ExportJobStatus,
   ExportJobVO,
 } from "../features/exports/types";
 import {
@@ -57,6 +65,14 @@ const exportFormatOptions = (Object.keys(exportFormatMeta) as ExportFormat[]).ma
   label: exportFormatMeta[format].label,
   value: format,
 }));
+
+const exportStatusOptions: Array<{ label: string; value: ExportJobStatus | "ALL" }> = [
+  { label: "全部状态", value: "ALL" },
+  { label: "已完成", value: "SUCCEEDED" },
+  { label: "失败", value: "FAILED" },
+  { label: "生成中", value: "RUNNING" },
+  { label: "等待生成", value: "QUEUED" },
+];
 
 const emptyPagination: PaginationVO = {
   page: 1,
@@ -82,6 +98,9 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
   const [includeReviewRecords, setIncludeReviewRecords] = useState(true);
   const [includeAuditTimeline, setIncludeAuditTimeline] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<ExportJobStatus | "ALL">("ALL");
+  const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
+  const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,7 +108,11 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
       const [nextTask, nextFields, nextJobs] = await Promise.all([
         getTask(taskId),
         getExportFieldOptions(taskId),
-        listExportJobs(taskId, { page: 1, pageSize: pagination.pageSize }),
+        listExportJobs(taskId, {
+          page: 1,
+          pageSize: pagination.pageSize,
+          status: statusFilter === "ALL" ? null : statusFilter,
+        }),
       ]);
       setTask(nextTask);
       setFieldOptions(nextFields.options);
@@ -104,13 +127,17 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [pagination.pageSize, taskId]);
+  }, [pagination.pageSize, statusFilter, taskId]);
 
   const loadJobs = useCallback(
-    async (page: number, pageSize: number) => {
+    async (page: number, pageSize: number, nextStatus: ExportJobStatus | "ALL" = statusFilter) => {
       setJobsLoading(true);
       try {
-        const response = await listExportJobs(taskId, { page, pageSize });
+        const response = await listExportJobs(taskId, {
+          page,
+          pageSize,
+          status: nextStatus === "ALL" ? null : nextStatus,
+        });
         setJobs(response.data);
         setPagination(response.pagination);
       } catch (requestError) {
@@ -119,7 +146,7 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
         setJobsLoading(false);
       }
     },
-    [message, taskId],
+    [message, statusFilter, taskId],
   );
 
   useEffect(() => {
@@ -166,6 +193,52 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
     } finally {
       setCreating(false);
     }
+  }
+
+  async function handleDownloadJob(job: ExportJobVO) {
+    setDownloadingJobId(job.id);
+    try {
+      const result = await downloadExportJobFile(job.id);
+      const objectUrl = URL.createObjectURL(result.blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = result.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      message.success("导出文件下载已开始。");
+      await loadJobs(pagination.page, pagination.pageSize);
+    } catch (requestError) {
+      message.error(getErrorMessage(requestError));
+      await loadJobs(pagination.page, pagination.pageSize);
+    } finally {
+      setDownloadingJobId(null);
+    }
+  }
+
+  async function handleRetryJob(job: ExportJobVO) {
+    setRetryingJobId(job.id);
+    try {
+      const retriedJob = await retryExportJob(job.id);
+      if (retriedJob.status === "SUCCEEDED") {
+        message.success("导出文件已重新生成。");
+      } else if (retriedJob.status === "FAILED") {
+        message.warning(retriedJob.errorMessage ?? "重新生成失败，请查看历史详情。");
+      } else {
+        message.info("已重新进入生成队列。");
+      }
+      await loadJobs(1, pagination.pageSize);
+    } catch (requestError) {
+      message.error(getErrorMessage(requestError));
+    } finally {
+      setRetryingJobId(null);
+    }
+  }
+
+  function handleStatusFilterChange(value: ExportJobStatus | "ALL") {
+    setStatusFilter(value);
+    void loadJobs(1, pagination.pageSize, value);
   }
 
   function updateMapping(index: number, patch: Partial<ExportFieldMappingDTO>) {
@@ -224,6 +297,7 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
           <Space size={6} wrap>
             <Typography.Text strong>{exportFormatMeta[job.format].label} 导出</Typography.Text>
             <Tag color={exportJobStatusMeta[job.status].color}>{exportJobStatusMeta[job.status].label}</Tag>
+            {job.isStale && <Tag color="orange">异常等待</Tag>}
           </Space>
           <Typography.Text type="secondary" className="labelhub-mono-id">
             {shortId(job.id)}
@@ -232,64 +306,101 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
       ),
     },
     {
+      title: "状态",
+      width: 150,
+      render: (_, job) => {
+        if (job.isStale) {
+          return (
+            <Space direction="vertical" size={2}>
+              <Typography.Text type="warning">可重新生成</Typography.Text>
+              <Typography.Text type="secondary">超过 10 分钟未产出文件</Typography.Text>
+            </Space>
+          );
+        }
+        if (job.status === "FAILED") {
+          return <Typography.Text type="danger">生成失败</Typography.Text>;
+        }
+        if (job.status === "SUCCEEDED") {
+          return <Typography.Text type="success">文件就绪</Typography.Text>;
+        }
+        return <Typography.Text type="secondary">等待系统处理</Typography.Text>;
+      },
+    },
+    {
       title: "进度",
-      width: 220,
+      width: 190,
       render: (_, job) => {
         const percent = job.totalRows > 0 ? Math.round((job.exportedRows / job.totalRows) * 100) : 0;
-        const progressStatus = job.status === "FAILED" ? "exception" : job.status === "SUCCEEDED" ? "success" : "active";
+        const progressStatus = job.status === "FAILED" || job.isStale ? "exception" : job.status === "SUCCEEDED" ? "success" : "active";
         return (
           <Space direction="vertical" size={2} style={{ width: "100%" }}>
             <Progress percent={percent} size="small" status={progressStatus} />
-            <Typography.Text type="secondary">
-              {job.exportedRows} / {job.totalRows} 行
-            </Typography.Text>
+            <Typography.Text type="secondary">{job.exportedRows} / {job.totalRows} 行 · {formatDuration(job.durationSeconds)}</Typography.Text>
           </Space>
         );
       },
     },
     {
       title: "字段",
-      width: 120,
+      width: 110,
       render: (_, job) => `${job.fieldMappings.length} 个字段`,
     },
     {
-      title: "创建时间",
-      dataIndex: "createdAt",
+      title: "最近更新",
+      dataIndex: "updatedAt",
       width: 170,
       render: (value: string) => formatTaskTime(value),
     },
     {
-      title: "文件",
+      title: "文件 / 失败原因",
       key: "file",
-      width: 180,
+      width: 240,
       render: (_, job) =>
         job.fileName ? (
           <Space direction="vertical" size={2}>
             <Typography.Text>{job.fileName}</Typography.Text>
             <Typography.Text type="secondary">{formatFileSize(job.fileSizeBytes ?? 0)}</Typography.Text>
           </Space>
+        ) : job.isStale ? (
+          <Typography.Paragraph type="warning" ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
+            导出任务异常等待，建议重新生成。
+          </Typography.Paragraph>
         ) : job.status === "FAILED" ? (
-          <Typography.Text type="danger">{job.errorMessage ?? "文件生成失败"}</Typography.Text>
+          <Typography.Paragraph type="danger" ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
+            {job.errorMessage ?? "文件生成失败"}
+          </Typography.Paragraph>
         ) : (
           <Typography.Text type="secondary">正在生成</Typography.Text>
         ),
     },
     {
       title: "操作",
-      width: 120,
+      width: 190,
       render: (_, job) => (
-        <Tooltip title={job.status === "SUCCEEDED" ? "下载导出文件" : "文件生成完成后可下载"}>
-          <Button
-            size="small"
-            icon={<DownloadOutlined />}
-            disabled={job.status !== "SUCCEEDED" || !job.fileObjectId}
-            onClick={() => {
-              window.location.href = buildExportDownloadPath(job.id);
-            }}
-          >
-            下载
-          </Button>
-        </Tooltip>
+        <Space wrap size={6}>
+          <Tooltip title={job.canDownload ? "下载导出文件" : "文件生成完成后可下载"}>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              disabled={!job.canDownload}
+              loading={downloadingJobId === job.id}
+              onClick={() => void handleDownloadJob(job)}
+            >
+              下载
+            </Button>
+          </Tooltip>
+          <Tooltip title={job.canRetry ? "按原导出参数重新生成文件" : "仅失败或异常等待任务可重新生成"}>
+            <Button
+              size="small"
+              icon={<RedoOutlined />}
+              disabled={!job.canRetry}
+              loading={retryingJobId === job.id}
+              onClick={() => void handleRetryJob(job)}
+            >
+              重新生成
+            </Button>
+          </Tooltip>
+        </Space>
       ),
     },
   ];
@@ -432,15 +543,36 @@ export function OwnerTaskExportsPage({ taskId }: OwnerTaskExportsPageProps) {
         </Card>
       </div>
 
-      <Card title="导出任务历史" className="labelhub-table-card">
+      <Card
+        title="导出任务历史"
+        className="labelhub-table-card"
+        extra={
+          <Space wrap>
+            <Select
+              value={statusFilter}
+              options={exportStatusOptions}
+              onChange={handleStatusFilterChange}
+              style={{ width: 140 }}
+            />
+            <Button icon={<ReloadOutlined />} onClick={() => void loadJobs(pagination.page, pagination.pageSize)}>
+              刷新历史
+            </Button>
+          </Space>
+        }
+      >
         <Table
           rowKey="id"
           loading={jobsLoading}
           columns={jobColumns}
           dataSource={jobs}
+          expandable={{
+            rowExpandable: (job) => Boolean(job.errorMessage || job.isStale || job.fieldMappings.length),
+            expandedRowRender: renderJobDetail,
+          }}
           locale={{
             emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无导出任务" />,
           }}
+          scroll={{ x: 1080 }}
           pagination={{
             current: pagination.page,
             pageSize: pagination.pageSize,
@@ -520,6 +652,49 @@ function buildMappingRows(options: ExportFieldOptionVO[]): ExportFieldMappingDTO
   });
 }
 
+function renderJobDetail(job: ExportJobVO) {
+  const selectedFields = job.fieldMappings
+    .filter((mapping) => mapping.selected)
+    .sort((left, right) => left.order - right.order);
+  return (
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+      {(job.errorMessage || job.isStale) && (
+        <Alert
+          showIcon
+          type={job.status === "FAILED" ? "error" : "warning"}
+          message={job.status === "FAILED" ? "导出失败" : "导出任务异常等待"}
+          description={
+            job.errorMessage ??
+            "该任务长时间停留在等待或生成中，可能由服务重启或旧版本异常导致，可按原导出参数重新生成。"
+          }
+        />
+      )}
+      <div className="labelhub-export-job-detail-grid">
+        <div>
+          <Typography.Text type="secondary">导出参数快照</Typography.Text>
+          <div className="labelhub-export-job-tags">
+            <Tag>{exportFormatMeta[job.format].label}</Tag>
+            {job.includeReviewRecords && <Tag color="purple">包含审核记录</Tag>}
+            {job.includeAuditTimeline && <Tag color="orange">包含审计时间线</Tag>}
+            <Tag>{selectedFields.length} 个字段</Tag>
+          </div>
+        </div>
+        <div>
+          <Typography.Text type="secondary">字段映射</Typography.Text>
+          <div className="labelhub-export-job-fields">
+            {selectedFields.slice(0, 8).map((mapping) => (
+              <Tag key={`${mapping.source}:${mapping.path}:${mapping.outputKey}`}>
+                {mapping.outputKey}
+              </Tag>
+            ))}
+            {selectedFields.length > 8 && <Tag>+{selectedFields.length - 8}</Tag>}
+          </div>
+        </div>
+      </div>
+    </Space>
+  );
+}
+
 function uniqueOutputKey(rawKey: string, usedKeys: Set<string>): string {
   let candidate = rawKey;
   let suffix = 2;
@@ -545,6 +720,13 @@ function formatFileSize(sizeBytes: number): string {
   if (sizeBytes < 1024) return `${sizeBytes} B`;
   if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`;
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDuration(durationSeconds: number | null): string {
+  if (durationSeconds === null || Number.isNaN(durationSeconds)) return "耗时待定";
+  if (durationSeconds < 1) return "< 1 秒";
+  if (durationSeconds < 60) return `${durationSeconds.toFixed(durationSeconds < 10 ? 1 : 0)} 秒`;
+  return `${Math.floor(durationSeconds / 60)} 分 ${Math.round(durationSeconds % 60)} 秒`;
 }
 
 function shortId(value: string): string {

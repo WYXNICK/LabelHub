@@ -199,7 +199,7 @@ export interface LogoutResponseVO {
 | 4 | 人工审核决策 | `CreateReviewDecisionRequest`、`BatchReviewDecisionRequest` | `POST /api/reviews/{reviewId}/decisions`、`POST /api/reviews:batch-decide` | 阶段 4.5 已实现 |
 | 4 | Owner 数据验收 | `AcceptanceStatsVO` | `GET /api/tasks/{taskId}/acceptance-stats` | 阶段 4.6 已实现 |
 | 5 | 导出字段选项 | `ExportFieldOptionsVO` | `GET /api/tasks/:taskId/export-field-options` | 阶段 5.1 已实现；字段来源与后端 SDD 对齐 |
-| 5 | 导出任务 | `ExportJobVO`、`CreateExportJobRequest` | `POST /api/tasks/:taskId/export-jobs`、`GET /api/tasks/:taskId/export-jobs` | 阶段 5.1 已实现；导出配置、历史、下载入口共用 |
+| 5 | 导出任务 | `ExportJobVO`、`CreateExportJobRequest` | `POST /api/tasks/:taskId/export-jobs`、`GET /api/tasks/:taskId/export-jobs`、`POST /api/export-jobs/:exportJobId/retry` | 阶段 5.4 已补充历史筛选、失败恢复和下载错误提示 |
 
 ### 9.1 阶段 1.0 已对齐前端契约
 
@@ -1312,8 +1312,13 @@ export interface ExportJobVO {
   fileName: string | null;
   fileSizeBytes: number | null;
   errorMessage: string | null;
+  canDownload: boolean;
+  canRetry: boolean;
+  isStale: boolean;
+  durationSeconds: number | null;
   createdBy: string;
   createdAt: string;
+  updatedAt: string;
   startedAt: string | null;
   finishedAt: string | null;
 }
@@ -1324,8 +1329,10 @@ export interface ExportJobVO {
 - 入口从 Owner 任务列表和 Owner 数据验收页进入，优先让用户先看“可导出通过数据量”，再创建导出任务。
 - 字段映射选项来自后端 `ExportFieldOptionVO`，前端只负责重命名、排序和选择，不自行猜测后端字段。
 - CSV/Excel 创建前必须提示“数组/对象字段会被 JSON 字符串化”，具体策略以后端 SDD 为准。
-- 阶段 5.2/5.3 创建导出任务后后端会同步生成 JSON、JSONL、CSV 或 Excel 文件；历史列表展示完成时间、文件名、文件大小和下载入口，失败时展示失败原因。
-- 下载入口只在 `status=SUCCEEDED` 且 `fileObjectId` 存在时可用，点击进入 `GET /api/export-jobs/:exportJobId/download` 真实文件响应。
+- 阶段 5.2/5.3 创建导出任务后后端会同步生成 JSON、JSONL、CSV 或 Excel 文件；阶段 5.4 历史列表必须支持按状态筛选，展示完成时间、文件名、文件大小、耗时、失败原因和异常等待提示。
+- 下载入口只在 `canDownload=true` 时可用。前端下载必须使用 `fetch + Blob` 捕获业务错误；如果后端返回文件缺失或文件未就绪，要在页面内明确提示并刷新历史，而不是跳转到错误 JSON 页面。
+- `canRetry=true` 时展示“重新生成”动作；重试调用 `POST /api/export-jobs/:exportJobId/retry`，复用原导出参数快照，成功后刷新第一页历史。
+- `isStale=true` 的 `QUEUED/RUNNING` 任务展示“异常等待，可重新生成”，用于处理开发重启或旧版本失败遗留的历史行。
 - 前端浏览器验收必须覆盖 `1280×800` 与 `1920×1080`：字段映射表不横向溢出，长字段名省略并可查看完整值，导出历史在空态、失败态、成功态均清晰。
 
 ## 10. 前后端字段映射检查清单

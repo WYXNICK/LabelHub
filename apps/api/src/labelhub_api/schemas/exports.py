@@ -57,6 +57,10 @@ class ExportJobVO(CamelModel):
     file_name: str | None = None
     file_size_bytes: int | None = None
     error_message: str | None = None
+    can_download: bool
+    can_retry: bool
+    is_stale: bool
+    duration_seconds: float | None = None
     created_by: str
     created_at: datetime
     updated_at: datetime

@@ -56,6 +56,10 @@ export interface ExportJobVO {
   fileName: string | null;
   fileSizeBytes: number | null;
   errorMessage: string | null;
+  canDownload: boolean;
+  canRetry: boolean;
+  isStale: boolean;
+  durationSeconds: number | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

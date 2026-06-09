@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from labelhub_api.api.deps import get_current_user, get_request_id
+from labelhub_api.core.enums import ExportJobStatus
 from labelhub_api.db.session import get_db_session
 from labelhub_api.schemas.auth import UserVO
 from labelhub_api.schemas.common import PageVO
@@ -37,6 +38,7 @@ def list_export_jobs(
     taskId: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    status: ExportJobStatus | None = Query(default=None),
     user: UserVO = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> PageVO[ExportJobVO]:
@@ -45,6 +47,7 @@ def list_export_jobs(
         user=user,
         page=page,
         page_size=page_size,
+        status=status,
     )
 
 
@@ -77,6 +80,16 @@ def get_export_job(
     db: Session = Depends(get_db_session),
 ) -> ExportJobVO:
     return ExportService(db).get_export_job(export_job_id=exportJobId, user=user)
+
+
+@export_job_router.post("/{exportJobId}/retry", response_model=ExportJobVO, response_model_by_alias=True)
+def retry_export_job(
+    exportJobId: str,
+    request_id: str = Depends(get_request_id),
+    user: UserVO = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> ExportJobVO:
+    return ExportService(db).retry_export_job(export_job_id=exportJobId, user=user, request_id=request_id)
 
 
 @export_job_router.get("/{exportJobId}/download")

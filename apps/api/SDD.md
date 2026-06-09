@@ -315,9 +315,10 @@ class LogoutResponseVO:
 | 4 | `GET /api/tasks/{taskId}/acceptance-stats` | `GetAcceptanceStatsRequest` | `AcceptanceStatsVO` | 阶段 4.6 已实现 |
 | 5 | `GET /api/tasks/{taskId}/export-field-options` | `GetExportFieldOptionsRequest` | `ExportFieldOptionsVO` | 阶段 5.1 已实现；字段选项来自数据集、提交字段、审核元数据和时间线 |
 | 5 | `POST /api/tasks/{taskId}/export-jobs` | `CreateExportJobRequest` | `ExportJobVO` | 阶段 5.1 已实现；创建异步导出任务快照 |
-| 5 | `GET /api/tasks/{taskId}/export-jobs` | `ListExportJobsRequest` | `PageVO[ExportJobVO]` | 阶段 5.1 已实现；导出历史 |
+| 5 | `GET /api/tasks/{taskId}/export-jobs` | `ListExportJobsRequest` | `PageVO[ExportJobVO]` | 阶段 5.4 已补充状态筛选、失败原因和可恢复状态 |
 | 5 | `GET /api/export-jobs/{exportJobId}` | `GetExportJobRequest` | `ExportJobVO` | 阶段 5.1 已实现；导出详情 |
-| 5 | `GET /api/export-jobs/{exportJobId}/download` | `GetExportJobFileRequest` | `ExportJobVO/文件响应` | 阶段 5.1 已占位校验；5.2-5.4 生成文件后返回下载 |
+| 5 | `GET /api/export-jobs/{exportJobId}/download` | `GetExportJobFileRequest` | `ExportJobVO/文件响应` | 阶段 5.4 已补充文件缺失失败落库和明确错误 |
+| 5 | `POST /api/export-jobs/{exportJobId}/retry` | `RetryExportJobRequest` | `ExportJobVO` | 阶段 5.4 已实现；失败或异常等待导出任务按原快照重试 |
 
 ### 9.1 阶段 1.0 已对齐契约
 
@@ -1274,8 +1275,13 @@ class ExportJobVO:
     file_name: str | None
     file_size_bytes: int | None
     error_message: str | None
+    can_download: bool
+    can_retry: bool
+    is_stale: bool
+    duration_seconds: float | None
     created_by: str
     created_at: datetime
+    updated_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
 ```
@@ -1286,19 +1292,22 @@ class ExportJobVO:
 | --- | --- | --- |
 | `GET /api/tasks/{taskId}/export-field-options` | `OWNER` | 根据当前任务数据集 payload、模板版本提交字段和审核记录推导可导出字段，返回示例值和默认选择 |
 | `POST /api/tasks/{taskId}/export-jobs` | `OWNER` | 创建导出任务，校验格式、字段映射、任务归属和可导出记录数；阶段 5.2/5.3 Demo 规模内同步生成文件并返回最终状态 |
-| `GET /api/tasks/{taskId}/export-jobs` | `OWNER` | 分页查询导出历史，展示进度、状态、失败原因和下载入口 |
+| `GET /api/tasks/{taskId}/export-jobs` | `OWNER` | 分页查询导出历史，可按 `status` 筛选，展示进度、失败原因、可下载和可重试状态 |
 | `GET /api/export-jobs/{exportJobId}` | `OWNER` | 查询导出详情和最终参数快照 |
 | `GET /api/export-jobs/{exportJobId}/download` | `OWNER` | 下载成功导出的真实文件响应；未成功、文件缺失或无权限返回业务错误 |
+| `POST /api/export-jobs/{exportJobId}/retry` | `OWNER` | 对失败或异常等待的导出任务按已冻结字段映射、格式和附加选项重新生成文件 |
 
 状态与审计：
 
 - 阶段 5.2/5.3 在 API 内同步推进 `QUEUED -> RUNNING -> SUCCEEDED/FAILED`。当前 Demo 数据量小，避免额外引入导出 worker；后续若数据量扩大，可在不改变前端契约的情况下把生成逻辑迁移到后台任务。
+- 阶段 5.4 将 `FAILED` 任务和超过 10 分钟仍停留在 `QUEUED/RUNNING` 且没有文件的任务视为可重试；重试不新建历史行，而是在原 job 上清空失败信息、复用原 `field_mappings` 快照重新生成，避免历史噪声。
 - 导出只读取 `reviews.status=APPROVED`、`submissions.status=APPROVED` 的最终提交值；`DIRECT_REVISE` 通过后的导出值以修订后的 submission values 为准。
 - `field_mappings` 必须作为快照保存到 `export_jobs`，避免后续模板或字段名变化影响历史导出复现。
 - JSON 导出为对象数组，JSONL 导出为一行一条对象；对象 key 使用字段映射中的 `outputKey`，附加审核记录和审计时间线时分别写入 `reviewRecord`、`auditTimeline`。
 - CSV 使用 UTF-8 BOM，Excel 使用标准 `.xlsx` 单工作表 `data`；数组和对象字段在表格格式中以紧凑 JSON 字符串输出，空值输出为空字符串。为避免表格公式注入，导出文本若以 `= + - @` 开头，写入 CSV/Excel 时必须加前导单引号。
-- 创建、完成、失败和下载均写 `audit_logs`，`entityType=EXPORT_JOB`。
+- 创建、重试、完成、失败和下载均写 `audit_logs`，`entityType=EXPORT_JOB`。
 - 导出文件通过 `file_objects.purpose=EXPORT` 关联，不把文件内容写入业务表。
+- 下载时若 `file_objects` 记录或磁盘文件缺失，后端必须把导出 job 标记为 `FAILED` 并记录清晰失败原因，前端历史刷新后可直接看到“文件缺失，请重试生成”。
 
 ## 10. 阶段 0 Entity 与迁移契约
 

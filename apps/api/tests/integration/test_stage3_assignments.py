@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import base64
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -641,7 +642,7 @@ def test_submit_assignment_requires_controlled_file_references(
                 "type": "FILE_UPLOAD",
                 "fieldKey": "evidence",
                 "label": "Evidence",
-                "props": {"maxFiles": 2},
+                "props": {"accept": [".pdf", ".docx", ".xlsx", ".json", ".txt"], "maxFiles": 2, "maxSizeMb": 1},
                 "validation": {"required": True},
                 "visibility": {},
             },
@@ -659,17 +660,93 @@ def test_submit_assignment_requires_controlled_file_references(
     )
 
     assert invalid_response.status_code == 422
-    assert invalid_response.json()["error"]["details"]["errors"] == [
-        {"fieldKey": "evidence", "message": "Evidence 必须使用已上传文件引用"}
-    ]
+    assert invalid_response.json()["error"]["details"]["errors"][0]["fieldKey"] == "evidence"
 
     valid_response = client.post(
         f"/api/assignments/{assignment['id']}/submissions",
-        json={"values": {"answer": "ok", "evidence": ["file_controlled_ref"]}, "clientDraftVersion": assignment["version"]},
+        json={
+            "values": {
+                "answer": "ok",
+                "evidence": [
+                    {
+                        "id": "file_controlled_ref",
+                        "fileName": "guide.md",
+                        "mimeType": "text/markdown",
+                        "sizeBytes": 1024,
+                        "downloadUrl": "/api/files/file_controlled_ref/download",
+                        "previewUrl": None,
+                        "isImage": False,
+                    }
+                ],
+            },
+            "clientDraftVersion": assignment["version"],
+        },
     )
 
     assert valid_response.status_code == 201
-    assert valid_response.json()["values"] == {"answer": "ok", "evidence": ["file_controlled_ref"]}
+    assert valid_response.json()["values"]["evidence"][0]["fileName"] == "guide.md"
+
+
+def test_file_object_supports_metadata_download_and_inline_image_preview(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client, "labeler@labelhub.dev")
+
+    image_bytes = b"\x89PNG\r\n\x1a\nlabelhub"
+    created = client.post(
+        "/api/files",
+        json={
+            "bucket": "stage3-evidence-tests",
+            "objectKey": "preview/sample.png",
+            "fileName": "sample.png",
+            "mimeType": "image/png",
+            "sizeBytes": len(image_bytes),
+            "checksum": None,
+            "purpose": "EVIDENCE",
+            "contentBase64": base64.b64encode(image_bytes).decode("ascii"),
+        },
+    )
+
+    assert created.status_code == 201
+    file_vo = created.json()
+    assert file_vo["downloadUrl"].endswith("/download")
+    assert file_vo["previewUrl"].endswith("/download?inline=true")
+    assert file_vo["isImage"] is True
+
+    metadata = client.get(f"/api/files/{file_vo['id']}")
+    assert metadata.status_code == 200
+    assert metadata.json()["fileName"] == "sample.png"
+
+    inline_response = client.get(f"/api/files/{file_vo['id']}/download?inline=true")
+    assert inline_response.status_code == 200
+    assert inline_response.content == image_bytes
+    assert inline_response.headers["content-type"] == "image/png"
+    assert "inline" in inline_response.headers["content-disposition"]
+
+
+def test_file_object_rejects_mismatched_upload_size(
+    client_with_db: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _session_factory = client_with_db
+    login(client, "labeler@labelhub.dev")
+
+    response = client.post(
+        "/api/files",
+        json={
+            "bucket": "stage3-evidence-tests",
+            "objectKey": "broken.txt",
+            "fileName": "broken.txt",
+            "mimeType": "text/plain",
+            "sizeBytes": 99,
+            "checksum": None,
+            "purpose": "EVIDENCE",
+            "contentText": "small",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "FILE_SIZE_MISMATCH"
 
 
 def test_submit_assignment_is_idempotent_for_same_assignment(

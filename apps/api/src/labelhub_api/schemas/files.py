@@ -29,5 +29,8 @@ class FileObjectVO(CamelModel):
     size_bytes: int
     checksum: str | None
     purpose: FilePurpose
+    download_url: str
+    preview_url: str | None
+    is_image: bool
     created_by: str
     created_at: datetime

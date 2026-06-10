@@ -6,9 +6,11 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Alert, Button, Checkbox, Empty, Form, Input, Radio, Select, Space, Tabs, Tag, Tooltip, Typography, Upload } from "antd";
+import { Alert, Button, Checkbox, Empty, Form, Input, message, Radio, Select, Space, Tabs, Tag, Tooltip, Typography, Upload } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 
+import { AttachmentValue, normalizeAttachmentValue, serializeAttachmentReference, toFileReference } from "../files/AttachmentValue";
+import type { FileObjectVO, FileReferenceVO } from "../files/types";
 import type { JsonObject } from "../../shared/types/api";
 import { formatTaskTime } from "../tasks/view";
 import type { TemplateComponentDTO, TemplateFieldValue, TemplateSchemaVO, TemplateSubmissionValue } from "./types";
@@ -33,7 +35,7 @@ interface TemplateRendererProps {
   onChange: (nextValue: TemplateSubmissionValue) => void;
   readonly?: boolean;
   serverErrors?: TemplateSubmissionError[];
-  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<FileObjectVO | string>;
   onRunLlmAction?: (
     component: TemplateComponentDTO,
     inputValues: TemplateSubmissionValue,
@@ -109,7 +111,7 @@ function RendererLayoutItem({
   value: TemplateSubmissionValue;
   errorsByField: Map<string, string[]>;
   readonly: boolean;
-  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<FileObjectVO | string>;
   onRunLlmAction?: (
     component: TemplateComponentDTO,
     inputValues: TemplateSubmissionValue,
@@ -221,7 +223,7 @@ function RendererField({
   value: TemplateSubmissionValue;
   errorsByField: Map<string, string[]>;
   readonly: boolean;
-  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>;
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<FileObjectVO | string>;
   onRunLlmAction?: (
     component: TemplateComponentDTO,
     inputValues: TemplateSubmissionValue,
@@ -315,7 +317,7 @@ function renderInput(
   onChange: (nextValue: TemplateFieldValue) => void,
   readonly: boolean,
   inputId: string,
-  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<string>,
+  onUploadFile?: (file: File, component: TemplateComponentDTO) => Promise<FileObjectVO | string>,
 ) {
   const placeholder = typeof component.props.placeholder === "string" ? component.props.placeholder : undefined;
   if (component.type === "TEXT_INPUT") {
@@ -397,31 +399,61 @@ function renderInput(
     );
   }
   if (component.type === "FILE_UPLOAD" || component.type === "IMAGE_UPLOAD") {
-    const names = Array.isArray(fieldValue) ? fieldValue.map(String) : [];
+    const references = normalizeAttachmentValue(fieldValue);
     const maxFiles = getNumberProp(component.props.maxFiles, component.type === "IMAGE_UPLOAD" ? 6 : 3);
-    const accept = getStringArrayProp(component.props.accept).join(",");
-    const fileList = names.map((name) => ({ uid: name, name, status: "done" as const }));
+    const maxSizeMb = getNumberProp(component.props.maxSizeMb, component.type === "IMAGE_UPLOAD" ? 10 : 20);
+    const accept = getEffectiveUploadAccept(component.type, getStringArrayProp(component.props.accept)).join(",");
+    if (readonly) {
+      return <AttachmentValue value={fieldValue} />;
+    }
+    const fileList = references.map((reference) => ({
+      uid: reference.id,
+      name: reference.fileName,
+      status: "done" as const,
+      url: reference.downloadUrl || undefined,
+      thumbUrl: reference.previewUrl || undefined,
+    }));
     return (
       <Upload.Dragger
         name={component.fieldKey ?? component.id}
         aria-label={component.label}
-        disabled={readonly || names.length >= maxFiles}
+        disabled={references.length >= maxFiles}
         multiple
         maxCount={maxFiles}
         accept={accept || undefined}
         fileList={fileList}
         listType={component.type === "IMAGE_UPLOAD" ? "picture" : "text"}
         beforeUpload={async (file) => {
+          if (references.length >= maxFiles) {
+            message.warning(`最多上传 ${maxFiles} 个文件`);
+            return Upload.LIST_IGNORE;
+          }
+          if (file.size > maxSizeMb * 1024 * 1024) {
+            message.warning(`单个文件不能超过 ${maxSizeMb} MB`);
+            return Upload.LIST_IGNORE;
+          }
+          if (accept && !matchesAccept(file, accept)) {
+            message.warning("文件类型不符合当前物料配置");
+            return Upload.LIST_IGNORE;
+          }
           try {
-            const fileRef = onUploadFile ? await onUploadFile(file, component) : file.name;
-            onChange([...names, fileRef].slice(0, maxFiles));
+            const uploaded = onUploadFile ? await onUploadFile(file, component) : file.name;
+            const nextReference = normalizeUploadedReference(uploaded, file);
+            onChange([...references, nextReference].slice(0, maxFiles).map(serializeAttachmentReference) as TemplateFieldValue);
           } catch {
             return Upload.LIST_IGNORE;
           }
           return false;
         }}
+        onPreview={(file) => {
+          const reference = references.find((item) => item.id === file.uid);
+          const url = reference?.previewUrl || reference?.downloadUrl;
+          if (url) {
+            window.open(url, "_blank", "noopener,noreferrer");
+          }
+        }}
         onRemove={(file) => {
-          onChange(names.filter((name) => name !== file.name));
+          onChange(references.filter((reference) => reference.id !== file.uid).map(serializeAttachmentReference) as TemplateFieldValue);
           return true;
         }}
       >
@@ -430,7 +462,7 @@ function renderInput(
         </p>
         <p className="ant-upload-text">{component.type === "IMAGE_UPLOAD" ? "选择或拖拽图片" : "选择或拖拽文件"}</p>
         <p className="ant-upload-hint">
-          最多 {maxFiles} 个；{accept ? `允许 ${accept}` : "类型不限"}。当前预览仅记录文件名。
+          最多 {maxFiles} 个；单个不超过 {maxSizeMb} MB；{accept ? `允许 ${accept}` : "类型不限"}。
         </p>
       </Upload.Dragger>
     );
@@ -677,6 +709,55 @@ function renderInlineRichText(text: string): ReactNode[] {
 
 function getSafePreviewUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : undefined;
+}
+
+function normalizeUploadedReference(uploaded: FileObjectVO | string, file: File): FileReferenceVO {
+  if (typeof uploaded !== "string") {
+    return toFileReference(uploaded);
+  }
+  return {
+    id: uploaded,
+    fileName: file.name,
+    mimeType: file.type || null,
+    sizeBytes: file.size,
+    downloadUrl: uploaded.startsWith("file_") ? `/api/files/${uploaded}/download` : "",
+    previewUrl: file.type.startsWith("image/") && uploaded.startsWith("file_") ? `/api/files/${uploaded}/download?inline=true` : null,
+    isImage: file.type.startsWith("image/"),
+  };
+}
+
+function getEffectiveUploadAccept(componentType: string, accept: string[]): string[] {
+  if (componentType !== "FILE_UPLOAD" || accept.length === 0) {
+    return accept;
+  }
+  const normalized = accept.map((item) => item.trim().toLowerCase()).filter(Boolean);
+  const legacyDocumentRules = new Set([".pdf", ".docx", ".xlsx", ".json", ".txt"]);
+  const isLegacyDocumentAccept =
+    normalized.length > 0 &&
+    normalized.every((item) => legacyDocumentRules.has(item) || item === ".md") &&
+    [".pdf", ".docx", ".xlsx", ".json"].every((item) => normalized.includes(item));
+  return isLegacyDocumentAccept && !normalized.includes(".md") ? [...accept, ".md"] : accept;
+}
+
+function matchesAccept(file: File, accept: string): boolean {
+  const rules = accept
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (rules.length === 0) {
+    return true;
+  }
+  const fileName = file.name.toLowerCase();
+  const mimeType = file.type.toLowerCase();
+  return rules.some((rule) => {
+    if (rule.startsWith(".")) {
+      return fileName.endsWith(rule);
+    }
+    if (rule.endsWith("/*")) {
+      return mimeType.startsWith(rule.slice(0, -1));
+    }
+    return mimeType === rule;
+  });
 }
 
 function LlmAction({

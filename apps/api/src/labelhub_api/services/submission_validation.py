@@ -121,13 +121,35 @@ def _validate_component_value(component: TemplateComponentDTO, value: Any) -> li
         errors.append(SubmissionValidationError(field_key=field_key, message=f"{component.label} 必须是 JSON Object"))
 
     if component.type in UPLOAD_TYPES:
-        if not _is_string_list(value):
+        file_refs = _read_file_references(value)
+        if file_refs is None:
             return [SubmissionValidationError(field_key=field_key, message=f"{component.label} 必须是文件引用数组")]
-        if any(not item.startswith("file_") for item in value):
+        if any(not item["id"].startswith("file_") for item in file_refs):
             errors.append(SubmissionValidationError(field_key=field_key, message=f"{component.label} 必须使用已上传文件引用"))
         max_files = _read_int(component.props.get("maxFiles"))
-        if max_files is not None and len(value) > max_files:
+        if max_files is not None and len(file_refs) > max_files:
             errors.append(SubmissionValidationError(field_key=field_key, message=f"{component.label} 最多上传 {max_files} 个文件"))
+        max_size_mb = _read_int(component.props.get("maxSizeMb"))
+        if max_size_mb is not None:
+            max_size_bytes = max_size_mb * 1024 * 1024
+            if any(isinstance(item.get("sizeBytes"), int) and item["sizeBytes"] > max_size_bytes for item in file_refs):
+                errors.append(SubmissionValidationError(field_key=field_key, message=f"{component.label} 单个文件不能超过 {max_size_mb} MB"))
+        accept = _effective_upload_accept(component.type, _read_string_array(component.props.get("accept")))
+        if accept:
+            invalid_type = any(
+                not _matches_accept(str(item.get("fileName") or item["id"]), item.get("mimeType"), accept)
+                for item in file_refs
+                if item.get("mimeType") or item.get("fileName")
+            )
+            if invalid_type:
+                errors.append(SubmissionValidationError(field_key=field_key, message=f"{component.label} 包含不支持的文件类型"))
+        if component.type == TemplateComponentType.IMAGE_UPLOAD.value:
+            invalid_image = any(
+                isinstance(item.get("mimeType"), str) and not str(item["mimeType"]).lower().startswith("image/")
+                for item in file_refs
+            )
+            if invalid_image:
+                errors.append(SubmissionValidationError(field_key=field_key, message=f"{component.label} 只能上传图片文件"))
 
     errors.extend(_validate_common_rules(component, value))
     return errors
@@ -305,6 +327,28 @@ def _is_string_list(value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) and item.strip() for item in value)
 
 
+def _read_file_references(value: Any) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    refs: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            refs.append({"id": item.strip()})
+            continue
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip():
+            refs.append(
+                {
+                    "id": item["id"].strip(),
+                    "fileName": item.get("fileName"),
+                    "mimeType": item.get("mimeType"),
+                    "sizeBytes": item.get("sizeBytes"),
+                }
+            )
+            continue
+        return None
+    return refs
+
+
 def _read_string_array(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
@@ -315,3 +359,32 @@ def _read_int(value: Any) -> int | None:
 
 def _stringify(value: Any) -> str:
     return "" if value is None else str(value)
+
+
+def _matches_accept(file_name: str, mime_type: Any, accept: list[str]) -> bool:
+    name = file_name.lower()
+    mime = str(mime_type or "").lower()
+    for rule in accept:
+        normalized = rule.strip().lower()
+        if not normalized:
+            continue
+        if normalized.startswith(".") and name.endswith(normalized):
+            return True
+        if normalized.endswith("/*") and mime.startswith(normalized[:-1]):
+            return True
+        if mime and mime == normalized:
+            return True
+    return False
+
+
+def _effective_upload_accept(component_type: str, accept: list[str]) -> list[str]:
+    if component_type != TemplateComponentType.FILE_UPLOAD.value or not accept:
+        return accept
+    normalized = [item.strip().lower() for item in accept if item.strip()]
+    legacy_document_rules = {".pdf", ".docx", ".xlsx", ".json", ".txt"}
+    is_legacy_document_accept = (
+        bool(normalized)
+        and all(item in legacy_document_rules or item == ".md" for item in normalized)
+        and all(item in normalized for item in [".pdf", ".docx", ".xlsx", ".json"])
+    )
+    return [*accept, ".md"] if is_legacy_document_accept and ".md" not in normalized else accept

@@ -269,6 +269,81 @@ describe("template runtime helpers", () => {
     expect(html).toContain("OpenAI 兼容调用");
   });
 
+  it("renders and validates uploaded file references with metadata", () => {
+    const schema = rendererSchema();
+    const value = {
+      answer: "ok",
+      attachments: [
+        {
+          id: "file_pdf",
+          fileName: "evidence.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 1024,
+          downloadUrl: "/api/files/file_pdf/download",
+          previewUrl: null,
+          isImage: false,
+        },
+      ],
+      screenshots: [
+        {
+          id: "file_png",
+          fileName: "screen.png",
+          mimeType: "image/png",
+          sizeBytes: 2048,
+          downloadUrl: "/api/files/file_png/download",
+          previewUrl: "/api/files/file_png/download?inline=true",
+          isImage: true,
+        },
+      ],
+    };
+
+    expect(validateTemplateSubmissionValue(schema, value)).toEqual([]);
+    const legacyDefaultUploadSchema = {
+      ...schema,
+      components: schema.components.map((component) =>
+        component.id === "file"
+          ? { ...component, props: { ...component.props, accept: [".pdf", ".docx", ".xlsx", ".json", ".txt"] } }
+          : component,
+      ),
+    };
+    expect(
+      validateTemplateSubmissionValue(legacyDefaultUploadSchema, {
+        answer: "ok",
+        attachments: [
+          {
+            id: "file_md",
+            fileName: "guide.md",
+            mimeType: "text/markdown",
+            sizeBytes: 512,
+          },
+        ],
+      }),
+    ).toEqual([]);
+    const html = renderToStaticMarkup(
+      <TemplateRenderer schema={schema} itemPayload={{ prompt: "prompt" }} value={value} onChange={() => undefined} readonly />,
+    );
+    expect(html).toContain("evidence.pdf");
+    expect(html).toContain("screen.png");
+    expect(html).toContain("PDF");
+    expect(html).toContain("PNG");
+    expect(html).toContain("1.0 KB");
+    expect(html).toContain("2.0 KB");
+
+    expect(
+      validateTemplateSubmissionValue(schema, {
+        answer: "ok",
+        attachments: [
+          {
+            id: "file_doc",
+            fileName: "wrong.docx",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            sizeBytes: 1024,
+          },
+        ],
+      }),
+    ).toEqual([{ fieldKey: "attachments", message: "附件 包含不支持的文件类型" }]);
+  });
+
   it("evaluates stage 2.6 layout, visibility and linked validation rules", () => {
     const schema = stage26Schema();
     const reason = schema.components.find((component) => component.id === "reason");

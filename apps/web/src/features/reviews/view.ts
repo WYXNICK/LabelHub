@@ -235,7 +235,43 @@ export function formatReviewValue(value: unknown): string {
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
-  return JSON.stringify(value, null, 2);
+  if (Array.isArray(value)) {
+    const readableItems = value.map((item) => formatNestedReviewValue(item)).filter((item) => item !== "未填写");
+    return readableItems.length > 0 ? readableItems.join("、") : "未填写";
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => {
+        const formatted = formatNestedReviewValue(item);
+        return formatted === "未填写" ? "" : `${key}：${formatted}`;
+      })
+      .filter(Boolean);
+    return entries.length > 0 ? entries.join("；") : "未填写";
+  }
+  return String(value);
+}
+
+function formatNestedReviewValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "未填写";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const items = value.map(formatNestedReviewValue).filter((item) => item !== "未填写");
+    return items.length > 0 ? items.join("、") : "未填写";
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => {
+        const formatted = formatNestedReviewValue(item);
+        return formatted === "未填写" ? "" : `${key}：${formatted}`;
+      })
+      .filter(Boolean);
+    return entries.length > 0 ? entries.join("；") : "未填写";
+  }
+  return String(value);
 }
 
 export function truncateMiddle(value: string, head = 10, tail = 8): string {

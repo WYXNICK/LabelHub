@@ -21,6 +21,19 @@ export interface FileObjectVO {
   sizeBytes: number;
   checksum: string | null;
   purpose: FilePurpose;
+  downloadUrl: string;
+  previewUrl: string | null;
+  isImage: boolean;
   createdBy: string;
   createdAt: string;
+}
+
+export interface FileReferenceVO extends Record<string, string | number | boolean | null> {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number;
+  downloadUrl: string;
+  previewUrl: string | null;
+  isImage: boolean;
 }

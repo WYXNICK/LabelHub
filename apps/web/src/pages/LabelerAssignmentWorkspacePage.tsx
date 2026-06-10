@@ -212,7 +212,7 @@ export function LabelerAssignmentWorkspacePage({ assignmentId, mode = "workspace
           contentBase64: await readFileAsBase64(file),
         });
         message.success(`已上传 ${file.name}`);
-        return fileObject.id;
+        return fileObject;
       } catch (uploadError) {
         message.error(getErrorMessage(uploadError));
         throw uploadError;

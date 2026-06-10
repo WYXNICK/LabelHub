@@ -397,7 +397,7 @@ class PublishBlockerCode(str, Enum):
 | `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
 | `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
 | `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
-| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`createdBy`、`createdAt` |
+| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`downloadUrl`、`previewUrl`、`isImage`、`createdBy`、`createdAt` |
 | `DatasetVO` | `id`、`taskId`、`name`、`datasetType`、`sourceFormat`、`itemCount`、`enabledItemCount`、`disabledItemCount`、`status`、`createdBy`、`createdAt`、`updatedAt` |
 | `DatasetItemVO` | `id`、`datasetId`、`taskId`、`externalItemId`、`sourceFormat`、`sourceRowNumber`、`payload`、`mediaRefs`、`checksum`、`status`、`tags`、`createdAt`、`updatedAt` |
 | `CreateImportJobRequest` | `datasetName`、`datasetType`、`sourceFormat`、`fileObjectId`、`idempotencyKey` |
@@ -455,7 +455,9 @@ class PublishBlockerCode(str, Enum):
 
 | 接口 | 状态 | 说明 |
 | --- | --- | --- |
-| `POST /api/files` | 已实现 | 创建导入文件对象，阶段 1.2 支持 `contentText` 或 `contentBase64` 写入本地临时上传目录 |
+| `POST /api/files` | 已实现 | 创建导入、证据或导出文件对象，支持 `contentText` 或 `contentBase64` 写入本地上传目录 |
+| `GET /api/files/{fileId}` | 已实现 | 查询文件元数据和前端可用的预览/下载地址 |
+| `GET /api/files/{fileId}/download` | 已实现 | 下载文件；图片可通过 `?inline=true` 以内联方式预览 |
 | `POST /api/tasks/{taskId}/import-jobs` | 已实现 | 同步解析导入文件并创建数据集、题目行、错误行和审计记录 |
 | `GET /api/import-jobs/{importJobId}` | 已实现 | 查询导入任务状态和成功/失败统计 |
 | `GET /api/import-jobs/{importJobId}/errors` | 已实现 | 分页查询导入错误行 |
@@ -477,6 +479,14 @@ class CreateFileObjectRequest:
     contentText: str | None
     contentBase64: str | None
 ```
+
+文件对象契约：
+
+- 上传内容落在 API 进程的 `tmp/uploads/{bucket}/{objectKey}` 目录，生产部署通过持久化 volume 保存，数据库只记录 `file_objects` 元数据和相对对象键。
+- `contentText` 与 `contentBase64` 只能二选一；如果提供内容，后端必须校验解码后的真实字节数与 `sizeBytes` 一致。
+- `purpose=EVIDENCE` 的单文件服务端硬上限为 100 MB；模板物料还可以通过 `maxSizeMb` 配置更小的业务上限，前端和后端提交校验都必须执行。
+- `downloadUrl` 固定为 `/api/files/{fileId}/download`；图片文件的 `previewUrl` 固定为 `/api/files/{fileId}/download?inline=true`，非图片为 `null`。
+- 文件不存在、内容缺失或非法 base64 必须返回结构化错误，不暴露本地磁盘路径。
 
 导入解析规则：
 
@@ -1053,7 +1063,8 @@ LLM 边界：
 草稿与提交规则：
 
 - 草稿保存在 `assignments.draft_values`，并使用 `assignments.version` 做乐观锁；前端刷新后从 assignment 恢复。
-- 提交时以后端模板版本 schema 校验最终值，覆盖 required、requiredWhen、maxLength、pattern、customRuleIds、枚举值、JSON Object、文件/图片数量和受控文件引用。
+- 提交时以后端模板版本 schema 校验最终值，覆盖 required、requiredWhen、maxLength、pattern、customRuleIds、枚举值、JSON Object、文件/图片数量、文件类型、文件大小和受控文件引用。
+- `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 的提交值使用结构化 `FileReferenceVO[]`：`id` 必须以 `file_` 开头，`fileName`、`mimeType`、`sizeBytes` 用于审核展示和二次校验，`downloadUrl`/`previewUrl` 用于前端渲染。文件上传默认支持 `.pdf`、`.docx`、`.xlsx`、`.json`、`.txt`、`.md`，图片上传默认支持 `image/png`、`image/jpeg`、`image/webp`；历史字符串数组 `["file_..."]` 仅为兼容读取，不作为新提交推荐格式。
 - `SHOW_ITEM`、`GROUP`、`TABS`、`LLM_ACTION` 不允许进入提交值；隐藏字段必须清理后再提交。
 - 每次正式提交生成递增 `submission_version`，写入 `SUBMISSION_CREATE` 审计，并更新 assignment 当前提交 ID 与状态。
 - 阶段 3 提交后状态保持 `SUBMITTED`，阶段 4 再接入 AI 预审队列和人工审核状态迁移。

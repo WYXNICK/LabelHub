@@ -236,7 +236,7 @@ export type PublishBlockerCode =
 | `CreateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy` |
 | `UpdateTaskRequest` | `title`、`description`、`instructionRichText`、`tags`、`rewardRule`、`quota`、`deadlineAt`、`distributionStrategy`、`version` |
 | `TaskStateTransitionRequest` | `targetStatus`、`reason`、`version` |
-| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`createdBy`、`createdAt` |
+| `FileObjectVO` | `id`、`bucket`、`objectKey`、`fileName`、`mimeType`、`sizeBytes`、`checksum`、`purpose`、`downloadUrl`、`previewUrl`、`isImage`、`createdBy`、`createdAt` |
 | `DatasetVO` | `id`、`taskId`、`name`、`datasetType`、`sourceFormat`、`itemCount`、`enabledItemCount`、`disabledItemCount`、`status`、`createdBy`、`createdAt`、`updatedAt` |
 | `DatasetItemVO` | `id`、`datasetId`、`taskId`、`externalItemId`、`sourceFormat`、`sourceRowNumber`、`payload`、`mediaRefs`、`checksum`、`status`、`tags`、`createdAt`、`updatedAt` |
 | `CreateImportJobRequest` | `datasetName`、`datasetType`、`sourceFormat`、`fileObjectId`、`idempotencyKey` |
@@ -672,7 +672,7 @@ Designer 物料分组：
 Renderer 行为：
 
 - `RICH_TEXT` 渲染轻量富文本编辑区，提交值为字符串；本阶段不引入额外富文本依赖。
-- `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域，阶段 2.5 只在预览中记录本地文件名，真实证据文件上传在阶段 3 作答链路接入。
+- `FILE_UPLOAD` 与 `IMAGE_UPLOAD` 渲染 Upload 区域；文件上传默认支持 `.pdf`、`.docx`、`.xlsx`、`.json`、`.txt`、`.md`，图片上传默认支持 `image/png`、`image/jpeg`、`image/webp`。作答链路调用 `POST /api/files` 上传证据文件，提交值保存结构化 `FileReferenceVO[]`，包含 `id`、`fileName`、`mimeType`、`sizeBytes`、`downloadUrl`、`previewUrl`、`isImage`。旧版字符串 `file_...` 仅作为兼容输入读取，新的提交值不得只保存文件名或浏览器本地路径。只读展示时文件卡片展示文件名、类型和大小，点击整张卡片下载；图片展示缩略图、文件名、类型和大小，点击缩略图放大预览，页面不直接暴露文件 ID。
 - `JSON_EDITOR` 渲染等宽 JSON 编辑区，默认值可以是 JSON Object/Array；输入过程允许暂存字符串，最终提交校验放在阶段 3。
 - `LLM_ACTION` 渲染可读的模型动作配置卡，展示输入字段、输出字段和 prompt 摘要；阶段 3.6 起通过 `POST /api/assignments/{assignmentId}/llm-actions/{componentId}:run` 运行题目级模型辅助。
 
@@ -951,7 +951,7 @@ export interface ContributionItemVO {
 - 草稿处于保存中时禁用提交，避免自动保存和正式提交并发写入同一 assignment 版本。
 - `ASSIGNMENT_VERSION_CONFLICT` 返回时提示重新加载题目，不用本地值覆盖远端版本。
 - 提交成功后刷新作答上下文，工作台进入只读态，底部按钮显示“已提交”，右侧历史显示提交时间和提交版本。
-- 文件/图片字段提交值必须是受控引用字符串数组；前端不得把浏览器本地临时路径或未上传文件对象写入最终提交值。
+- 文件/图片字段提交值必须是受控文件引用数组；每项包含已上传文件 ID、展示名、MIME、大小和预览/下载地址。前端不得把浏览器本地临时路径或未上传文件对象写入最终提交值，审核工作台和详情页必须按同一引用对象渲染附件：文件显示文件名、类型和大小，点击卡片下载；图片显示缩略图、文件名、类型和大小，并支持点击缩略图放大预览。
 - 提交幂等键由前端生成，重复点击同一次提交不会产生重复 submission；页面不依赖本地状态判断成功，最终以后端响应为准。
 
 阶段 3.5 我的贡献与返修入口产品规则：

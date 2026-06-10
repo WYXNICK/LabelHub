@@ -409,18 +409,96 @@ function validateComponentValue(component: TemplateComponentDTO, value: unknown)
     return [{ fieldKey, message: `${component.label} 必须是 JSON Object` }];
   }
   if (component.type === "FILE_UPLOAD" || component.type === "IMAGE_UPLOAD") {
-    if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim())) {
+    const fileRefs = readFileReferences(value);
+    if (!fileRefs) {
       return [{ fieldKey, message: `${component.label} 必须是文件引用数组` }];
     }
-    if (value.some((item) => !String(item).startsWith("file_"))) {
+    if (fileRefs.some((item) => !item.id.startsWith("file_"))) {
       return [{ fieldKey, message: `${component.label} 必须使用已上传文件引用` }];
     }
     const maxFiles = typeof component.props.maxFiles === "number" ? component.props.maxFiles : null;
-    if (maxFiles && value.length > maxFiles) {
+    if (maxFiles && fileRefs.length > maxFiles) {
       return [{ fieldKey, message: `${component.label} 最多上传 ${maxFiles} 个文件` }];
+    }
+    const maxSizeMb = typeof component.props.maxSizeMb === "number" ? component.props.maxSizeMb : null;
+    if (maxSizeMb && fileRefs.some((item) => typeof item.sizeBytes === "number" && item.sizeBytes > maxSizeMb * 1024 * 1024)) {
+      return [{ fieldKey, message: `${component.label} 单个文件不能超过 ${maxSizeMb} MB` }];
+    }
+    const accept = getEffectiveUploadAccept(component.type, getStringArray(component.props.accept));
+    if (accept.length > 0) {
+      const invalid = fileRefs.some((item) => {
+        if (!item.fileName && !item.mimeType) {
+          return false;
+        }
+        return !matchesAccept(item.fileName ?? item.id, item.mimeType, accept);
+      });
+      if (invalid) {
+        return [{ fieldKey, message: `${component.label} 包含不支持的文件类型` }];
+      }
+    }
+    if (component.type === "IMAGE_UPLOAD" && fileRefs.some((item) => item.mimeType && !item.mimeType.startsWith("image/"))) {
+      return [{ fieldKey, message: `${component.label} 只能上传图片文件` }];
     }
   }
   return [];
+}
+
+function readFileReferences(value: unknown): Array<{ id: string; fileName?: string; mimeType?: string; sizeBytes?: number }> | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const refs: Array<{ id: string; fileName?: string; mimeType?: string; sizeBytes?: number }> = [];
+  for (const item of value) {
+    if (typeof item === "string" && item.trim()) {
+      refs.push({ id: item.trim() });
+      continue;
+    }
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      if (typeof record.id === "string" && record.id.trim()) {
+        refs.push({
+          id: record.id.trim(),
+          fileName: typeof record.fileName === "string" ? record.fileName : undefined,
+          mimeType: typeof record.mimeType === "string" ? record.mimeType : undefined,
+          sizeBytes: typeof record.sizeBytes === "number" ? record.sizeBytes : undefined,
+        });
+        continue;
+      }
+    }
+    return null;
+  }
+  return refs;
+}
+
+function matchesAccept(fileName: string, mimeType: string | undefined, accept: string[]): boolean {
+  const lowerName = fileName.toLowerCase();
+  const lowerMime = (mimeType ?? "").toLowerCase();
+  return accept.some((rule) => {
+    const normalized = rule.trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    if (normalized.startsWith(".")) {
+      return lowerName.endsWith(normalized);
+    }
+    if (normalized.endsWith("/*")) {
+      return lowerMime.startsWith(normalized.slice(0, -1));
+    }
+    return lowerMime === normalized;
+  });
+}
+
+function getEffectiveUploadAccept(componentType: string, accept: string[]): string[] {
+  if (componentType !== "FILE_UPLOAD" || accept.length === 0) {
+    return accept;
+  }
+  const normalized = accept.map((item) => item.trim().toLowerCase()).filter(Boolean);
+  const legacyDocumentRules = new Set([".pdf", ".docx", ".xlsx", ".json", ".txt"]);
+  const isLegacyDocumentAccept =
+    normalized.length > 0 &&
+    normalized.every((item) => legacyDocumentRules.has(item) || item === ".md") &&
+    [".pdf", ".docx", ".xlsx", ".json"].every((item) => normalized.includes(item));
+  return isLegacyDocumentAccept && !normalized.includes(".md") ? [...accept, ".md"] : accept;
 }
 
 function validateOptionValues(component: TemplateComponentDTO, values: string[]): TemplateSubmissionError[] {

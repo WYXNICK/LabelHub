@@ -160,7 +160,7 @@ export function createDesignerComponent(input: {
   if (input.type === "FILE_UPLOAD") {
     return {
       ...base,
-      props: { accept: [".pdf", ".docx", ".xlsx", ".json"], maxFiles: 3, maxSizeMb: 20, defaultValue: [] },
+      props: { accept: [".pdf", ".docx", ".xlsx", ".json", ".txt", ".md"], maxFiles: 3, maxSizeMb: 20, defaultValue: [] },
       validation: { required: false },
     };
   }

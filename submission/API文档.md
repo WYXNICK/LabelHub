@@ -67,8 +67,10 @@
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | `POST` | `/api/files` | 已登录 | 创建文件元数据，用于导入、证据和导出文件登记 |
+| `GET` | `/api/files/{fileId}` | 已登录 | 获取文件元数据、下载地址和图片预览地址 |
+| `GET` | `/api/files/{fileId}/download` | 已登录 | 下载文件；图片可通过 `?inline=true` 以内联预览方式返回 |
 
-文件对象只记录元信息和相对路径，真实文件落盘路径由后端配置决定。
+文件对象只记录元信息、相对对象 key 与可访问 URL，真实文件落盘路径由后端配置决定。`FileObjectVO` 返回 `downloadUrl`、`previewUrl` 和 `isImage`，供标注工作台、审核工作台和导出中心统一渲染。文件上传默认支持 PDF、Word、Excel、JSON、纯文本与 Markdown 文档，图片上传默认支持 PNG、JPEG 与 WebP；证据上传单文件服务端硬上限为 `100 MB`，模板物料可通过 `maxSizeMb` 配置更小的业务上限。
 
 ## 6. Owner 任务管理
 
@@ -168,7 +170,7 @@
 | `GET` | `/api/me/contribution-stats` | Labeler | 我的贡献统计 |
 | `GET` | `/api/me/contributions` | Labeler | 我的贡献列表 |
 
-提交接口会按领取时固化的模板版本校验字段、必填项、隐藏字段裁剪和文件引用。题目级 LLM 辅助只生成参考建议，不会自动提交。
+提交接口会按领取时固化的模板版本校验字段、必填项、隐藏字段裁剪和文件引用。文件/图片字段提交值使用结构化文件引用数组，包含 `id`、`fileName`、`mimeType`、`sizeBytes`、`downloadUrl`、`previewUrl` 和 `isImage`；历史字符串引用仅用于兼容读取。题目级 LLM 辅助只生成参考建议，不会自动提交。
 
 ## 11. AI 自动预审与 Agent
 

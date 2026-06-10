@@ -1348,14 +1348,14 @@ export interface ExportJobVO {
 - 错误结构是否统一为 `error` 包裹。
 - 动态模板 schema 是否由后端保存、前端渲染，不出现前端私有字段。
 
-## 11. 未确认事项
+## 11. 交付确认事项
 
-阶段 0 已确认：鉴权使用 HttpOnly Cookie Session；阶段 0 前端类型先手写并与后端 OpenAPI 对齐；动态模板 schema 将作为语言无关 JSON 结构维护。
+当前交付版本已确认并落地以下约束：
 
-后续阶段仍需确认：
-
-- 是否引入 OpenAPI 自动生成 TypeScript 类型。
-- 动态模板 schema 的最终 JSON Schema 发布目录与版本策略。
+- 鉴权使用 HttpOnly Cookie Session，前端所有受保护页面依赖后端会话状态。
+- 前端类型手写维护，并按 SDD 接口契约、后端 OpenAPI 路由和真实浏览器验收结果持续对齐。
+- 动态模板 schema 作为语言无关 JSON 结构维护，由后端保存版本，前端负责搭建、预览和运行时渲染。
+- 模板版本、审核配置、导出字段映射均绑定任务上下文，避免全局模板与任务数据结构不一致。
 
 ## 12. 浏览器真实验收流程
 
@@ -1371,11 +1371,10 @@ export interface ExportJobVO {
 6. 检查 Console 与 Network：Console 不应有非预期 error/issue；Network 需确认核心接口状态码与契约一致。业务预期错误（例如发布保护返回 `409 PUBLISH_BLOCKED`）应在页面展示清晰阻塞项。
 7. 保存必要截图到本地临时目录或验收记录中；发现视觉、可访问性、接口或 Cookie 问题时，必须先修复并复验。
 
-本次阶段 1.1 验收使用过的有效方式：
+阶段 1.1 验收使用过的有效方式：
 
-- MySQL：`labelhub-mysql-browser-check` 容器，`localhost:3307`，迁移版本 `0002_create_stage1_foundation (head)`。
-- API：`http://localhost:8001`。
-- Web：`http://localhost:5174`，通过 `VITE_API_BASE_URL=http://localhost:8001` 直连 API。
+- MySQL：Docker 容器化 MySQL，迁移版本 `0002_create_stage1_foundation (head)`。
+- API 与 Web：使用本地开发端口启动，前端通过 `/api` 代理或 `VITE_API_BASE_URL` 直连后端。
 - 已验证：登录、Owner 任务列表、任务创建写入 MySQL、任务设置页回填、发布阻塞 `409 PUBLISH_BLOCKED` 展示、Console 清洁复验、Network 核心接口状态码正确。
 
 本次阶段 1.2 验收使用过的有效方式：

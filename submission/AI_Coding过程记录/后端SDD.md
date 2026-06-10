@@ -1390,12 +1390,11 @@ class AiReviewResultDTO:
 - Entity 不直接返回给前端。
 - LLM 输出 DTO 不直接等同于人工审核 VO，必须经过业务规则转换。
 
-## 13. 未确认事项
+## 13. 交付确认事项
 
-阶段 0 已确认：FastAPI、Pydantic v2、SQLAlchemy 2、Alembic、PyMySQL、HttpOnly Cookie Session。
+当前交付版本已确认并落地以下约束：
 
-后续阶段仍需确认：
-
-- 队列实现方案。
-- 前端类型是否从后端 OpenAPI 自动生成，阶段 0 先手写契约类型。
-- 当前 OpenAI API 兼容供应商的基础 Chat Completions 请求已通过阶段 4 端到端验证；Agent 结构化输出归一化后可写回 AI 预审结果。
+- 后端使用 FastAPI、Pydantic v2、SQLAlchemy 2、Alembic、PyMySQL、HttpOnly Cookie Session。
+- 后端通过 MySQL 持久化任务、数据集、模板版本、标注提交、AI 预审、人工审核、导出任务和审计日志。
+- AI 预审采用数据库轮询队列与幂等键保护，Agent 以 OpenAI API 兼容格式调用 LLM，并将结构化结果归一化写回业务表。
+- 前后端接口契约以本 SDD、前端 SDD 与 OpenAPI 路由实现共同约束；前端类型目前手写维护，并在开发与测试中持续对齐后端 JSON 字段。

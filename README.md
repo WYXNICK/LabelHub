@@ -190,6 +190,10 @@ pnpm --filter @labelhub/web dev
 http://121.196.209.131:18080/
 ```
 
+## 开源协议
+
+本项目使用 MIT License，详见 `LICENSE`。
+
 ## 文档
 
 | 文档 | 路径 |

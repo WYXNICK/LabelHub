@@ -1262,7 +1262,7 @@ function UploadPropertyEditor({
           name={`template-upload-${component.id}-accept`}
           rows={3}
           value={accept.join(", ")}
-          placeholder={component.type === "IMAGE_UPLOAD" ? "image/png, image/jpeg" : ".pdf, .docx, .xlsx"}
+          placeholder={component.type === "IMAGE_UPLOAD" ? "image/png, image/jpeg" : ".pdf, .docx, .xlsx, .json, .txt, .md"}
           onChange={(event) => patchProps({ accept: splitStringList(event.target.value) })}
         />
       </Form.Item>

@@ -25,6 +25,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { navigate } from "../app/routes";
+import { AttachmentValue, isAttachmentValue } from "../features/files/AttachmentValue";
 import { decideReview, getReviewDetail } from "../features/reviews/api";
 import type { HumanReviewDecision, ReviewDetailVO } from "../features/reviews/types";
 import {
@@ -245,11 +246,11 @@ function ReviewerReviewDetailContent({ detail, onReload }: { detail: ReviewDetai
                     <div className="labelhub-review-diff-grid">
                       <div>
                         <Typography.Text type="secondary">上一版</Typography.Text>
-                        <pre>{formatReviewValue(item.previousValue)}</pre>
+                        <ReviewDiffValue value={item.previousValue} />
                       </div>
                       <div>
                         <Typography.Text type="secondary">当前版</Typography.Text>
-                        <pre>{formatReviewValue(item.currentValue)}</pre>
+                        <ReviewDiffValue value={item.currentValue} />
                       </div>
                     </div>
                   </div>
@@ -474,6 +475,13 @@ function SummaryTagList({ title, values }: { title: string; values: string[] }) 
       </div>
     </div>
   );
+}
+
+function ReviewDiffValue({ value }: { value: unknown }) {
+  if (isAttachmentValue(value)) {
+    return <AttachmentValue value={value} compact />;
+  }
+  return <pre>{formatReviewValue(value)}</pre>;
 }
 
 function removeLlmActionComponents(schema: TemplateSchemaVO): TemplateSchemaVO {

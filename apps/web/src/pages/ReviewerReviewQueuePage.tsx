@@ -32,6 +32,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { navigate } from "../app/routes";
+import { AttachmentValue, isAttachmentValue } from "../features/files/AttachmentValue";
 import { batchDecideReviews, decideReview, getReviewDetail, listReviews } from "../features/reviews/api";
 import type {
   AiReviewConclusion,
@@ -744,7 +745,7 @@ function RoundValueList({ detail, side }: { detail: ReviewDetailVO; side: "previ
         {changed.map((item) => (
           <div key={`${side}-${item.fieldKey}`} className="labelhub-reviewer-field-row">
             <span>{item.label}</span>
-            <strong>{formatReviewValue(side === "previous" ? item.previousValue : item.currentValue)}</strong>
+            <ReviewFieldValue value={side === "previous" ? item.previousValue : item.currentValue} />
           </div>
         ))}
       </div>
@@ -759,11 +760,18 @@ function RoundValueList({ detail, side }: { detail: ReviewDetailVO; side: "previ
       {Object.entries(values).map(([key, value]) => (
         <div key={`${side}-${key}`} className="labelhub-reviewer-field-row">
           <span>{key}</span>
-          <strong>{formatReviewValue(value)}</strong>
+          <ReviewFieldValue value={value} />
         </div>
       ))}
     </div>
   );
+}
+
+function ReviewFieldValue({ value }: { value: unknown }) {
+  if (isAttachmentValue(value)) {
+    return <AttachmentValue value={value} compact />;
+  }
+  return <strong>{formatReviewValue(value)}</strong>;
 }
 
 function ReviewWorkbenchSide({

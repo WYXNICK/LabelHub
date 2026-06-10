@@ -8,11 +8,13 @@ import {
   formatReviewConfigVersion,
   formatReviewScorePercent,
   formatReviewTraceCode,
+  formatReviewValue,
   formatSubmissionVersion,
   getReviewerReviewDetailReturnTarget,
   matchReviewerReviewDetailPath,
   normalizeReviewScoreToPercent,
 } from "./view";
+import { isAttachmentValue } from "../files/AttachmentValue";
 
 describe("review view helpers", () => {
   it("builds and matches reviewer detail paths", () => {
@@ -73,5 +75,18 @@ describe("review view helpers", () => {
     expect(normalizeReviewScoreToPercent(null, 100)).toBe(0);
     expect(formatReviewScorePercent(4.25, 5)).toBe("85 分");
     expect(formatReviewScorePercent(87.5, 100)).toBe("87.5 分");
+  });
+
+  it("formats review values as readable business text", () => {
+    expect(formatReviewValue([])).toBe("未填写");
+    expect(formatReviewValue({})).toBe("未填写");
+    expect(formatReviewValue(["准确性", "安全性"])).toBe("准确性、安全性");
+    expect(formatReviewValue({ reason: "表达清晰", score: 5 })).toBe("reason：表达清晰；score：5");
+  });
+
+  it("does not treat normal option arrays as file attachments", () => {
+    expect(isAttachmentValue(["证据附件"])).toBe(false);
+    expect(isAttachmentValue([{ id: "issue_security", label: "安全问题" }])).toBe(false);
+    expect(isAttachmentValue(["file_abc123"])).toBe(true);
   });
 });

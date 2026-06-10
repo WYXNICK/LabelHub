@@ -43,7 +43,7 @@ describe("template designer helpers", () => {
       validation: { required: false, maxLength: 5000 },
     });
     expect(createDesignerComponent({ type: "FILE_UPLOAD", id: "file" })).toMatchObject({
-      props: { accept: [".pdf", ".docx", ".xlsx", ".json"], maxFiles: 3, maxSizeMb: 20 },
+      props: { accept: [".pdf", ".docx", ".xlsx", ".json", ".txt", ".md"], maxFiles: 3, maxSizeMb: 20 },
       validation: { required: false },
     });
     expect(createDesignerComponent({ type: "IMAGE_UPLOAD", id: "image" }).props.accept).toEqual([

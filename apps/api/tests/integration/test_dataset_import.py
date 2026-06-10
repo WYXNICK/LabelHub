@@ -219,6 +219,11 @@ def test_import_error_rows_are_traceable(client_with_db: tuple[TestClient, sessi
     client, _session_factory = client_with_db
     login(client)
     task = create_task(client, "错误行追踪测试")
+    content_text = (
+        '{"id":"qa_001","prompt":"p","model_answer":"a","reference":"r"}\n'
+        '{"id":"qa_002","model_answer":"a","reference":"r"}\n'
+        '{"id":"qa_001","prompt":"p2","model_answer":"a2","reference":"r2"}\n'
+    )
     response = client.post(
         "/api/files",
         json={
@@ -226,14 +231,10 @@ def test_import_error_rows_are_traceable(client_with_db: tuple[TestClient, sessi
             "objectKey": "invalid/qa_quality.jsonl",
             "fileName": "invalid_qa_quality.jsonl",
             "mimeType": "application/jsonl",
-            "sizeBytes": 128,
+            "sizeBytes": len(content_text.encode("utf-8")),
             "checksum": None,
             "purpose": "IMPORT",
-            "contentText": (
-                '{"id":"qa_001","prompt":"p","model_answer":"a","reference":"r"}\n'
-                '{"id":"qa_002","model_answer":"a","reference":"r"}\n'
-                '{"id":"qa_001","prompt":"p2","model_answer":"a2","reference":"r2"}\n'
-            ),
+            "contentText": content_text,
         },
     )
     assert response.status_code == 201

@@ -1,44 +1,39 @@
 # @labelhub/web
 
-前端 Web 应用，后续承载：
+React 前端应用，提供 Owner、Labeler、Reviewer 三类角色工作台。
 
-- Owner 任务负责人后台
-- Labeler 标注员工作台
-- Reviewer 人工审核工作台
+## 技术栈
 
-技术栈：React 18、TypeScript、Vite、Ant Design、Formily + Schema 渲染、@dnd-kit/core、Zustand。
+React 18、TypeScript、Vite、Ant Design、Formily + Schema 渲染、@dnd-kit/core、Zustand。
 
-当前已实现：
+## 页面能力
 
-- 登录页与三类 demo 角色快速入口。
-- HttpOnly Cookie Session 鉴权恢复。
-- Owner、Labeler、Reviewer 三类角色应用壳。
-- 无权限页。
-- Owner 任务管理、任务设置、数据集导入、题目预览与批量编辑、审核配置、发布前检查抽屉。
-- API Client 与阶段 1 VO/Request 类型。
-- 阶段 2.0-2.2 模板 schema、模板草稿、模板版本的 TypeScript 类型、API 外壳、基础 schema 工具、Renderer 最小运行时和 Owner 预览页。
+- 登录页与三类 Demo 账号入口。
+- Owner：任务管理、数据导入、模板搭建、审核配置、数据验收、导出中心。
+- Labeler：任务广场、标注工作台、我的贡献、返修修改。
+- Reviewer：AI 预审队列、人工审核任务列表、任务内审核工作台、审核详情、审核结果。
+- 动态模板 Designer / Renderer 共用同一份 `TemplateSchemaVO`。
 
-常用命令：
+## 常用命令
 
 在仓库根目录运行：
 
-```bash
-cd E:/my-try/LabelHub
-corepack pnpm install
-corepack pnpm dev:web
-corepack pnpm build:web
-corepack pnpm test:web
-corepack pnpm lint:web
-corepack pnpm typecheck:web
+```powershell
+cd E:\my-try\LabelHub
+pnpm install
+pnpm --filter @labelhub/web dev
+pnpm --filter @labelhub/web build
+pnpm --filter @labelhub/web test
+pnpm --filter @labelhub/web test:unit
+pnpm --filter @labelhub/web test:integration
 ```
 
 在 `apps/web` 目录内也可以运行对应本地脚本：
 
-```bash
-cd E:/my-try/LabelHub/apps/web
+```powershell
+cd E:\my-try\LabelHub\apps\web
 pnpm dev
 pnpm build
 pnpm test
-pnpm lint
 pnpm typecheck
 ```

@@ -1,240 +1,204 @@
-# LabelHub 数据标注平台
+﻿# LabelHub 数据标注平台
 
-LabelHub 是一个前后端分离的 AI 数据标注平台，目标覆盖「任务创建 -> 数据导入 -> 动态模板搭建 -> 标注员作答 -> AI 自动预审 -> 人工审核 -> 多格式导出」完整链路。
+LabelHub 是一个面向数据标注生产链路的前后端分离平台，覆盖任务创建、数据导入、动态模板搭建、标注员作答、题目级 LLM 辅助、AI 自动预审、人工复核、数据验收和多格式导出。系统采用 Monorepo 组织，前端、后端和 Agent 独立运行又共享同一套接口契约。
 
-当前仓库已经初始化为 monorepo。阶段 0 工程底座、阶段 1 Owner 任务/数据/审核配置/发布前检查底座、阶段 2 动态模板搭建与版本发布、阶段 3 Labeler 任务广场/作答/提交/题目级 LLM 辅助，以及阶段 4 AI 自动预审、Agent 写回、Reviewer 人工审核流转、批量审核、直接修订、审核结果追溯和 Owner 数据验收已落地；任务创建、数据导入、模板草稿/版本、assignment、submission、llm_action_runs、review_jobs、reviews 和 export_jobs 均已接入 MySQL。阶段 5.0-5.3 已补齐 Owner 导出中心、字段映射、导出任务创建、JSON/JSONL/CSV/Excel 文件生成与下载；导出失败体验和交付材料继续在阶段 5.4-5.5 完成。
+## 核心能力
 
-## 目录结构
+| 角色 | 能力 |
+| --- | --- |
+| 任务负责人 Owner | 创建任务、导入数据集、搭建标注模板、配置审核规则、发布任务、验收数据、导出结果 |
+| 标注员 Labeler | 浏览任务广场、领取题目、基于动态模板作答、自动保存草稿、提交标注、查看返修意见 |
+| AI Agent | 按 OpenAI API 兼容格式调用 LLM，对提交结果进行异步预审并写回结构化评分与建议 |
+| 人工审核员 Reviewer | 查看 AI 预审队列、按任务复核、查看多轮 diff、执行打回、直接修订或通过入库 |
+
+## Demo 截图
+
+| 任务生产与管理 | 动态模板搭建 |
+| --- | --- |
+| <img src="submission/Demo截图/02_owner_tasks.png" alt="任务管理" width="420" /> | <img src="submission/Demo截图/04_owner_template_designer.png" alt="模板搭建器" width="420" /> |
+
+| 标注工作台 | AI 预审队列 |
+| --- | --- |
+| <img src="submission/Demo截图/07_labeler_workspace.jpeg" alt="标注工作台" width="420" /> | <img src="submission/Demo截图/08_reviewer_ai_queue.jpeg" alt="AI 预审队列" width="420" /> |
+
+| 人工审核工作台 | 导出中心 |
+| --- | --- |
+| <img src="submission/Demo截图/10_reviewer_workbench.jpeg" alt="人工审核工作台" width="420" /> | <img src="submission/Demo截图/05_owner_export_center.jpeg" alt="导出中心" width="420" /> |
+
+更多页面截图见 `submission/Demo截图/Demo截图说明.md`。
+
+## 技术栈
+
+| 层 | 技术 |
+| --- | --- |
+| 前端 | React 18、TypeScript、Ant Design、Formily Schema 渲染、Zustand、@dnd-kit/core |
+| 后端 | Python、FastAPI、Pydantic v2、SQLAlchemy 2、Alembic、PyMySQL、uv |
+| Agent | Python、uv、OpenAI Chat Completions 兼容协议 |
+| 数据库 | MySQL 8 |
+| 工程 | pnpm workspace、Docker Compose、Nginx 静态托管 |
+
+## 仓库结构
 
 ```text
 LabelHub/
   apps/
-    web/              # 前端 Web 应用：Owner 后台、Labeler 工作台、Reviewer 审核台
-    api/              # Python 后端 API 服务：鉴权、任务、模板、数据集、审核、导出
-    agent/            # Python AI 预审 Agent：消费预审队列、按 OpenAI API 格式调用 LLM、写回结构化审核结果
-  packages/
-    shared/           # 前端共享领域常量、枚举、状态机类型
-    schema/           # 规划承载语言无关模板 schema、JSON Schema、OpenAPI 契约
-    ui/               # 跨页面复用 UI 组件
-    config/           # 共享工程配置
-  infra/
-    docker/           # 本地开发基础设施与 docker compose
-  docs/               # 需求、Demo 范围、架构、数据库设计文档
-  demo_data/          # 课题提供的 Demo 数据
-  submission/         # 答辩提交材料
+    web/      React 前端应用
+    api/      FastAPI 后端服务
+    agent/    AI 预审 Agent
+  demo_data/  演示数据集
+  docs/       需求、架构、数据库、API、测试和部署文档
+  infra/      Docker Compose、Nginx、部署脚本
+  packages/   共享包预留目录
+  submission/ 交付文档整理目录
 ```
 
-## 应用边界
+## 架构概览
 
-- `apps/web` 只负责前端页面和交互，不直接实现业务状态机。
-- `apps/api` 是唯一业务写入口，负责权限、校验、事务、状态迁移和审计日志。
-- `apps/agent` 作为后台 worker 运行，只能通过受控服务写入 AI 审核结果，不能绕过审核流。
-- `packages/schema` 规划作为前后端共享契约来源；当前阶段 Python 后端通过 Pydantic/OpenAPI 暴露接口契约，前端按契约维护 TypeScript 类型。
+```mermaid
+flowchart LR
+  U[浏览器用户] --> W[React Web]
+  W --> API[FastAPI API]
+  API --> DB[(MySQL)]
+  API --> FS[导出文件目录]
+  AG[AI Agent] --> API
+  AG --> LLM[OpenAI 兼容 LLM]
+  API --> AUDIT[审计日志]
+  AUDIT --> DB
+```
 
-## 推荐开发环境
+## 本地运行
 
-- Node.js 20 或更高版本
-- pnpm 9 或更高版本
-- Python 3.11 或更高版本
+### 1. 准备环境
+
+- Node.js 20+
+- pnpm 9+
+- Python 3.11+
 - uv
-- MySQL 8
-- Redis 7
+- Docker Desktop
 
-## 技术选型基线
+### 2. 配置环境变量
 
-| 层 | 已确定选型 |
-| --- | --- |
-| 前端框架 | React 18 + TypeScript |
-| UI 组件库 | Ant Design |
-| 表单内核 | Formily + Schema 渲染 |
-| 拖拽 | @dnd-kit/core |
-| 状态管理 | Zustand |
-| 后端 | Python |
-| 数据库 | MySQL |
-| LLM 接入 | OpenAI API 格式；通过本地 `.env` 中的 `OPENAI_API_KEY`、`BASE_URL`、`MODEL_NAME` 配置，不绑定供应商私有 SDK |
+在仓库根目录复制示例配置：
 
-如果本机没有 `pnpm`，可先安装或启用：
-
-```bash
-corepack enable
-corepack prepare pnpm@latest --activate
-pnpm --version
+```powershell
+Copy-Item .env.example .env
 ```
 
-## 启动与常用命令
+LLM 相关变量只写入本地 `.env` 或服务器环境文件，不提交到 Git：
 
-### 1. 首次准备
-
-```bash
-# 查看仓库声明的 pnpm 版本是否可用；本项目通过 Corepack 固定 pnpm
-corepack pnpm --version
-
-# 安装前端 monorepo 依赖；首次拉取项目或 package.json / pnpm-lock.yaml 变化后运行
-corepack pnpm install
-```
-
-后端与 Agent 的 Python 依赖必须分别在各自目录下通过 `uv` 管理，不使用 `pip install` 直接写入全局环境。
-
-### 2. 前端命令
-
-以下命令均在仓库根目录运行：
-
-| 命令 | 什么时候运行 | 说明 |
-| --- | --- | --- |
-| `corepack pnpm dev:web` | 日常前端开发 | 启动 Vite 开发服务器，默认访问 `http://localhost:5173` |
-| `corepack pnpm build:web` | 提交前或验证生产构建 | 执行 TypeScript 构建检查并生成前端生产产物 |
-| `corepack pnpm test:web` | 修改前端逻辑后 | 运行 Vitest 单元测试 |
-| `corepack pnpm lint:web` | 修改前端代码后、提交前 | 运行 ESLint，检查代码规范和潜在问题 |
-| `corepack pnpm typecheck:web` | 修改类型、接口契约或组件 props 后 | 只运行 TypeScript 类型检查，不生成产物 |
-| `corepack pnpm format` | 需要统一格式时 | 对 workspace 内配置支持的文件执行格式化 |
-
-前端登录页需要后端 API 提供 `POST /api/auth/login` 和 `GET /api/auth/me`，因此完整体验建议同时启动后端。
-
-### 2.1 前端真实浏览器验收
-
-完成前端页面或核心交互后，除 `typecheck/lint/test/build` 外，还必须使用 Chrome DevTools MCP 做真实浏览器验收。阶段 1 起数据库链路必须连接 MySQL，不使用 SQLite 代替。
-
-本地验收建议：
-
-```bash
-# 终端 1：在仓库根目录启动 MySQL / Redis
-cd E:/my-try/LabelHub
-docker compose -f infra/docker/compose.yaml up -d
-
-# 终端 2：进入后端目录，确认 DATABASE_URL 指向 MySQL 后执行迁移并启动 API
-cd apps/api
-uv run alembic upgrade head
-uv run python -m labelhub_api
-
-# 终端 3：回到仓库根目录启动前端
-cd E:/my-try/LabelHub
-corepack pnpm dev:web
-```
-
-如需使用临时端口，确保前端访问 host、`VITE_API_BASE_URL`、后端 `API_CORS_ORIGINS` 使用同一 host，例如统一使用 `localhost`，避免 Cookie Session 在 `127.0.0.1` 与 `localhost` 混用时丢失。
-
-Chrome DevTools MCP 检查项：
-
-- `1280×800` 与 `1920×1080` 两个视口。
-- 页面首屏、主要表单/表格、按钮交互、loading/empty/error 状态。
-- Console 无非预期 error/issue。
-- Network 中核心接口状态码和响应结构符合 SDD/OpenAPI；业务预期错误如 `409 PUBLISH_BLOCKED` 必须在页面清晰展示。
-- 涉及写入时，通过 Network 或数据库确认数据进入 MySQL。
-
-### 3. 后端 API 命令
-
-以下命令在 `apps/api` 目录运行：
-
-```bash
-# 安装/同步后端依赖；首次进入后端或 pyproject.toml / uv.lock 变化后运行
-uv sync --extra dev
-
-# 运行后端测试；修改 API、Schema、鉴权、错误结构后运行
-uv run pytest
-
-# 启动后端开发服务；默认监听 http://localhost:8000
-uv run python -m labelhub_api
-```
-
-数据库迁移命令只在需要初始化或更新 MySQL 表结构时运行：
-
-```bash
-# 需要 MySQL 已启动，并且 DATABASE_URL 指向可访问的库
-uv run alembic upgrade head
-```
-
-题目级 LLM 辅助使用 OpenAI Chat Completions 兼容格式。后端进程启动前需确认仓库根目录 `.env` 至少包含：
-
-```bash
-# 以下为示例；真实 OPENAI_API_KEY 只放本地 .env，不提交到 Git
-OPENAI_API_KEY=your-local-key
+```env
+OPENAI_API_KEY=your-api-key
 BASE_URL=https://your-openai-compatible-provider/v1
 MODEL_NAME=your-model-name
-OPENAI_TIMEOUT_SECONDS=90
-LLM_EXTRA_BODY_JSON=
-REVIEW_JOB_LOCK_TIMEOUT_SECONDS=300
 ```
 
-说明：
+### 3. 启动 MySQL
 
-- `OPENAI_TIMEOUT_SECONDS` 默认 90 秒；如果模型冷启动或响应较慢，可在本地 `.env` 调大，但后端当前限制不超过 300 秒。
-- `REVIEW_JOB_LOCK_TIMEOUT_SECONDS` 默认 300 秒；Agent 领取后若进程中断或长时间未写回，下一次领取前会先回收超时的 `RUNNING` Job，避免页面长期显示“处理中”。
-- 当前 LLM API 按标准 OpenAI Chat Completions 兼容格式请求，不强行注入供应商私有扩展；如供应商需要额外 body，可通过 `OPENAI_EXTRA_BODY_JSON` / `LLM_EXTRA_BODY_JSON` 显式配置。
-- 修改 `.env` 后必须重启 `uv run python -m labelhub_api`，运行中的后端进程不会自动重新读取 LLM 配置。
+在仓库根目录执行：
 
-### 4. AI Agent 命令
+```powershell
+docker compose -f infra/docker/compose.yaml up -d mysql
+```
 
-以下命令在 `apps/agent` 目录运行：
+### 4. 启动后端 API
 
-```bash
-# 安装/同步 Agent 依赖；首次进入 Agent 或 pyproject.toml / uv.lock 变化后运行
-uv sync --extra dev
+```powershell
+cd apps/api
+uv sync
+uv run alembic upgrade head
+uv run python -m labelhub_api
+```
 
-# 运行 Agent 契约测试；修改结构化输出 DTO 或配置读取后运行
-uv run pytest
+后端默认地址：`http://localhost:8000`  
+OpenAPI 文档：`http://localhost:8000/api/docs`
 
-# 查看 Agent 配置健康状态；不消费真实队列
-uv run python -m labelhub_agent --health
+### 5. 启动 Agent
 
-# 领取并处理一个 AI 预审 job；本地调试阶段 4.2 时优先使用
-uv run python -m labelhub_agent --once
-
-# 持续轮询 AI 预审队列；需要长期运行 Agent 时使用
+```powershell
+cd apps/agent
+uv sync
 uv run python -m labelhub_agent --loop
 ```
 
-### 5. 本地 MySQL / Redis
+Agent 会轮询待预审任务，调用 OpenAI 兼容 LLM 后写回预审结果。
 
-```bash
-# 以下命令在仓库根目录运行：启动本地 MySQL 和 Redis
-docker compose -f infra/docker/compose.yaml up -d
+### 6. 启动前端
 
-# 以下命令在仓库根目录运行：停止本地 MySQL 和 Redis
-docker compose -f infra/docker/compose.yaml down
+在仓库根目录执行：
+
+```powershell
+pnpm install
+pnpm --filter @labelhub/web dev
 ```
 
-如果只体验登录、健康检查和 OpenAPI，可以暂不启动 MySQL；从阶段 1 的任务、数据集、审核配置和发布前检查开始，必须启动 MySQL 并完成 Alembic 迁移。
+前端默认地址：`http://localhost:5173`
 
-## 当前 MySQL 使用状态
+## Demo 账号
 
-MySQL 已经作为项目确定数据库，并且阶段 1 主链路已经开始使用 MySQL：
+| 角色 | 邮箱 | 密码 |
+| --- | --- | --- |
+| Owner | `owner@labelhub.dev` | `labelhub123` |
+| Labeler | `labeler@labelhub.dev` | `labelhub123` |
+| Reviewer | `reviewer@labelhub.dev` | `labelhub123` |
 
-- `.env.example` 中的 `DATABASE_URL=mysql+pymysql://labelhub:labelhub@localhost:3306/labelhub`。
-- `infra/docker/compose.yaml` 中的 MySQL 8 本地容器。
-- `apps/api/migrations/` 中的 Alembic 迁移骨架。
-- 首个迁移 `0001_create_users.py`，用于创建 `users` 表和 demo 用户记录。
-- 阶段 1 迁移 `0002_create_stage1_foundation.py`，用于任务、数据集、导入、审核配置、状态迁移和审计表。
-- 阶段 2 迁移 `0003_create_template_tables.py`，用于模板草稿和模板版本表。
-- 阶段 3 迁移 `0004_create_labeler_foundation.py`，用于 assignment、submission 和题目级 LLM 调用记录。
-- 阶段 4 迁移 `0005_create_review_foundation.py`，用于 AI 预审 job、AI review 建议和人工审核记录。
-- 阶段 5 迁移 `0006_create_export_foundation.py`，用于导出任务、字段映射快照、导出进度和下载文件元数据关联。
+## 常用命令
 
-当前 `GET /api/health`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` 仍使用内存 demo 用户和 Cookie Session；除此之外，阶段 1-5.3 的任务创建、数据导入、题目批量编辑、审核配置版本、发布前检查、模板草稿/版本、Labeler 领取、草稿、提交、贡献统计、题目级 LLM 辅助、AI 预审 job、AI review 建议、Reviewer 任务列表、任务内审核工作台、单条/批量人工审核、打回反馈、Owner 数据验收、导出字段选项、导出任务创建和导出文件元数据都依赖 MySQL 数据。模板版本发布成功后会更新 `tasks.current_template_version_id`，发布检查不再返回 `MISSING_TEMPLATE_VERSION`，但缺少数据集或审核配置时仍会继续阻塞发布。阶段 5.4-5.5 会继续扩展导出失败体验、下载审计展示和交付材料。
+| 场景 | 命令 | 说明 |
+| --- | --- | --- |
+| 前端开发 | `pnpm --filter @labelhub/web dev` | 本地开发时启动 Vite |
+| 前端构建 | `pnpm --filter @labelhub/web build` | 生产构建和部署前检查 |
+| 前端测试 | `pnpm --filter @labelhub/web test` | 运行前端单元与集成测试 |
+| 后端迁移 | `cd apps/api && uv run alembic upgrade head` | 初始化或升级 MySQL 表结构 |
+| 后端测试 | `cd apps/api && uv run pytest` | 运行 API 单元与集成测试 |
+| Agent 测试 | `cd apps/agent && uv run pytest` | 运行 Agent 单元与集成测试 |
+| 本地 Compose | `docker compose -f infra/docker/compose.yaml up -d` | 启动本地依赖服务 |
 
-## 阶段 0 Demo 账号
+## 关键设计
 
-统一密码：`labelhub123`
+- **任务绑定模板版本**：模板草稿属于具体任务，发布后生成不可变模板版本，保证历史提交、审核和导出字段可复现。
+- **后端掌握状态机**：任务、题目领取、提交、AI 预审、人工审核和导出状态均由后端校验和迁移，前端只发起意图。
+- **动态模板统一协议**：Owner Designer、Owner 预览、Labeler 作答和导出字段都消费同一份 `TemplateSchemaVO`。
+- **OpenAI 兼容 LLM 接入**：题目级 LLM 辅助和 AI 预审均通过标准 Chat Completions 兼容格式调用，便于替换供应商。
+- **可追溯审计**：关键节点写入审计日志，人工审核时间线过滤高频草稿保存，仅展示领取、提交、AI 预审和人工决策等核心流转。
+- **导出快照**：导出任务保存字段映射快照和文件元数据，后续模板或字段名变化不会影响历史导出复现。
 
-| 角色 | 邮箱 |
+## 测试覆盖
+
+| 类型 | 覆盖 | 结果 |
+| --- | --- | --- |
+| 单元测试 | 前端工具、后端服务、Agent 配置与解析 | 78 个用例通过 |
+| 集成测试 | 任务、数据、模板、标注、AI 预审、人工审核、导出 | 75 个用例通过 |
+| 真实浏览器验收 | Owner -> Labeler -> Agent -> Reviewer -> Export 全链路 | 通过 |
+
+详细报告见：
+
+- `docs/单元测试报告.md`
+- `docs/集成测试报告.md`
+- `docs/真实浏览器全流程验收测试报告.md`
+
+## 部署
+
+生产部署使用 Docker Compose 一键拉起 Web、API、Agent 和 MySQL。部署说明见：
+
+- `docs/生产部署说明.md`
+- `docs/演示环境说明.md`
+
+当前演示环境访问地址：
+
+```text
+http://121.196.209.131:18080/
+```
+
+## 文档
+
+| 文档 | 路径 |
 | --- | --- |
-| Owner | `owner@labelhub.dev` |
-| Labeler | `labeler@labelhub.dev` |
-| Reviewer | `reviewer@labelhub.dev` |
+| 需求分析 | `docs/需求分析文档.md` |
+| Demo 范围 | `docs/Demo范围文档.md` |
+| 系统架构 | `docs/系统架构文档.md` |
+| 数据库设计 | `docs/数据库设计文档.md` |
+| API 文档 | `docs/API文档.md` |
+| 技术选型 | `docs/技术选型基线.md` |
+| 开发计划 | `docs/开发粒度与实施计划.md` |
+| 部署说明 | `docs/生产部署说明.md` |
 
-## uv 缓存目录说明
-
-仓库根目录中的 `.uv-cache/` 与 `uvcache/` 都属于 uv 包缓存目录，已被 `.gitignore` 忽略。
-
-- `uvcache/` 当前包含 `archive-v0`、`wheels-v6`、`simple-v21` 等 uv 标准缓存结构，通常来自曾经设置 `UV_CACHE_DIR=uvcache` 或执行过 `uv --cache-dir uvcache ...`。
-- `.uv-cache/` 当前为空或仅包含缓存标签，通常来自另一次本地缓存目录尝试。
-- 当前 shell 环境没有 `UV_CACHE_DIR`，uv 默认会使用用户目录缓存；若遇到 Windows 权限问题，可临时指定到可写目录，例如 `D:\tmp\labelhub-uv-cache`。
-- 这两个目录不是源代码，不需要提交。
-
-## 文档入口
-
-- [需求分析文档](docs/需求分析文档.md)
-- [Demo 范围文档](docs/Demo范围文档.md)
-- [系统架构文档](docs/系统架构文档.md)
-- [数据库设计文档](docs/数据库设计文档.md)
-- [开发粒度与实施计划](docs/开发粒度与实施计划.md)
-- [技术选型基线](docs/技术选型基线.md)

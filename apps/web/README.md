@@ -4,7 +4,7 @@ React 前端应用，提供 Owner、Labeler、Reviewer 三类角色工作台。
 
 ## 技术栈
 
-React 18、TypeScript、Vite、Ant Design、Formily + Schema 渲染、@dnd-kit/core、Zustand。
+React 18、TypeScript、Vite、Ant Design、自研 TemplateSchemaVO + React Renderer、@dnd-kit/core、Zustand。
 
 ## 页面能力
 

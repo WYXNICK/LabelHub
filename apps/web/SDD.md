@@ -12,7 +12,7 @@
 - 语言：TypeScript
 - 构建工具：Vite
 - UI 组件库：Ant Design
-- 表单内核：Formily + Schema 渲染
+- 动态模板运行时：自研 TemplateSchemaVO + React Renderer + Ant Design 控件
 - 拖拽：@dnd-kit/core
 - 状态管理：Zustand
 - API 协议：REST + OpenAPI/JSON Schema

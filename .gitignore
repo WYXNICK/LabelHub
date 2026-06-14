@@ -55,3 +55,6 @@ docs/LabelHub 数据标注平台 · AI全栈课题实现要求.pdf
 
 # Jupyter notebooks in docs
 docs/*.ipynb
+
+# Local PPT generation artifacts
+LabelHub_Project_Deck/
